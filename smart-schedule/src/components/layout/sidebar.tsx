@@ -28,6 +28,8 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   permission?: string;
+  /** Show for any admin (site_admin or super_admin) regardless of permission */
+  adminOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -42,14 +44,17 @@ const NAV_ITEMS: NavItem[] = [
 
 const ADMIN_ITEMS: NavItem[] = [
   { to: "/admin", icon: Shield, label: "Admin", permission: "admin.users" },
-  { to: "/admin/sites", icon: Building2, label: "Sites", permission: "admin.sites" },
+  { to: "/admin/sites", icon: Building2, label: "Sites", adminOnly: true },
 ];
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { site } = useCurrentSite();
-  const { hasPermission } = usePermissions();
+  const { hasPermission, isAdmin } = usePermissions();
 
   const renderNavItem = (item: NavItem) => {
+    if (item.adminOnly && !isAdmin) {
+      return null;
+    }
     if (item.permission && !hasPermission(item.permission as Parameters<typeof hasPermission>[0])) {
       return null;
     }
