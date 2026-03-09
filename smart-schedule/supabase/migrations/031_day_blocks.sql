@@ -12,28 +12,14 @@ CREATE TABLE IF NOT EXISTS day_blocks (
 -- RLS
 ALTER TABLE day_blocks ENABLE ROW LEVEL SECURITY;
 
--- Read: any authenticated user in the site
+-- Read: anyone with rules.read for the site
 CREATE POLICY "day_blocks_select" ON day_blocks
-  FOR SELECT USING (
-    site_id IN (SELECT site_id FROM site_users WHERE user_id = auth.uid())
-  );
+  FOR SELECT USING (auth.has_permission('rules.read', site_id));
 
--- Insert: site_admin / super_admin only (via app_role in JWT)
+-- Insert: admin only
 CREATE POLICY "day_blocks_insert" ON day_blocks
-  FOR INSERT WITH CHECK (
-    site_id IN (
-      SELECT site_id FROM site_users
-      WHERE user_id = auth.uid()
-        AND role IN ('site_admin', 'super_admin')
-    )
-  );
+  FOR INSERT WITH CHECK (auth.has_permission('admin.settings', site_id));
 
--- Delete: site_admin / super_admin only
+-- Delete: admin only
 CREATE POLICY "day_blocks_delete" ON day_blocks
-  FOR DELETE USING (
-    site_id IN (
-      SELECT site_id FROM site_users
-      WHERE user_id = auth.uid()
-        AND role IN ('site_admin', 'super_admin')
-    )
-  );
+  FOR DELETE USING (auth.has_permission('admin.settings', site_id));
