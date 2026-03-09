@@ -6,6 +6,7 @@ import { SubstitutionMatrix } from "@/components/rules/substitution-matrix";
 import { SubstitutionRuleForm } from "@/components/rules/substitution-rule-form";
 import { SubstitutionGenerationSettings } from "@/components/rules/substitution-generation-settings";
 import { GenerateRulesDialog } from "@/components/rules/generate-rules-dialog";
+import { DayBlocksPanel } from "@/components/rules/day-blocks-panel";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Sparkles } from "lucide-react";
@@ -86,6 +87,9 @@ export function RulesPage() {
           <TabsTrigger value="substitution">
             Substitutions ({substitutionRules.length})
           </TabsTrigger>
+          <TabsTrigger value="day-blocks">
+            Day Blocks
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="schedule" className="mt-4">
@@ -141,6 +145,10 @@ export function RulesPage() {
             }}
           />
           {isAdmin && <SubstitutionGenerationSettings />}
+        </TabsContent>
+
+        <TabsContent value="day-blocks" className="mt-4">
+          <DayBlocksPanel canEdit={canEdit} />
         </TabsContent>
       </Tabs>
 

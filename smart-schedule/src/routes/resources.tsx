@@ -11,17 +11,20 @@ import { RescheduleDialog } from "@/components/resources/reschedule-dialog";
 import { AlertManager } from "@/components/alerts/alert-manager";
 import { PermissionGate } from "@/components/shared/permission-gate";
 import { ScheduleHealthBar } from "@/components/shared/schedule-health-bar";
-import { Wand2 } from "lucide-react";
+import { Wand2, Download } from "lucide-react";
 import { useWeek } from "@/hooks/use-week";
 import { useBatches } from "@/hooks/use-batches";
 import { useResources } from "@/hooks/use-resources";
 import { useResourceBlocks } from "@/hooks/use-resource-blocks";
+import { useDayBlocks } from "@/hooks/use-day-blocks";
 import { useBulkAssignResources } from "@/hooks/use-batch-mutations";
 import { useHealthReport } from "@/hooks/use-health-report";
 import { useAiScans, useTriggerScan } from "@/hooks/use-ai-scans";
 import { useColourGroups, useColourTransitions } from "@/hooks/use-colour-groups";
 import { useSubstitutionRules, useScheduleRules } from "@/hooks/use-rules";
+import { usePermissions } from "@/hooks/use-permissions";
 import { assignBatchToResource } from "@/lib/utils/resource-assignment";
+import { exportBatchesCsv } from "@/lib/utils/csv-export";
 import type { Batch } from "@/types/batch";
 import type { ImportBatch } from "@/hooks/use-import";
 
@@ -46,6 +49,11 @@ export function ResourcesPage() {
     weekEnding: week.weekEndingStr,
   });
 
+  const { data: dayBlocks = [] } = useDayBlocks({
+    weekStart: weekStartStr,
+    weekEnding: week.weekEndingStr,
+  });
+
   const bulkAssign = useBulkAssignResources();
 
   const { report: healthReport, isLoading: healthLoading } = useHealthReport({
@@ -66,6 +74,8 @@ export function ResourcesPage() {
   const { data: colourTransitions = [] } = useColourTransitions();
   const { data: substitutionRules = [] } = useSubstitutionRules();
   const { data: scheduleRules = [] } = useScheduleRules();
+
+  const { hasPermission } = usePermissions();
 
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -173,6 +183,17 @@ export function ResourcesPage() {
         description="Visualise batch assignments across resources for the week"
         actions={
           <div className="flex items-center gap-3">
+            {hasPermission("planning.export") && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => exportBatchesCsv(batches, resources)}
+                disabled={batches.length === 0}
+              >
+                <Download className="mr-1 h-4 w-4" />
+                Export CSV
+              </Button>
+            )}
             {unassignedBatches.length > 0 && (
               <Button
                 size="sm"
@@ -205,6 +226,7 @@ export function ResourcesPage() {
         batches={batches}
         resources={resources}
         blocks={blocks}
+        dayBlocks={dayBlocks}
         weekStart={week.weekStart}
         weekEnding={week.weekEnding}
         isLoading={isLoading}

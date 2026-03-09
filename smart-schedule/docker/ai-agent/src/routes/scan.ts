@@ -43,7 +43,35 @@ scanRouter.post('/scan', async (req: Request, res: Response) => {
     return;
   }
 
-  const result = await runClaudeScan({
+  // Create a pending scan row so we can return 202 immediately
+  const nowIso = new Date().toISOString();
+  const { data: pendingScan, error: createErr } = await supabaseAdmin
+    .from('ai_scans')
+    .insert({
+      site_id: siteId,
+      scan_type: scanType,
+      status: 'pending',
+      triggered_by: siteUserId(user),
+      report: {},
+      created_at: nowIso,
+    })
+    .select('id')
+    .single<{ id: string }>();
+
+  if (createErr || !pendingScan) {
+    res.status(500).json({ error: `Failed to create scan: ${createErr?.message ?? 'unknown'}` });
+    return;
+  }
+
+  // Return 202 immediately — the frontend polls via useAiScans
+  res.status(202).json({
+    scanId: pendingScan.id,
+    status: 'pending',
+    createdAt: nowIso,
+  });
+
+  // Fire scan asynchronously — updates the scan row on completion/failure
+  runClaudeScan({
     supabase: supabaseAdmin,
     supabaseUrl: runtimeConfig.supabaseUrl,
     supabaseServiceKey: runtimeConfig.supabaseServiceKey,
@@ -52,18 +80,17 @@ scanRouter.post('/scan', async (req: Request, res: Response) => {
     triggeredBy: siteUserId(user),
     currentKey: encryptionConfig.currentKey,
     previousKey: encryptionConfig.previousKey,
-  });
-
-  if (!result.success) {
-    res.status(result.credentialError ? 422 : 500).json({
-      error: result.error ?? 'Failed to execute scan',
-      scanId: result.scanId,
-    });
-    return;
-  }
-
-  res.status(201).json({
-    scanId: result.scanId,
-    status: 'completed',
+    existingScanId: pendingScan.id,
+  }).catch((err) => {
+    console.error(`[scan] Async scan ${pendingScan.id} failed:`, err);
+    supabaseAdmin
+      .from('ai_scans')
+      .update({
+        status: 'failed',
+        error_message: err instanceof Error ? err.message : String(err),
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', pendingScan.id)
+      .then(() => {});
   });
 });

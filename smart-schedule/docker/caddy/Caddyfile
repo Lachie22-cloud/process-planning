@@ -41,7 +41,12 @@
 
 	# ── AI Agent: Claude Code integration ────────────────────────
 	handle /ai/* {
-		reverse_proxy ai-agent:3100
+		reverse_proxy ai-agent:3100 {
+			transport http {
+				read_timeout 300s
+				write_timeout 300s
+			}
+		}
 	}
 
 	# ── Frontend: catch-all ──────────────────────────────────────

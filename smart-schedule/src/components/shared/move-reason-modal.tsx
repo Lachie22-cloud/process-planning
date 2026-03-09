@@ -60,7 +60,7 @@ export function MoveReasonModal({
         <DialogHeader>
           <DialogTitle>Move Batch {sapOrder}</DialogTitle>
           <DialogDescription>
-            A reason is required when rescheduling a batch to a different date.
+            A reason is required for this batch move.
           </DialogDescription>
         </DialogHeader>
 

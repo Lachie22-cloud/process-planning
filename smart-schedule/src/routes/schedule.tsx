@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
+import { Download } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { WeekSelector } from "@/components/schedule/week-selector";
 import { FilterBar, type FilterState } from "@/components/schedule/filter-bar";
@@ -9,15 +10,19 @@ import { BatchTable } from "@/components/schedule/batch-table";
 import { BatchDetailSheet } from "@/components/schedule/batch-detail-sheet";
 import { AlertManager } from "@/components/alerts/alert-manager";
 import { PermissionGate } from "@/components/shared/permission-gate";
+import { Button } from "@/components/ui/button";
 import { useWeek } from "@/hooks/use-week";
 import { useBatches } from "@/hooks/use-batches";
 import { useResources } from "@/hooks/use-resources";
+import { usePermissions } from "@/hooks/use-permissions";
+import { exportBatchesCsv } from "@/lib/utils/csv-export";
 import type { Batch } from "@/types/batch";
 
 export function SchedulePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const week = useWeek();
   const { data: resources = [], isLoading: resourcesLoading } = useResources();
+  const { hasPermission } = usePermissions();
   const deepLinkBatchId = searchParams.get("batchId");
 
   const [filters, setFilters] = useState<FilterState>({
@@ -100,7 +105,22 @@ export function SchedulePage() {
       <PageHeader
         title="Master Schedule"
         description="View and manage batch schedules for the current week"
-        actions={<WeekSelector week={week} />}
+        actions={
+          <div className="flex items-center gap-3">
+            {hasPermission("planning.export") && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => exportBatchesCsv(filteredBatches, resources)}
+                disabled={filteredBatches.length === 0}
+              >
+                <Download className="mr-1 h-4 w-4" />
+                Export CSV
+              </Button>
+            )}
+            <WeekSelector week={week} />
+          </div>
+        }
       />
 
       <FilterBar

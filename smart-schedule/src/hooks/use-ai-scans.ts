@@ -76,8 +76,8 @@ export function useAiScans(limit = 10, enabled = true) {
       return (data ?? []).map((row) => mapScan(row as DatabaseRow["ai_scans"]));
     },
     enabled: !!site && enabled,
-    staleTime: 10_000,
-    refetchInterval: enabled ? 15_000 : false,
+    staleTime: 5_000,
+    refetchInterval: enabled ? 5_000 : false,
   });
 }
 
@@ -112,9 +112,13 @@ export function useTriggerScan() {
 
       return (await res.json()) as { scanId: string; status: string; createdAt: string };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["ai_scans", site?.id] });
-      toast.success("Scan triggered successfully");
+      toast.success(
+        data.status === "pending"
+          ? "Scan started — results will appear when complete"
+          : "Scan triggered successfully",
+      );
     },
     onError: (err) => {
       toast.error(err instanceof Error ? err.message : "Failed to trigger scan");

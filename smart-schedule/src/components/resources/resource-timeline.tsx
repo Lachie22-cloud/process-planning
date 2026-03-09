@@ -21,6 +21,7 @@ import { evaluateDropTarget } from "@/lib/utils/rule-evaluator";
 import type { Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import type { ResourceBlock } from "@/types/site";
+import type { DayBlock } from "@/hooks/use-day-blocks";
 import type { PlacementScore } from "@/types/scoring";
 
 type ResourceTab = "mixers" | "dispersers" | "all";
@@ -29,6 +30,7 @@ interface ResourceTimelineProps {
   batches: Batch[];
   resources: Resource[];
   blocks: ResourceBlock[];
+  dayBlocks?: DayBlock[];
   weekStart: Date;
   weekEnding: Date;
   isLoading: boolean;
@@ -51,6 +53,7 @@ export function ResourceTimeline({
   batches,
   resources,
   blocks,
+  dayBlocks = [],
   weekStart,
   weekEnding,
   isLoading,
@@ -122,11 +125,10 @@ export function ResourceTimeline({
     return map;
   }, [batches, filteredResources]);
 
-  // Blocked dates set for quick lookup
+  // Blocked dates set for quick lookup (resource-level blocks)
   const blockedSet = useMemo(() => {
     const set = new Set<string>();
     for (const block of blocks) {
-      // Generate all dates in block range that overlap with our week
       let current = new Date(block.startDate + "T12:00:00");
       const end = new Date(block.endDate + "T12:00:00");
       while (current <= end) {
@@ -137,6 +139,12 @@ export function ResourceTimeline({
     }
     return set;
   }, [blocks]);
+
+  // Day-level blocks (entire day blocked for the site)
+  const dayBlockedSet = useMemo(
+    () => new Set(dayBlocks.map((db) => db.blockDate)),
+    [dayBlocks],
+  );
 
   // Compute drop targets for all cells when a batch is being dragged
   const dropTargets = useMemo(() => {
@@ -155,8 +163,8 @@ export function ResourceTimeline({
           continue;
         }
 
-        // Blocked by resource block — always invalid
-        if (blockedSet.has(key)) {
+        // Blocked by resource block or day block — always invalid
+        if (blockedSet.has(key) || dayBlockedSet.has(date)) {
           targets.set(key, { resourceId: resource.id, date, valid: false });
           continue;
         }
@@ -188,7 +196,7 @@ export function ResourceTimeline({
       }
     }
     return targets;
-  }, [draggedBatch, filteredResources, dates, blockedSet, batchesByResource, enabledRules, colourGroups, colourTransitions]);
+  }, [draggedBatch, filteredResources, dates, blockedSet, dayBlockedSet, batchesByResource, enabledRules, colourGroups, colourTransitions]);
 
   // Completion stats per date (only visible resources)
   const completionByDate = useMemo(() => {
@@ -243,6 +251,12 @@ export function ResourceTimeline({
     setDraggedBatch(null);
   }, []);
 
+  // Production role users must always provide a reason for any move
+  const requiresReasonForAllMoves =
+    hasPermission("batches.schedule") &&
+    !hasPermission("planning.vet") &&
+    !hasPermission("planning.import");
+
   const handleDrop = useCallback(
     (targetResourceId: string, targetDate: string) => {
       if (!draggedBatch) return;
@@ -255,8 +269,8 @@ export function ResourceTimeline({
         return;
       }
 
-      // If date changed, require a reason
-      if (dateChanged) {
+      // If date changed or Production role, require a reason
+      if (dateChanged || requiresReasonForAllMoves) {
         setMoveModal({
           batch: draggedBatch,
           targetResourceId,
@@ -270,7 +284,7 @@ export function ResourceTimeline({
       executeBatchMove(draggedBatch, targetResourceId, targetDate);
       setDraggedBatch(null);
     },
-    [draggedBatch],
+    [draggedBatch, requiresReasonForAllMoves],
   );
 
   const executeBatchMove = useCallback(
@@ -380,8 +394,8 @@ export function ResourceTimeline({
         return;
       }
 
-      // If date changed, require a reason via modal
-      if (dateChanged) {
+      // If date changed or Production role, require a reason via modal
+      if (dateChanged || requiresReasonForAllMoves) {
         setMoveModal({
           batch: movingBatch,
           targetResourceId: resourceId,
@@ -395,7 +409,7 @@ export function ResourceTimeline({
       executeBatchMove(movingBatch, resourceId, date);
       setMovingBatch(null);
     },
-    [movingBatch, executeBatchMove],
+    [movingBatch, executeBatchMove, requiresReasonForAllMoves],
   );
 
   const handleOverlayCancel = useCallback(() => {
@@ -510,6 +524,7 @@ export function ResourceTimeline({
             const date = new Date(dateStr + "T12:00:00");
             const today = isToday(date);
             const weekend = isWeekend(date);
+            const isDayBlocked = dayBlockedSet.has(dateStr);
             const { total, completed } = completionByDate.get(dateStr) ?? { total: 0, completed: 0 };
             const pct = total > 0 ? (completed / total) * 100 : 0;
             return (
@@ -519,6 +534,7 @@ export function ResourceTimeline({
                   "sticky top-0 z-30 border-b border-r px-2 py-2 text-center bg-card",
                   today && "bg-primary/5 ring-1 ring-inset ring-primary/15",
                   weekend && "bg-muted",
+                  isDayBlocked && "bg-destructive/10 line-through",
                 )}
               >
                 <div className="text-xs font-semibold">
@@ -532,6 +548,11 @@ export function ResourceTimeline({
                 >
                   {format(date, "d MMM")}
                 </div>
+                {isDayBlocked && (
+                  <div className="mt-0.5 text-[9px] font-semibold uppercase text-destructive">
+                    Blocked
+                  </div>
+                )}
                 {total > 0 && (
                   <div className="mt-1.5 space-y-0.5">
                     <div className="h-1 w-full rounded-full bg-muted-foreground/20 overflow-hidden">

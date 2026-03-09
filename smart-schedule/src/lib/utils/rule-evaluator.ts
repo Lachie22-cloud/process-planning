@@ -52,7 +52,7 @@ const CHECK_HANDLERS: Record<string, CheckFn> = {
       ctx.targetResource.minCapacity != null &&
       ctx.batch.batchVolume < ctx.targetResource.minCapacity
     ) {
-      return { reject: `Under capacity (${ctx.targetResource.minCapacity.toLocaleString()}L min)` };
+      return { warn: `Under capacity (${ctx.targetResource.minCapacity.toLocaleString()}L min)` };
     }
     return null;
   },
@@ -70,6 +70,28 @@ const CHECK_HANDLERS: Record<string, CheckFn> = {
       return { reject: "Resource is inactive" };
     }
     return null;
+  },
+
+  chemical_base_match: (ctx) => {
+    const resourceBase = ctx.targetResource.chemicalBase?.toLowerCase();
+    if (!resourceBase) return null;
+
+    // Infer batch chemical base from material description
+    const desc = (ctx.batch.materialDescription ?? "").toUpperCase();
+    let batchBase: string | null = null;
+
+    if (/THINNER|ENAMEL|EPOXY|ALKYD|URETHANE|SOLVENT/.test(desc)) {
+      batchBase = "solvent";
+    } else if (/WEATHERSHIELD|WASH.?&.?WEAR|ACRYLIC|LATEX|WATER/.test(desc)) {
+      batchBase = "water";
+    }
+
+    if (!batchBase) return null;
+    if (batchBase === resourceBase) return null;
+
+    return {
+      reject: `Chemical base mismatch: batch is ${batchBase}, resource is ${resourceBase}`,
+    };
   },
 
   colour_transition_allowed: (ctx) => {

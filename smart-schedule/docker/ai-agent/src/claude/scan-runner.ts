@@ -82,6 +82,8 @@ export interface RunClaudeScanOptions {
   scheduledTaskId?: string | null;
   currentKey: string;
   previousKey?: string | null;
+  /** If provided, reuse this existing scan row instead of creating a new one. */
+  existingScanId?: string | null;
 }
 
 export interface RunClaudeScanResult {
@@ -123,26 +125,36 @@ function normalizeMessages(messages: ClaudeMessage[]): Array<Record<string, unkn
 
 export async function runClaudeScan(opts: RunClaudeScanOptions): Promise<RunClaudeScanResult> {
   const nowIso = new Date().toISOString();
+  let scanId: string;
 
-  const { data: createdScan, error: createErr } = await opts.supabase
-    .from('ai_scans')
-    .insert({
-      site_id: opts.siteId,
-      scan_type: opts.scanType,
-      status: 'running',
-      triggered_by: opts.triggeredBy ?? null,
-      scheduled_task_id: opts.scheduledTaskId ?? null,
-      report: {},
-      started_at: nowIso,
-    })
-    .select('id')
-    .single<{ id: string }>();
+  if (opts.existingScanId) {
+    // Reuse existing scan row (created by the async endpoint) — mark as running
+    scanId = opts.existingScanId;
+    await opts.supabase
+      .from('ai_scans')
+      .update({ status: 'running', started_at: nowIso })
+      .eq('id', scanId);
+  } else {
+    // Create a new scan row (used by scheduled tasks / direct callers)
+    const { data: createdScan, error: createErr } = await opts.supabase
+      .from('ai_scans')
+      .insert({
+        site_id: opts.siteId,
+        scan_type: opts.scanType,
+        status: 'running',
+        triggered_by: opts.triggeredBy ?? null,
+        scheduled_task_id: opts.scheduledTaskId ?? null,
+        report: {},
+        started_at: nowIso,
+      })
+      .select('id')
+      .single<{ id: string }>();
 
-  if (createErr || !createdScan) {
-    return { success: false, error: `Failed to create scan: ${createErr?.message ?? 'unknown'}` };
+    if (createErr || !createdScan) {
+      return { success: false, error: `Failed to create scan: ${createErr?.message ?? 'unknown'}` };
+    }
+    scanId = createdScan.id;
   }
-
-  const scanId = createdScan.id;
 
   try {
     const cred = await resolveSiteCredential({
