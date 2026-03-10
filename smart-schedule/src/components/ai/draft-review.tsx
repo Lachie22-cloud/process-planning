@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,8 +26,17 @@ import {
   Clock,
   Loader2,
   Sparkles,
+  Crosshair,
+  ChevronLeft,
+  ChevronRight,
+  ArrowRight,
 } from "lucide-react";
+import { format, parseISO } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useResources } from "@/hooks/use-resources";
+import { useBatches } from "@/hooks/use-batches";
+import { useSpotlight } from "@/contexts/spotlight-context";
 import {
   useAiDrafts,
   useApproveDraft,
@@ -36,7 +45,6 @@ import {
   type AiDraft,
   type DraftStatus,
 } from "@/hooks/use-ai-drafts";
-import { formatDistanceToNow } from "date-fns";
 
 const DRAFT_TYPE_LABELS: Record<string, string> = {
   schedule_change: "Schedule Change",
@@ -73,13 +81,22 @@ function draftStatusBadge(status: DraftStatus) {
   }
 }
 
+/** Format ISO date as DD/MM/YYYY */
+function formatDate(dateStr: string): string {
+  try {
+    return format(parseISO(dateStr), "dd/MM/yyyy");
+  } catch {
+    return dateStr;
+  }
+}
+
 export function DraftReviewPanel({ compactMode = false }: { compactMode?: boolean } = {}) {
   const { hasPermission } = usePermissions();
   const canViewDrafts = hasPermission("planning.ai");
   const canVet = hasPermission("planning.vet");
 
   const { data: drafts = [], isLoading } = useAiDrafts();
-  const [selectedDraft, setSelectedDraft] = useState<AiDraft | null>(null);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
 
   if (!canViewDrafts) return null;
 
@@ -88,6 +105,14 @@ export function DraftReviewPanel({ compactMode = false }: { compactMode?: boolea
 
   // In compact mode, hide entirely when there are no pending drafts
   if (compactMode && pendingDrafts.length === 0) return null;
+
+  // Build full ordered list for prev/next navigation
+  const orderedDrafts = [...pendingDrafts, ...otherDrafts];
+
+  const handleSelect = (draft: AiDraft) => {
+    const idx = orderedDrafts.findIndex((d) => d.id === draft.id);
+    setSelectedIdx(idx >= 0 ? idx : null);
+  };
 
   return (
     <Card>
@@ -124,7 +149,7 @@ export function DraftReviewPanel({ compactMode = false }: { compactMode?: boolea
                       key={draft.id}
                       draft={draft}
                       canVet={canVet}
-                      onSelect={() => setSelectedDraft(draft)}
+                      onSelect={() => handleSelect(draft)}
                     />
                   ))}
                 </div>
@@ -143,7 +168,7 @@ export function DraftReviewPanel({ compactMode = false }: { compactMode?: boolea
                         key={draft.id}
                         draft={draft}
                         canVet={canVet}
-                        onSelect={() => setSelectedDraft(draft)}
+                        onSelect={() => handleSelect(draft)}
                       />
                     ))}
                   </div>
@@ -154,11 +179,14 @@ export function DraftReviewPanel({ compactMode = false }: { compactMode?: boolea
         )}
       </CardContent>
 
-      {selectedDraft && (
+      {selectedIdx !== null && orderedDrafts[selectedIdx] && (
         <DraftDetailDialog
-          draft={selectedDraft}
+          draft={orderedDrafts[selectedIdx]}
           canVet={canVet}
-          onClose={() => setSelectedDraft(null)}
+          currentIndex={selectedIdx}
+          totalCount={orderedDrafts.length}
+          onNavigate={setSelectedIdx}
+          onClose={() => setSelectedIdx(null)}
         />
       )}
     </Card>
@@ -209,26 +237,156 @@ function DraftCard({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Human-readable change summary                                      */
+/* ------------------------------------------------------------------ */
+
+interface ScheduleChange {
+  batch_id: string;
+  plan_resource_id?: string;
+  plan_date?: string;
+}
+
+function ChangesSummary({
+  payload,
+  onSpotlight,
+}: {
+  payload: unknown;
+  onSpotlight: (batchId: string, resourceId?: string) => void;
+}) {
+  const { data: resources = [] } = useResources();
+  const { data: batches = [] } = useBatches();
+
+  const resourceMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of resources) {
+      map.set(r.id, r.displayName ?? r.resourceCode);
+    }
+    return map;
+  }, [resources]);
+
+  const batchMap = useMemo(() => {
+    const map = new Map<string, { sapOrder: string; description: string | null; currentResource: string | null; currentDate: string | null }>();
+    for (const b of batches) {
+      map.set(b.id, {
+        sapOrder: b.sapOrder,
+        description: b.materialDescription,
+        currentResource: b.planResourceId,
+        currentDate: b.planDate,
+      });
+    }
+    return map;
+  }, [batches]);
+
+  // Parse changes from payload
+  const changes: ScheduleChange[] = useMemo(() => {
+    if (!payload || typeof payload !== "object") return [];
+    const p = payload as Record<string, unknown>;
+    if (Array.isArray(p.changes)) return p.changes as ScheduleChange[];
+    return [];
+  }, [payload]);
+
+  if (changes.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground italic">
+        No schedule changes in this draft.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-medium text-muted-foreground">
+        Proposed Changes ({changes.length})
+      </p>
+      {changes.map((change, i) => {
+        const batch = batchMap.get(change.batch_id);
+        const targetResource = change.plan_resource_id
+          ? resourceMap.get(change.plan_resource_id) ?? change.plan_resource_id
+          : null;
+        const currentResource = batch?.currentResource
+          ? resourceMap.get(batch.currentResource) ?? batch.currentResource
+          : "Unassigned";
+
+        return (
+          <div
+            key={i}
+            className="rounded-md border bg-muted/30 p-3"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">
+                  {batch?.sapOrder ?? "Unknown batch"}
+                </p>
+                {batch?.description && (
+                  <p className="text-xs text-muted-foreground truncate">
+                    {batch.description}
+                  </p>
+                )}
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 shrink-0"
+                    onClick={() => onSpotlight(change.batch_id, change.plan_resource_id)}
+                  >
+                    <Crosshair className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Locate on timeline</TooltipContent>
+              </Tooltip>
+            </div>
+
+            <div className="mt-2 flex items-center gap-2 text-xs">
+              <span className="rounded bg-muted px-2 py-0.5">
+                {currentResource}
+                {batch?.currentDate ? ` \u00b7 ${formatDate(batch.currentDate)}` : ""}
+              </span>
+              <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+              <span className="rounded bg-primary/10 text-primary px-2 py-0.5 font-medium">
+                {targetResource ?? "Same resource"}
+                {change.plan_date ? ` \u00b7 ${formatDate(change.plan_date)}` : ""}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Draft Detail Dialog                                                */
 /* ------------------------------------------------------------------ */
 
 function DraftDetailDialog({
   draft,
   canVet,
+  currentIndex,
+  totalCount,
+  onNavigate,
   onClose,
 }: {
   draft: AiDraft;
   canVet: boolean;
+  currentIndex: number;
+  totalCount: number;
+  onNavigate: (idx: number) => void;
   onClose: () => void;
 }) {
   const [comment, setComment] = useState("");
   const approve = useApproveDraft();
   const reject = useRejectDraft();
   const apply = useApplyDraft();
+  const { spotlightBatch } = useSpotlight();
 
   const isPending = draft.status === "pending";
   const isApproved = draft.status === "approved";
   const isActing = approve.isPending || reject.isPending || apply.isPending;
+
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex < totalCount - 1;
 
   const handleApprove = () => {
     approve.mutate(
@@ -249,15 +407,46 @@ function DraftDetailDialog({
     apply.mutate(draft.id, { onSuccess: onClose });
   };
 
+  const handleSpotlight = (batchId: string, resourceId?: string) => {
+    spotlightBatch(batchId, resourceId ?? null);
+    onClose();
+  };
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileCheck className="h-5 w-5" />
-            {draft.title}
-          </DialogTitle>
-          <DialogDescription>
+          <div className="flex items-center justify-between gap-2">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <FileCheck className="h-5 w-5" />
+              Draft Review
+            </DialogTitle>
+            {/* Navigation */}
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {currentIndex + 1} / {totalCount}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 w-7 p-0"
+                disabled={!hasPrev}
+                onClick={() => onNavigate(currentIndex - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 w-7 p-0"
+                disabled={!hasNext}
+                onClick={() => onNavigate(currentIndex + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <DialogDescription className="flex items-center gap-2">
             {DRAFT_TYPE_LABELS[draft.draftType] ?? draft.draftType}
             {" \u00b7 "}
             {draftStatusBadge(draft.status)}
@@ -269,15 +458,13 @@ function DraftDetailDialog({
             <p className="text-sm text-muted-foreground">{draft.description}</p>
           )}
 
-          {/* Payload preview */}
-          <div>
-            <p className="mb-1 text-xs font-medium text-muted-foreground">
-              Payload
-            </p>
-            <pre className="max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs">
-              {JSON.stringify(draft.payload, null, 2)}
-            </pre>
-          </div>
+          {/* Human-readable changes */}
+          <TooltipProvider>
+            <ChangesSummary
+              payload={draft.payload}
+              onSpotlight={handleSpotlight}
+            />
+          </TooltipProvider>
 
           {/* Review info */}
           {draft.reviewedBy && (
@@ -364,7 +551,7 @@ function DraftDetailDialog({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Applies the draft's changes to the live system
+                  Applies the draft's changes to the live schedule
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
