@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Activity, AlertTriangle, AlertCircle, Info, Sparkles, Loader2 } from "lucide-react";
@@ -13,10 +12,10 @@ import type { AiScan } from "@/hooks/use-ai-scans";
 /* ------------------------------------------------------------------ */
 
 function scoreColour(score: number): string {
-  if (score >= 80) return "text-green-700 bg-green-100 border-green-300";
-  if (score >= 60) return "text-yellow-700 bg-yellow-100 border-yellow-300";
-  if (score >= 40) return "text-orange-700 bg-orange-100 border-orange-300";
-  return "text-red-700 bg-red-100 border-red-300";
+  if (score >= 80) return "text-green-700";
+  if (score >= 60) return "text-yellow-700";
+  if (score >= 40) return "text-orange-700";
+  return "text-red-700";
 }
 
 function scoreLabel(score: number): string {
@@ -113,47 +112,45 @@ export function ScheduleHealthBar({
         <button
           type="button"
           onClick={() => setPanelOpen(true)}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors hover:opacity-80",
-            scoreColour(report.score),
-          )}
+          className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-muted/50"
         >
-          <Activity className="h-4 w-4" />
-          {report.score}/100 &middot; {scoreLabel(report.score)}
+          <Activity className={cn("h-4 w-4", scoreColour(report.score))} />
+          <span className={scoreColour(report.score)}>{report.score}/100</span>
+          <span className="text-muted-foreground font-normal">&middot; {scoreLabel(report.score)}</span>
         </button>
 
         {/* Issue count pills */}
         {criticalCount > 0 && (
-          <Badge
-            variant="destructive"
-            className="cursor-pointer gap-1"
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted/50"
             onClick={() => setPanelOpen(true)}
           >
-            <AlertCircle className="h-3 w-3" />
-            {criticalCount} critical
-          </Badge>
+            <AlertCircle className="h-3 w-3 text-red-600" />
+            <span>{criticalCount} critical</span>
+          </button>
         )}
 
         {warningCount > 0 && (
-          <Badge
-            variant="outline"
-            className="cursor-pointer gap-1 border-yellow-400 bg-yellow-50 text-yellow-700"
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted/50"
             onClick={() => setPanelOpen(true)}
           >
-            <AlertTriangle className="h-3 w-3" />
-            {warningCount} warning{warningCount !== 1 ? "s" : ""}
-          </Badge>
+            <AlertTriangle className="h-3 w-3 text-yellow-600" />
+            <span>{warningCount} warning{warningCount !== 1 ? "s" : ""}</span>
+          </button>
         )}
 
         {infoCount > 0 && (
-          <Badge
-            variant="outline"
-            className="cursor-pointer gap-1 text-muted-foreground"
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50"
             onClick={() => setPanelOpen(true)}
           >
             <Info className="h-3 w-3" />
-            {infoCount} info
-          </Badge>
+            <span>{infoCount} info</span>
+          </button>
         )}
 
         {report.issues.length === 0 && (
