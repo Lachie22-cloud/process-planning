@@ -150,7 +150,10 @@ export function ResourceLane({
   return (
     <div className="contents">
       {/* Resource label cell */}
-      <div className="sticky left-0 z-20 flex flex-col justify-center border-b border-r bg-card px-3 py-2">
+      <div className={cn(
+        "sticky left-0 z-20 flex flex-col justify-center border-b border-r bg-card px-3 py-2",
+        spotlightTargetResourceId === resource.id && "ring-2 ring-inset ring-amber-400/50",
+      )}>
         <span className="font-semibold text-sm truncate">
           {resource.displayName ?? resource.resourceCode}
         </span>
