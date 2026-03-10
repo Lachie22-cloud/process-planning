@@ -349,6 +349,7 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
   const zp40Data = extractZp40Data(files);
   const zw04Data = extractZw04Data(files);
   const mb52Data = extractMb52Data(files);
+  const sohData = extractSohData(files);
 
   const { headers, rows } = bulkFile;
   const seen = new Set<string>();
@@ -404,10 +405,14 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     const mb52 = lookupByMaterial(mb52Data, materialCode, bulkCode);
     const safetyStock = mb52?.safetyStock ?? null;
 
-    // Derive material shortage: stock out or critical coverage
+    // Cross-reference with SOH report (stock on hand for raw materials)
+    const soh = lookupByMaterial(sohData, materialCode, bulkCode);
+
+    // Derive material shortage: stock out, critical coverage, or zero SOH
     const materialShortage =
       (availableStock != null && availableStock <= 0) ||
-      (stockCover != null && stockCover < 15);
+      (stockCover != null && stockCover < 15) ||
+      (soh != null && soh.stock <= 0);
 
     // SAP resource assignment columns
     const sapMixerResource = rowValue(row, headers, "mixer resource", "mixer") ?? null;
