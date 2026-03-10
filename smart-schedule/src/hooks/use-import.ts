@@ -15,8 +15,10 @@ export type SapFileType =
   | "zp40"
   | "zw04"
   | "mb52"
+  | "soh"
   | "fill_components"
   | "bulk_components"
+  | "ibp_forecast"
   | "unknown";
 
 export interface ParsedFile {
@@ -57,6 +59,7 @@ export type ImportMode = "replace" | "update" | "merge";
 
 function detectFileType(headers: string[]): SapFileType {
   const set = new Set(headers.map((h) => h.toLowerCase().trim()));
+  const arr = [...set];
 
   // Bulk Data (SAP production order export with mixer/dispersion columns)
   if (
@@ -65,6 +68,10 @@ function detectFileType(headers: string[]): SapFileType {
     (set.has("ipt") && set.has("colgrp"))
   )
     return "bulk_data";
+
+  // COOIS – generic production order list (no mixer columns) — before ZP40/ZW04
+  if (set.has("order") && set.has("material number") && set.has("basic start date"))
+    return "coois";
 
   // ZP40 – Planning / Stock Coverage report
   if (set.has("planning material") || set.has("stock cover") || set.has("available stock"))
@@ -76,41 +83,56 @@ function detectFileType(headers: string[]): SapFileType {
 
   // Requirements / BOM components report (combined bulk + fill BOM lines)
   if (
-    [...set].some((h) => h.includes("requirement quantity")) &&
-    [...set].some((h) => h.includes("requirement date"))
+    arr.some((h) => h.includes("requirement quantity")) &&
+    arr.some((h) => h.includes("requirement date"))
   )
     return "fill_components";
+
+  // SOH Report — has Unrestricted + Base Unit of Measure but NOT plant columns
+  // (distinguishes from MB52 which has Plant/Plnt/Name 1)
+  if (
+    set.has("unrestricted") &&
+    arr.some((h) => h.includes("base unit")) &&
+    !set.has("plnt") &&
+    !set.has("plant") &&
+    !set.has("name 1")
+  )
+    return "soh";
 
   // Fill Data (filled-product orders with pack size / batch columns)
   if (
     set.has("pck size") ||
-    (set.has("batch") && [...set].some((h) => h.includes("total order quantity")))
+    (set.has("batch") && arr.some((h) => h.includes("total order quantity")))
   )
     return "fill_data";
 
-  // COOIS – generic production order list (no mixer columns)
-  if (set.has("order") && set.has("material number") && set.has("basic start date"))
-    return "coois";
-
   // MB52 – Plant-level stock (has plant column)
   if (
-    (set.has("unrestricted") || [...set].some((h) => h.includes("unrestricted"))) &&
-    (set.has("plnt") || set.has("name 1"))
+    (set.has("unrestricted") || arr.some((h) => h.includes("unrestricted"))) &&
+    (set.has("plnt") || set.has("plant") || set.has("name 1"))
   )
     return "mb52";
+
+  // IBP Sales & Forecast (QF00) — has product/location/time period columns
+  if (
+    set.has("product id") &&
+    set.has("time periods") &&
+    (set.has("actuals qty") || set.has("demand released"))
+  )
+    return "ibp_forecast";
 
   // Bulk Components BOM
   if (
     set.has("item component list") ||
     set.has("pegged requirement") ||
-    (set.has("order") && [...set].some((h) => h.includes("requirement quantity")))
+    (set.has("order") && arr.some((h) => h.includes("requirement quantity")))
   )
     return "bulk_components";
 
   // Fallback: if it has order + material columns, treat as bulk
   if (
-    (set.has("order") || [...set].some((h) => h.includes("order"))) &&
-    (set.has("material") || [...set].some((h) => h.includes("material")))
+    (set.has("order") || arr.some((h) => h.includes("order"))) &&
+    (set.has("material") || arr.some((h) => h.includes("material")))
   )
     return "bulk_data";
 
@@ -251,6 +273,39 @@ function extractMb52Data(files: ParsedFile[]): Map<string, Mb52Record> {
 
     if (!map.has(material)) {
       map.set(material, { safetyStock });
+    }
+  }
+  return map;
+}
+
+/* ------------------------------------------------------------------ */
+/*  SOH Report extraction                                              */
+/* ------------------------------------------------------------------ */
+
+interface SohRecord {
+  stock: number;
+  description: string;
+}
+
+function extractSohData(files: ParsedFile[]): Map<string, SohRecord> {
+  const map = new Map<string, SohRecord>();
+  const sohFile = files.find((f) => f.type === "soh");
+  if (!sohFile) return map;
+
+  const { headers, rows } = sohFile;
+  for (const row of rows) {
+    const material = rowValue(row, headers, "material");
+    if (!material) continue;
+
+    const stock = rowNumeric(row, headers, "unrestricted") ?? 0;
+    const description = rowValue(row, headers, "material description", "description") ?? "";
+
+    // Accumulate stock across rows for the same material
+    const existing = map.get(material);
+    if (existing) {
+      existing.stock += stock;
+    } else {
+      map.set(material, { stock, description });
     }
   }
   return map;

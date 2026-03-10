@@ -21,8 +21,10 @@ const FILE_TYPE_LABELS: Record<SapFileType, string> = {
   zp40: "ZP40",
   zw04: "ZW04",
   mb52: "MB52",
+  soh: "SOH Report",
   fill_components: "Fill Components",
   bulk_components: "Bulk Components",
+  ibp_forecast: "IBP Forecast",
   unknown: "Unknown",
 };
 
@@ -30,9 +32,11 @@ const FILE_TYPE_LABELS: Record<SapFileType, string> = {
 const EXPECTED_COLUMNS: Partial<Record<SapFileType, string[]>> = {
   bulk_data: ["Order", "Material", "Basic start date", "Total order quantity", "ColGrp"],
   zp40: ["Planning material", "Material", "Stock cover", "Available stock", "Safety stock"],
-  zw04: ["Material", "PO.Deliv.Dt", "Remain.Qty"],
-  mb52: ["Material", "Unrestricted", "Plnt"],
+  zw04: ["Material", "PO.Deliv.Dt"],
+  mb52: ["Material", "Unrestricted"],
+  soh: ["Material", "Unrestricted", "Base Unit of Measure"],
   fill_data: ["Order", "Material", "PCK Size", "Total order quantity"],
+  ibp_forecast: ["Product ID", "Time Periods", "Actuals Qty"],
 };
 
 function getMissingColumns(file: ParsedFile): string[] {
@@ -107,7 +111,7 @@ export function FileUpload({
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 Accepts .xlsx, .xls, .csv — Bulk Data, Fill Data, COOIS, ZP40,
-                ZW04, MB52
+                ZW04, MB52, SOH Report, Requirements, IBP Forecast
               </p>
             </>
           )}
