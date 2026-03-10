@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Activity, AlertTriangle, AlertCircle, Info, Sparkles } from "lucide-react";
+import { Activity, AlertTriangle, AlertCircle, Info, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { HealthReportPanel } from "./health-report-panel";
 import type { HealthReport } from "@/types/scoring";
@@ -23,6 +23,30 @@ function scoreLabel(score: number): string {
   if (score >= 60) return "Fair";
   if (score >= 40) return "Poor";
   return "Critical";
+}
+
+/* ------------------------------------------------------------------ */
+/*  Elapsed timer hook                                                 */
+/* ------------------------------------------------------------------ */
+
+function useElapsedSeconds(active: boolean): number {
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (!active) {
+      setElapsed(0);
+      return;
+    }
+    startRef.current = Date.now();
+    setElapsed(0);
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [active]);
+
+  return elapsed;
 }
 
 /* ------------------------------------------------------------------ */
@@ -49,6 +73,17 @@ export function ScheduleHealthBar({
   onSpotlightBatch,
 }: ScheduleHealthBarProps) {
   const [panelOpen, setPanelOpen] = useState(false);
+  const elapsed = useElapsedSeconds(!!isAnalysing);
+
+  // Auto-open panel when scan completes
+  const wasAnalysingRef = useRef(false);
+  useEffect(() => {
+    if (wasAnalysingRef.current && !isAnalysing) {
+      // Scan just finished — auto-open the report panel
+      setPanelOpen(true);
+    }
+    wasAnalysingRef.current = !!isAnalysing;
+  }, [isAnalysing]);
 
   if (isLoading) {
     return (
@@ -124,17 +159,26 @@ export function ScheduleHealthBar({
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Run Analysis button */}
+        {/* Run Analysis button / progress indicator */}
         {onRunAnalysis && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onRunAnalysis}
-            disabled={isAnalysing}
-          >
-            <Sparkles className="mr-1 h-4 w-4" />
-            {isAnalysing ? "Analysing…" : "Run Analysis"}
-          </Button>
+          isAnalysing ? (
+            <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-1.5">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span className="text-sm font-medium text-primary">Analysing schedule...</span>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {elapsed}s
+              </span>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onRunAnalysis}
+            >
+              <Sparkles className="mr-1 h-4 w-4" />
+              Run Analysis
+            </Button>
+          )
         )}
       </div>
 

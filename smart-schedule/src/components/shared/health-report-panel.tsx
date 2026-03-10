@@ -1,4 +1,5 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import {
   Sheet,
   SheetContent,
@@ -11,6 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   AlertCircle,
   AlertTriangle,
   Info,
@@ -19,6 +25,8 @@ import {
   CheckCircle2,
   Bot,
   FileText,
+  Crosshair,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/ui/cn";
@@ -44,6 +52,18 @@ interface ParsedAiAnalysis {
   healthReport: HealthReport | null;
   /** When the scan was generated */
   generatedAt: string;
+}
+
+/** Strip emoji and XML-like tags from Claude's narrative output */
+function cleanNarrative(text: string): string {
+  return text
+    // Strip emoji unicode ranges
+    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{2700}-\u{27BF}]/gu, "")
+    // Strip XML-like tags (e.g. <create_draft>, </draft_type>)
+    .replace(/<\/?[a-z_]+>/gi, "")
+    // Collapse excessive blank lines
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function parseAiScanReport(raw: unknown): ParsedAiAnalysis | null {
@@ -134,10 +154,6 @@ function scoreColourClass(score: number): string {
 /**
  * Determines whether an issue fix is high-impact and should create a draft
  * rather than performing a direct batch move.
- *
- * High-impact criteria:
- * - Critical severity always creates a draft
- * - Warning severity with a resource change creates a draft
  */
 function isHighImpact(issue: HealthIssue): boolean {
   if (issue.severity === "critical") return true;
@@ -154,7 +170,7 @@ function isHighImpact(issue: HealthIssue): boolean {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Issue row with Apply Fix button                                    */
+/*  Issue row with action buttons                                      */
 /* ------------------------------------------------------------------ */
 
 interface IssueRowProps {
@@ -162,75 +178,147 @@ interface IssueRowProps {
   onApplyFix: (issue: HealthIssue) => void;
   onSpotlight?: (batchId: string, targetResourceId?: string | null) => void;
   isApplying: boolean;
-  /** Whether this fix will create a draft (shown as hint) */
   willCreateDraft: boolean;
+  /** Per-issue completion state */
+  completionState?: "success" | "draft_created" | "error" | null;
 }
 
-function IssueRow({ issue, onApplyFix, onSpotlight, isApplying, willCreateDraft }: IssueRowProps) {
+function IssueRow({
+  issue,
+  onApplyFix,
+  onSpotlight,
+  isApplying,
+  willCreateDraft,
+  completionState,
+}: IssueRowProps) {
+  const [confirming, setConfirming] = useState(false);
   const cfg = SEVERITY_CONFIG[issue.severity];
   const Icon = cfg.icon;
   const canSpotlight = !!issue.batchId && !!onSpotlight;
 
   return (
-    <div
-      className={cn(
-        "flex items-start gap-3 rounded-md border p-3",
-        cfg.bg,
-        canSpotlight && "cursor-pointer hover:ring-2 hover:ring-primary/30 transition-shadow",
-      )}
-      onClick={() => {
-        if (canSpotlight) {
-          onSpotlight(issue.batchId, issue.suggestedAction?.targetResourceId ?? null);
-        }
-      }}
-    >
+    <div className={cn("flex items-start gap-3 rounded-md border p-3", cfg.bg)}>
       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", cfg.colour)} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <Badge variant={cfg.badge} className="text-xs">
             {ISSUE_TYPE_LABELS[issue.type]}
           </Badge>
+
+          {/* Dedicated locate button */}
           {canSpotlight && (
-            <span className="text-[10px] text-muted-foreground">Click to locate</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center h-5 w-5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSpotlight!(issue.batchId, issue.suggestedAction?.targetResourceId ?? null);
+                  }}
+                  aria-label="Locate batch on timeline"
+                >
+                  <Crosshair className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Locate on timeline</TooltipContent>
+            </Tooltip>
           )}
         </div>
+
         <p className="mt-1 text-sm">{issue.message}</p>
-        <div className="mt-2 flex items-center gap-2">
-          {issue.suggestedAction ? (
-            <>
-              <ArrowRight className="h-3 w-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">
-                {issue.suggestedAction.description}
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="ml-auto h-7 text-xs"
-                onClick={() => onApplyFix(issue)}
-                disabled={isApplying}
-              >
-                {willCreateDraft ? (
-                  <>
-                    <FileText className="mr-1 h-3 w-3" />
-                    Create Draft
-                  </>
+
+        {/* Completion feedback (shown after action) */}
+        {completionState === "success" && (
+          <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-600 animate-in fade-in duration-300">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Batch moved successfully
+          </div>
+        )}
+        {completionState === "draft_created" && (
+          <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-blue-600 animate-in fade-in duration-300">
+            <FileText className="h-3.5 w-3.5" />
+            Draft created — review in Drafts panel
+          </div>
+        )}
+        {completionState === "error" && (
+          <div className="mt-2 text-xs font-medium text-red-600 animate-in fade-in duration-300">
+            Action failed — check the error notification
+          </div>
+        )}
+
+        {/* Action buttons (hidden after completion) */}
+        {!completionState && (
+          <div className="mt-2 flex items-center gap-2">
+            {issue.suggestedAction ? (
+              <>
+                <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">
+                  {issue.suggestedAction.description}
+                </span>
+
+                {/* Inline confirmation for direct moves */}
+                {!willCreateDraft && confirming ? (
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <span className="text-[10px] text-muted-foreground">Confirm move?</span>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirming(false);
+                        onApplyFix(issue);
+                      }}
+                      disabled={isApplying}
+                    >
+                      Yes, move
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirming(false);
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
                 ) : (
-                  "Apply Fix"
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ml-auto h-7 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (willCreateDraft) {
+                        onApplyFix(issue);
+                      } else {
+                        setConfirming(true);
+                      }
+                    }}
+                    disabled={isApplying}
+                  >
+                    {willCreateDraft ? (
+                      <>
+                        <FileText className="mr-1 h-3 w-3" />
+                        Create Draft
+                      </>
+                    ) : (
+                      "Move Batch"
+                    )}
+                  </Button>
                 )}
-              </Button>
-            </>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              className="ml-auto h-7 text-xs"
-              disabled
-              title="No automatic fix available"
-            >
-              Apply Fix
-            </Button>
-          )}
-        </div>
+              </>
+            ) : (
+              <span className="ml-auto text-[10px] text-muted-foreground italic">
+                No automatic fix available
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -241,6 +329,8 @@ function IssueRow({ issue, onApplyFix, onSpotlight, isApplying, willCreateDraft 
 /* ------------------------------------------------------------------ */
 
 function AiAnalysisCard({ narrative, generatedAt }: { narrative: string; generatedAt: string }) {
+  const cleaned = useMemo(() => cleanNarrative(narrative), [narrative]);
+
   return (
     <Card className="border-purple-200 bg-purple-50/50">
       <CardHeader className="pb-3">
@@ -250,12 +340,8 @@ function AiAnalysisCard({ narrative, generatedAt }: { narrative: string; generat
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="prose prose-sm max-w-none text-sm text-muted-foreground">
-          {narrative.split("\n\n").map((paragraph, idx) => (
-            <p key={idx} className="mb-2 last:mb-0">
-              {paragraph}
-            </p>
-          ))}
+        <div className="prose prose-sm max-w-none text-sm text-muted-foreground [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-medium [&_ul]:mt-1 [&_ol]:mt-1 [&_li]:mt-0.5">
+          <ReactMarkdown>{cleaned}</ReactMarkdown>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
           AI scan completed {new Date(generatedAt).toLocaleString()}
@@ -327,6 +413,9 @@ export function HealthReportPanel({
   const recordMovement = useRecordMovement();
   const createDraft = useCreateDraft();
 
+  // Track per-issue completion state
+  const [completions, setCompletions] = useState<Map<string, "success" | "draft_created" | "error">>(new Map());
+
   // Parse AI scan report if available
   const aiAnalysis = useMemo(() => parseAiScanReport(aiScanReport), [aiScanReport]);
 
@@ -336,22 +425,26 @@ export function HealthReportPanel({
   const handleSpotlight = useCallback(
     (batchId: string, targetResourceId?: string | null) => {
       onSpotlightBatch?.(batchId, targetResourceId);
-      onOpenChange(false); // Close the panel so the timeline is visible
+      onOpenChange(false);
     },
     [onSpotlightBatch, onOpenChange],
   );
 
+  const issueKey = (issue: HealthIssue, idx: number) =>
+    `${issue.batchId}-${issue.type}-${idx}`;
+
   const handleApplyFix = useCallback(
-    (issue: HealthIssue) => {
+    (issue: HealthIssue, idx: number) => {
       const action = issue.suggestedAction;
       if (!action) return;
 
+      const key = issueKey(issue, idx);
+
       if (isHighImpact(issue)) {
-        // High-impact: create a draft for review instead of direct mutation
         createDraft.mutate(
           {
             draftType: "schedule_change",
-            title: `Health fix: ${ISSUE_TYPE_LABELS[issue.type]} — ${issue.batchId}`,
+            title: `Health fix: ${ISSUE_TYPE_LABELS[issue.type]} \u2014 ${issue.batchId}`,
             description: `${issue.message}. Suggested: move to ${action.targetResourceId} on ${action.targetDate} (score ${action.placementScore}).`,
             payload: {
               changes: [
@@ -365,15 +458,16 @@ export function HealthReportPanel({
           },
           {
             onSuccess: () => {
-              toast.success("Draft created — review in the Drafts panel before applying");
+              setCompletions((prev) => new Map(prev).set(key, "draft_created"));
+              toast.success("Draft created \u2014 review in the Drafts panel before applying");
             },
             onError: (err) => {
+              setCompletions((prev) => new Map(prev).set(key, "error"));
               toast.error(err instanceof Error ? err.message : "Failed to create draft");
             },
           },
         );
       } else {
-        // Low-impact: apply fix directly
         updateBatch.mutate(
           {
             batchId: issue.batchId,
@@ -393,11 +487,13 @@ export function HealthReportPanel({
                 direction: "moved",
                 reason: `Health fix: ${issue.message}`,
               });
+              setCompletions((prev) => new Map(prev).set(key, "success"));
               toast.success(
                 `Batch moved to ${action.targetResourceId} on ${action.targetDate}`,
               );
             },
             onError: (err) => {
+              setCompletions((prev) => new Map(prev).set(key, "error"));
               toast.error(err instanceof Error ? err.message : "Failed to apply fix");
             },
           },
@@ -414,6 +510,23 @@ export function HealthReportPanel({
   const criticalIssues = effectiveReport.issues.filter((i) => i.severity === "critical");
   const warningIssues = effectiveReport.issues.filter((i) => i.severity === "warning");
   const infoIssues = effectiveReport.issues.filter((i) => i.severity === "info");
+
+  const renderIssues = (issues: HealthIssue[], globalOffset: number) =>
+    issues.map((issue, idx) => {
+      const globalIdx = globalOffset + idx;
+      const key = issueKey(issue, globalIdx);
+      return (
+        <IssueRow
+          key={key}
+          issue={issue}
+          onApplyFix={(iss) => handleApplyFix(iss, globalIdx)}
+          onSpotlight={onSpotlightBatch ? handleSpotlight : undefined}
+          isApplying={isApplying}
+          willCreateDraft={isHighImpact(issue)}
+          completionState={completions.get(key) ?? null}
+        />
+      );
+    });
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -449,16 +562,7 @@ export function HealthReportPanel({
                   Critical Issues ({criticalIssues.length})
                 </h3>
                 <div className="space-y-2">
-                  {criticalIssues.map((issue, idx) => (
-                    <IssueRow
-                      key={`${issue.batchId}-${issue.type}-${idx}`}
-                      issue={issue}
-                      onApplyFix={handleApplyFix}
-                      onSpotlight={onSpotlightBatch ? handleSpotlight : undefined}
-                      isApplying={isApplying}
-                      willCreateDraft={isHighImpact(issue)}
-                    />
-                  ))}
+                  {renderIssues(criticalIssues, 0)}
                 </div>
               </section>
             )}
@@ -471,16 +575,7 @@ export function HealthReportPanel({
                   Warnings ({warningIssues.length})
                 </h3>
                 <div className="space-y-2">
-                  {warningIssues.map((issue, idx) => (
-                    <IssueRow
-                      key={`${issue.batchId}-${issue.type}-${idx}`}
-                      issue={issue}
-                      onApplyFix={handleApplyFix}
-                      onSpotlight={onSpotlightBatch ? handleSpotlight : undefined}
-                      isApplying={isApplying}
-                      willCreateDraft={isHighImpact(issue)}
-                    />
-                  ))}
+                  {renderIssues(warningIssues, criticalIssues.length)}
                 </div>
               </section>
             )}
@@ -493,16 +588,7 @@ export function HealthReportPanel({
                   Recommendations ({infoIssues.length})
                 </h3>
                 <div className="space-y-2">
-                  {infoIssues.map((issue, idx) => (
-                    <IssueRow
-                      key={`${issue.batchId}-${issue.type}-${idx}`}
-                      issue={issue}
-                      onApplyFix={handleApplyFix}
-                      onSpotlight={onSpotlightBatch ? handleSpotlight : undefined}
-                      isApplying={isApplying}
-                      willCreateDraft={isHighImpact(issue)}
-                    />
-                  ))}
+                  {renderIssues(infoIssues, criticalIssues.length + warningIssues.length)}
                 </div>
               </section>
             )}
