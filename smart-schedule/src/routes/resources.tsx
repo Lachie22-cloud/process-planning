@@ -9,6 +9,7 @@ import { ResourceTimeline } from "@/components/resources/resource-timeline";
 import { BatchDetailSheet } from "@/components/schedule/batch-detail-sheet";
 import { RescheduleDialog } from "@/components/resources/reschedule-dialog";
 import { AlertManager } from "@/components/alerts/alert-manager";
+import { DraftReviewPanel } from "@/components/ai/draft-review";
 import { PermissionGate } from "@/components/shared/permission-gate";
 import { ScheduleHealthBar } from "@/components/shared/schedule-health-bar";
 import { Wand2, Download } from "lucide-react";
@@ -223,6 +224,8 @@ export function ResourcesPage() {
         aiScanReport={latestCompletedScan?.report}
         onSpotlightBatch={spotlightBatch}
       />
+
+      <DraftReviewPanel compactMode />
 
       <PermissionGate permission="alerts.read">
         <AlertManager mode="banner" activeOnly />

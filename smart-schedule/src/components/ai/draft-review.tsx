@@ -73,7 +73,7 @@ function draftStatusBadge(status: DraftStatus) {
   }
 }
 
-export function DraftReviewPanel() {
+export function DraftReviewPanel({ compactMode = false }: { compactMode?: boolean } = {}) {
   const { hasPermission } = usePermissions();
   const canViewDrafts = hasPermission("planning.ai");
   const canVet = hasPermission("planning.vet");
@@ -85,6 +85,9 @@ export function DraftReviewPanel() {
 
   const pendingDrafts = drafts.filter((d) => d.status === "pending");
   const otherDrafts = drafts.filter((d) => d.status !== "pending");
+
+  // In compact mode, hide entirely when there are no pending drafts
+  if (compactMode && pendingDrafts.length === 0) return null;
 
   return (
     <Card>

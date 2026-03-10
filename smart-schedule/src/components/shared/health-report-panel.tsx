@@ -240,7 +240,7 @@ function IssueRow({
         {completionState === "draft_created" && (
           <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-blue-600 animate-in fade-in duration-300">
             <FileText className="h-3.5 w-3.5" />
-            Draft created — review in Drafts panel
+            Draft created — review in AI Drafts below
           </div>
         )}
         {completionState === "error" && (
@@ -461,7 +461,7 @@ export function HealthReportPanel({
           {
             onSuccess: () => {
               setCompletions((prev) => new Map(prev).set(key, "draft_created"));
-              toast.success("Draft created \u2014 review in the Drafts panel before applying");
+              toast.success("Draft created \u2014 review in the AI Drafts section below before applying");
             },
             onError: (err) => {
               setCompletions((prev) => new Map(prev).set(key, "error"));
