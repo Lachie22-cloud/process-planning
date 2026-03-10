@@ -190,6 +190,7 @@ interface Zp40Record {
   stockCover: number | null;
   forecast: number | null;
   availableStock: number | null;
+  safetyStock: number | null;
 }
 
 /** ZW04 purchase order record keyed by material code */
@@ -198,9 +199,29 @@ interface Zw04Record {
   poQuantity: number | null;
 }
 
-/** MB52 stock record keyed by material code */
+/** MB52 plant-level stock record keyed by material code */
 interface Mb52Record {
+  /** Unrestricted stock from MB52, or safety stock from ZP40 fallback */
   safetyStock: number | null;
+}
+
+/** Fill Data record keyed by batch/order number */
+interface FillRecord {
+  fillOrder: string;
+  fillMaterial: string | null;
+  packSize: string | null;
+  fillQuantity: number | null;
+}
+
+/** Requirements record for per-order shortage calculation */
+interface RequirementEntry {
+  order: string;
+  material: string;
+  description: string;
+  reqQty: number;
+  qtyWithdrawn: number;
+  netQty: number;
+  reqDate: string;
 }
 
 function extractZp40Data(files: ParsedFile[]): Map<string, Zp40Record> {
@@ -222,13 +243,12 @@ function extractZp40Data(files: ParsedFile[]): Map<string, Zp40Record> {
     const safetyStock = rowNumeric(row, headers, "safety stock");
 
     if (!map.has(material)) {
-      map.set(material, { stockCover, forecast, availableStock });
+      map.set(material, { stockCover, forecast, availableStock, safetyStock });
     }
     // Also index by planning material (bulk code) so bulk-level lookup works
     if (planningMat && planningMat !== material && !map.has(planningMat)) {
-      map.set(planningMat, { stockCover, forecast, availableStock });
+      map.set(planningMat, { stockCover, forecast, availableStock, safetyStock });
     }
-    void safetyStock; // used via mb52 path below
   }
   return map;
 }
@@ -259,8 +279,7 @@ function extractZw04Data(files: ParsedFile[]): Map<string, Zw04Record> {
 
 function extractMb52Data(files: ParsedFile[]): Map<string, Mb52Record> {
   const map = new Map<string, Mb52Record>();
-  // MB52 or ZP40 can provide safety stock
-  const mb52File = files.find((f) => f.type === "mb52") ?? files.find((f) => f.type === "zp40");
+  const mb52File = files.find((f) => f.type === "mb52");
   if (!mb52File) return map;
 
   const { headers, rows } = mb52File;
@@ -268,14 +287,143 @@ function extractMb52Data(files: ParsedFile[]): Map<string, Mb52Record> {
     const material = rowValue(row, headers, "material");
     if (!material) continue;
 
-    // MB52 uses "Unrestricted" for SOH; ZP40 uses "Safety stock"
-    const safetyStock = rowNumeric(row, headers, "safety stock", "safety stk");
+    // MB52 "Unrestricted" column = available plant stock (not safety stock)
+    const unrestricted = rowNumeric(row, headers, "unrestricted");
 
-    if (!map.has(material)) {
-      map.set(material, { safetyStock });
+    // Accumulate across plants for the same material
+    const existing = map.get(material);
+    if (existing) {
+      existing.safetyStock = (existing.safetyStock ?? 0) + (unrestricted ?? 0);
+    } else {
+      map.set(material, { safetyStock: unrestricted });
     }
   }
   return map;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Fill Data extraction — links fill orders to bulk orders             */
+/* ------------------------------------------------------------------ */
+
+function extractFillData(files: ParsedFile[]): Map<string, FillRecord> {
+  const map = new Map<string, FillRecord>();
+  const fillFile = files.find((f) => f.type === "fill_data");
+  if (!fillFile) return map;
+
+  const { headers, rows } = fillFile;
+  for (const row of rows) {
+    // Fill Data links to Bulk Data via the "Batch" column (= bulk order number)
+    const batchOrder = rowValue(row, headers, "batch", "bulk order");
+    if (!batchOrder) continue;
+
+    const fillOrder = rowValue(row, headers, "order") ?? "";
+    const fillMaterial = rowValue(row, headers, "material") ?? null;
+    const packSize = rowValue(row, headers, "pck size", "pack size") ?? null;
+    const fillQuantity = rowNumeric(row, headers, "total order quantity", "order quantity") ?? null;
+
+    // Keep first fill order per bulk batch (or could accumulate, but typically 1:1)
+    if (!map.has(batchOrder)) {
+      map.set(batchOrder, { fillOrder, fillMaterial, packSize, fillQuantity });
+    }
+  }
+  return map;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Requirements extraction — BOM components per order                  */
+/* ------------------------------------------------------------------ */
+
+function extractRequirements(files: ParsedFile[]): {
+  byOrder: Map<string, RequirementEntry[]>;
+  byMaterial: Map<string, RequirementEntry[]>;
+} {
+  const byOrder = new Map<string, RequirementEntry[]>();
+  const byMaterial = new Map<string, RequirementEntry[]>();
+  const reqFile = files.find((f) => f.type === "fill_components");
+  if (!reqFile) return { byOrder, byMaterial };
+
+  const { headers, rows } = reqFile;
+  for (const row of rows) {
+    const order = rowValue(row, headers, "order");
+    const material = rowValue(row, headers, "material");
+    if (!order || !material) continue;
+
+    const reqQty = rowNumeric(row, headers, "requirement quantity") ?? 0;
+    const qtyWithdrawn = rowNumeric(row, headers, "quantity withdrawn") ?? 0;
+    const netQty = Math.max(0, reqQty - qtyWithdrawn);
+    if (netQty <= 0) continue; // Already fulfilled
+
+    const dateRaw = rowRawValue(row, headers, "requirement date");
+    const reqDate = excelDateToISO(dateRaw) ?? "";
+    const description = rowValue(row, headers, "material description", "description") ?? "";
+
+    const entry: RequirementEntry = { order, material, description, reqQty, qtyWithdrawn, netQty, reqDate };
+
+    if (!byOrder.has(order)) byOrder.set(order, []);
+    byOrder.get(order)!.push(entry);
+
+    if (!byMaterial.has(material)) byMaterial.set(material, []);
+    byMaterial.get(material)!.push(entry);
+  }
+  return { byOrder, byMaterial };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Cumulative SOH drawdown — per-order shortage calculation            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * For each material, sorts all requirements by date, walks through
+ * consuming SOH, and identifies which order+material combos have shortages.
+ */
+function calculateShortages(
+  sohData: Map<string, SohRecord>,
+  requirementsByMaterial: Map<string, RequirementEntry[]>,
+): Map<string, { shortageQty: number; soh: number; totalReq: number }> {
+  const shortageMap = new Map<string, { shortageQty: number; soh: number; totalReq: number }>();
+
+  for (const [material, requirements] of requirementsByMaterial) {
+    const sohEntry = sohData.get(material);
+    let remainingSOH = sohEntry ? sohEntry.stock : 0;
+
+    // Sort by date then order for deterministic ordering
+    const sorted = [...requirements].sort((a, b) => {
+      const dateComp = a.reqDate.localeCompare(b.reqDate);
+      return dateComp !== 0 ? dateComp : a.order.localeCompare(b.order);
+    });
+
+    // Aggregate net qty per order (a single order can have multiple BOM lines for same material)
+    const orderTotals = new Map<string, { netQty: number; reqDate: string }>();
+    for (const req of sorted) {
+      const existing = orderTotals.get(req.order);
+      if (existing) {
+        existing.netQty += req.netQty;
+      } else {
+        orderTotals.set(req.order, { netQty: req.netQty, reqDate: req.reqDate });
+      }
+    }
+
+    // Walk through orders by date, consuming SOH
+    const sortedOrders = [...orderTotals.entries()].sort((a, b) =>
+      a[1].reqDate.localeCompare(b[1].reqDate),
+    );
+
+    for (const [order, info] of sortedOrders) {
+      const needed = info.netQty;
+      const shortageQty = Math.max(0, needed - remainingSOH);
+      remainingSOH = Math.max(0, remainingSOH - needed);
+
+      if (shortageQty > 0) {
+        shortageMap.set(`${order}|${material}`, {
+          shortageQty: Math.round(shortageQty * 100) / 100,
+          soh: sohEntry ? sohEntry.stock : 0,
+          totalReq: Math.round(needed * 100) / 100,
+        });
+      }
+    }
+  }
+
+  return shortageMap;
 }
 
 /* ------------------------------------------------------------------ */
@@ -350,6 +498,11 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
   const zw04Data = extractZw04Data(files);
   const mb52Data = extractMb52Data(files);
   const sohData = extractSohData(files);
+  const fillData = extractFillData(files);
+  const requirements = extractRequirements(files);
+
+  // Calculate per-order material shortages using cumulative SOH drawdown
+  const shortageMap = calculateShortages(sohData, requirements.byMaterial);
 
   const { headers, rows } = bulkFile;
   const seen = new Set<string>();
@@ -387,8 +540,13 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     // SAP Bulk Data: "ColGrp" (not "colour group")
     const colorGroup =
       rowValue(row, headers, "colgrp", "colour group", "color group", "color") ?? null;
+
+    // Pack size: try bulk data columns, then fill data link, then extract from material code
+    const fill = fillData.get(sapOrder);
     const packSize =
-      rowValue(row, headers, "pack size", "pck size") ?? extractPackSize(materialCode);
+      rowValue(row, headers, "pack size", "pck size") ??
+      fill?.packSize ??
+      extractPackSize(materialCode);
 
     // Cross-reference with ZP40 coverage data
     const zp40 = lookupByMaterial(zp40Data, materialCode, bulkCode);
@@ -401,18 +559,35 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     const poDate = zw04?.poDate ?? null;
     const poQuantity = zw04?.poQuantity ?? null;
 
-    // Cross-reference with MB52 stock data
+    // Cross-reference with MB52 stock data, fall back to ZP40 safety stock
     const mb52 = lookupByMaterial(mb52Data, materialCode, bulkCode);
-    const safetyStock = mb52?.safetyStock ?? null;
+    const safetyStock = mb52?.safetyStock ?? zp40?.safetyStock ?? null;
 
-    // Cross-reference with SOH report (stock on hand for raw materials)
-    const soh = lookupByMaterial(sohData, materialCode, bulkCode);
+    // Determine RM shortages from cumulative SOH drawdown
+    // Check if any BOM component for this order has a shortage
+    const orderReqs = requirements.byOrder.get(sapOrder) ?? [];
+    let hasRmShortage = false;
+    let hasPkgShortage = false;
+    for (const req of orderReqs) {
+      const key = `${sapOrder}|${req.material}`;
+      if (shortageMap.has(key)) {
+        // Heuristic: packaging materials are typically in EA or units, RM in KG/L
+        // Also fill-linked requirements are packaging
+        const isFillLinked = fill && fill.fillOrder && req.order === fill.fillOrder;
+        if (isFillLinked) {
+          hasPkgShortage = true;
+        } else {
+          hasRmShortage = true;
+        }
+      }
+    }
 
-    // Derive material shortage: stock out, critical coverage, or zero SOH
+    // Derive material shortage: BOM-level shortage, stock out, or critical coverage
     const materialShortage =
+      hasRmShortage ||
+      hasPkgShortage ||
       (availableStock != null && availableStock <= 0) ||
-      (stockCover != null && stockCover < 15) ||
-      (soh != null && soh.stock <= 0);
+      (stockCover != null && stockCover < 15);
 
     // SAP resource assignment columns
     const sapMixerResource = rowValue(row, headers, "mixer resource", "mixer") ?? null;
@@ -420,8 +595,9 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     const sapDisperser2 = rowValue(row, headers, "dispersion 2 resource", "disperser 2") ?? null;
     const sapPreMixCount = rowNumeric(row, headers, "pre mix count", "pre mix", "premix") ?? null;
     const sapIpt = rowNumeric(row, headers, "ipt") ?? null;
-    const sapFillOrder = rowValue(row, headers, "fill order") ?? null;
-    const sapFillQuantity = rowNumeric(row, headers, "fill quantity", "fill qty") ?? null;
+    // Fill order linking from Fill Data file
+    const sapFillOrder = fill?.fillOrder ?? rowValue(row, headers, "fill order") ?? null;
+    const sapFillQuantity = fill?.fillQuantity ?? rowNumeric(row, headers, "fill quantity", "fill qty") ?? null;
 
     batches.push({
       sapOrder,
@@ -432,8 +608,8 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
       batchVolume,
       sapColorGroup: colorGroup,
       packSize,
-      rmAvailable: !materialShortage,
-      packagingAvailable: true,
+      rmAvailable: !hasRmShortage && !(availableStock != null && availableStock <= 0),
+      packagingAvailable: !hasPkgShortage,
       stockCover,
       safetyStock,
       poDate,
