@@ -73,11 +73,13 @@ function parseAiScanReport(raw: unknown): ParsedAiAnalysis | null {
 
   const messages = r.messages as AiScanMessage[];
 
-  // Extract narrative from Claude's text messages
+  // Extract narrative from Claude's text messages.
+  // Streaming stores each token as a separate message — join without
+  // extra separators and let the original whitespace flow through.
   const textChunks = messages
     .filter((m) => m.type === "text" && m.content)
-    .map((m) => m.content.trim());
-  const narrative = textChunks.join("\n\n");
+    .map((m) => m.content);
+  const narrative = textChunks.join("");
 
   // Try to extract a HealthReport from tool_result messages (score_health output)
   let healthReport: HealthReport | null = null;
