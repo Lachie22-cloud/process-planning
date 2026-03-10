@@ -61,7 +61,7 @@ interface ScheduleHealthBarProps {
   /** Raw ai_scans.report JSON from the latest completed scan */
   aiScanReport?: unknown;
   /** Called when user clicks an issue to spotlight a batch on the timeline */
-  onSpotlightBatch?: (batchId: string, targetResourceId?: string | null) => void;
+  onSpotlightBatch?: (batchId: string, targetResourceId?: string | null, targetDate?: string | null) => void;
 }
 
 export function ScheduleHealthBar({

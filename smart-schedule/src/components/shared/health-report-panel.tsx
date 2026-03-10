@@ -178,7 +178,7 @@ function isHighImpact(issue: HealthIssue): boolean {
 interface IssueRowProps {
   issue: HealthIssue;
   onApplyFix: (issue: HealthIssue) => void;
-  onSpotlight?: (batchId: string, targetResourceId?: string | null) => void;
+  onSpotlight?: (batchId: string, targetResourceId?: string | null, targetDate?: string | null) => void;
   isApplying: boolean;
   willCreateDraft: boolean;
   /** Per-issue completion state */
@@ -216,7 +216,7 @@ function IssueRow({
                   className="inline-flex items-center justify-center h-5 w-5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onSpotlight!(issue.batchId, issue.suggestedAction?.targetResourceId ?? null);
+                    onSpotlight!(issue.batchId, issue.suggestedAction?.targetResourceId ?? null, issue.date);
                   }}
                   aria-label="Locate batch on timeline"
                 >
@@ -401,7 +401,7 @@ interface HealthReportPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Called when user clicks an issue to spotlight the batch on the timeline */
-  onSpotlightBatch?: (batchId: string, targetResourceId?: string | null) => void;
+  onSpotlightBatch?: (batchId: string, targetResourceId?: string | null, targetDate?: string | null) => void;
 }
 
 export function HealthReportPanel({
@@ -425,8 +425,8 @@ export function HealthReportPanel({
   const effectiveReport = aiAnalysis?.healthReport ?? report;
 
   const handleSpotlight = useCallback(
-    (batchId: string, targetResourceId?: string | null) => {
-      onSpotlightBatch?.(batchId, targetResourceId);
+    (batchId: string, targetResourceId?: string | null, targetDate?: string | null) => {
+      onSpotlightBatch?.(batchId, targetResourceId, targetDate);
       onOpenChange(false);
     },
     [onSpotlightBatch, onOpenChange],

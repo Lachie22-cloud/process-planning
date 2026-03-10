@@ -251,7 +251,7 @@ function ChangesSummary({
   onSpotlight,
 }: {
   payload: unknown;
-  onSpotlight: (batchId: string, resourceId?: string) => void;
+  onSpotlight: (batchId: string, resourceId?: string, date?: string) => void;
 }) {
   const { data: resources = [] } = useResources();
   const { data: batches = [] } = useBatches();
@@ -329,7 +329,7 @@ function ChangesSummary({
                     size="sm"
                     variant="ghost"
                     className="h-7 w-7 p-0 shrink-0"
-                    onClick={() => onSpotlight(change.batch_id, change.plan_resource_id)}
+                    onClick={() => onSpotlight(change.batch_id, change.plan_resource_id, batch?.currentDate ?? change.plan_date)}
                   >
                     <Crosshair className="h-4 w-4" />
                   </Button>
@@ -407,8 +407,8 @@ function DraftDetailDialog({
     apply.mutate(draft.id, { onSuccess: onClose });
   };
 
-  const handleSpotlight = (batchId: string, resourceId?: string) => {
-    spotlightBatch(batchId, resourceId ?? null);
+  const handleSpotlight = (batchId: string, resourceId?: string, date?: string) => {
+    spotlightBatch(batchId, resourceId ?? null, date ?? null);
     onClose();
   };
 

@@ -81,7 +81,17 @@ export function ResourcesPage() {
   const { data: scheduleRules = [] } = useScheduleRules();
 
   const { hasPermission } = usePermissions();
-  const { spotlightBatch } = useSpotlight();
+  const { spotlight, spotlightBatch } = useSpotlight();
+
+  // Navigate to the correct week when spotlight includes a target date
+  useEffect(() => {
+    if (spotlight.active && spotlight.targetDate) {
+      const targetDate = new Date(spotlight.targetDate + "T00:00:00");
+      if (!isNaN(targetDate.getTime())) {
+        week.goToDate(targetDate);
+      }
+    }
+  }, [spotlight.active, spotlight.targetDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
