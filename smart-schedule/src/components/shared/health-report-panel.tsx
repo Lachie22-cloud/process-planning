@@ -8,7 +8,6 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -27,12 +26,18 @@ import {
   FileText,
   Crosshair,
   X,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/ui/cn";
 import { useUpdateBatch } from "@/hooks/use-batch-mutations";
 import { useRecordMovement } from "@/hooks/use-schedule-movements";
 import { useCreateDraft } from "@/hooks/use-ai-drafts";
+import { useResources } from "@/hooks/use-resources";
+import { useBatches } from "@/hooks/use-batches";
+import type { AiScan } from "@/hooks/use-ai-scans";
 import type { HealthReport, HealthIssue, HealthIssueType } from "@/types/scoring";
 
 /* ------------------------------------------------------------------ */
@@ -46,21 +51,28 @@ interface AiScanMessage {
 }
 
 interface ParsedAiAnalysis {
-  /** Combined narrative text from Claude's analysis */
   narrative: string;
-  /** Structured health report if Claude called score_health */
   healthReport: HealthReport | null;
-  /** When the scan was generated */
   generatedAt: string;
 }
 
-/** Strip emoji and XML-like tags from Claude's narrative output */
+/** Strip tool-call XML, emoji, UUIDs, and scan progress from narrative */
 function cleanNarrative(text: string): string {
   return text
     // Strip emoji unicode ranges
     .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{2700}-\u{27BF}]/gu, "")
-    // Strip XML-like tags (e.g. <create_draft>, </draft_type>)
-    .replace(/<\/?[a-z_]+>/gi, "")
+    // Strip XML-like tags WITH attributes (e.g. <invoke name="...">, <parameter name="...">)
+    .replace(/<\/?[a-z_][a-z_0-9]*(?:\s[^>]*)?\/?>/gi, "")
+    // Strip bare UUIDs (with or without surrounding whitespace)
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "")
+    // Strip scan progress lines (e.g. "scan_schedule_opt_20260310 running 40 ...")
+    .replace(/scan_\w+\s+(running|pending|completed)\s*\d*/gi, "")
+    // Strip "scheduled YYYY-MM-DD" fragments left over from tool results
+    .replace(/\bscheduled\s+\d{4}-\d{2}-\d{2}\b/gi, "")
+    // Strip standalone date ranges like "2026-03-10 2026-03-17" on their own
+    .replace(/^\s*\d{4}-\d{2}-\d{2}(\s+\d{4}-\d{2}-\d{2})?\s*$/gm, "")
+    // Strip lines that are now empty or just whitespace
+    .replace(/^\s*$/gm, "")
     // Collapse excessive blank lines
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -73,9 +85,7 @@ function parseAiScanReport(raw: unknown): ParsedAiAnalysis | null {
 
   const messages = r.messages as AiScanMessage[];
 
-  // Extract narrative from Claude's text messages.
-  // Streaming stores each token as a separate message — join without
-  // extra separators and let the original whitespace flow through.
+  // Only take genuine text messages (skip tool_use, tool_result, etc.)
   const textChunks = messages
     .filter((m) => m.type === "text" && m.content)
     .map((m) => m.content);
@@ -109,6 +119,20 @@ function parseAiScanReport(raw: unknown): ParsedAiAnalysis | null {
 }
 
 /* ------------------------------------------------------------------ */
+/*  UUID resolution helper                                             */
+/* ------------------------------------------------------------------ */
+
+type UuidLookup = Map<string, string>;
+
+/** Replace UUIDs in a message string with human-readable names */
+function resolveUuids(text: string, lookup: UuidLookup): string {
+  return text.replace(
+    /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
+    (uuid) => lookup.get(uuid) ?? uuid,
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -116,21 +140,18 @@ const SEVERITY_CONFIG = {
   critical: {
     icon: AlertCircle,
     colour: "text-red-600",
-    bg: "bg-red-50 border-red-200",
     badge: "destructive" as const,
     label: "Critical Issues",
   },
   warning: {
     icon: AlertTriangle,
     colour: "text-yellow-600",
-    bg: "bg-yellow-50 border-yellow-200",
     badge: "outline" as const,
     label: "Warnings",
   },
   info: {
     icon: Info,
     colour: "text-blue-600",
-    bg: "bg-blue-50 border-blue-200",
     badge: "outline" as const,
     label: "Recommendations",
   },
@@ -153,13 +174,8 @@ function scoreColourClass(score: number): string {
   return "text-red-600";
 }
 
-/**
- * Determines whether an issue fix is high-impact and should create a draft
- * rather than performing a direct batch move.
- */
 function isHighImpact(issue: HealthIssue): boolean {
   if (issue.severity === "critical") return true;
-
   if (
     issue.severity === "warning" &&
     issue.suggestedAction &&
@@ -167,7 +183,6 @@ function isHighImpact(issue: HealthIssue): boolean {
   ) {
     return true;
   }
-
   return false;
 }
 
@@ -177,16 +192,19 @@ function isHighImpact(issue: HealthIssue): boolean {
 
 interface IssueRowProps {
   issue: HealthIssue;
+  displayMessage: string;
+  displaySuggestion?: string;
   onApplyFix: (issue: HealthIssue) => void;
   onSpotlight?: (batchId: string, targetResourceId?: string | null, targetDate?: string | null) => void;
   isApplying: boolean;
   willCreateDraft: boolean;
-  /** Per-issue completion state */
   completionState?: "success" | "draft_created" | "error" | null;
 }
 
 function IssueRow({
   issue,
+  displayMessage,
+  displaySuggestion,
   onApplyFix,
   onSpotlight,
   isApplying,
@@ -199,15 +217,14 @@ function IssueRow({
   const canSpotlight = !!issue.batchId && !!onSpotlight;
 
   return (
-    <div className={cn("flex items-start gap-3 rounded-md border p-3", cfg.bg)}>
+    <div className="flex items-start gap-3 rounded-md border bg-card p-3">
       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", cfg.colour)} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <Badge variant={cfg.badge} className="text-xs">
+          <span className="text-xs font-medium text-muted-foreground">
             {ISSUE_TYPE_LABELS[issue.type]}
-          </Badge>
+          </span>
 
-          {/* Dedicated locate button */}
           {canSpotlight && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -228,9 +245,8 @@ function IssueRow({
           )}
         </div>
 
-        <p className="mt-1 text-sm">{issue.message}</p>
+        <p className="mt-1 text-sm">{displayMessage}</p>
 
-        {/* Completion feedback (shown after action) */}
         {completionState === "success" && (
           <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-600 animate-in fade-in duration-300">
             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -249,17 +265,15 @@ function IssueRow({
           </div>
         )}
 
-        {/* Action buttons (hidden after completion) */}
         {!completionState && (
           <div className="mt-2 flex items-center gap-2">
             {issue.suggestedAction ? (
               <>
                 <ArrowRight className="h-3 w-3 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">
-                  {issue.suggestedAction.description}
+                  {displaySuggestion ?? issue.suggestedAction.description}
                 </span>
 
-                {/* Inline confirmation for direct moves */}
                 {!willCreateDraft && confirming ? (
                   <div className="ml-auto flex items-center gap-1.5">
                     <span className="text-[10px] text-muted-foreground">Confirm move?</span>
@@ -327,14 +341,16 @@ function IssueRow({
 }
 
 /* ------------------------------------------------------------------ */
-/*  AI Analysis card (shown when scan report available)                */
+/*  AI Analysis card                                                   */
 /* ------------------------------------------------------------------ */
 
 function AiAnalysisCard({ narrative, generatedAt }: { narrative: string; generatedAt: string }) {
   const cleaned = useMemo(() => cleanNarrative(narrative), [narrative]);
 
+  if (!cleaned) return null;
+
   return (
-    <Card className="border-purple-200 bg-purple-50/50">
+    <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm font-medium">
           <Bot className="h-4 w-4 text-purple-600" />
@@ -346,7 +362,7 @@ function AiAnalysisCard({ narrative, generatedAt }: { narrative: string; generat
           <ReactMarkdown>{cleaned}</ReactMarkdown>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          AI scan completed {new Date(generatedAt).toLocaleString()}
+          Scan completed {new Date(generatedAt).toLocaleString()}
         </p>
       </CardContent>
     </Card>
@@ -394,18 +410,19 @@ function MetricsSection({ report }: { report: HealthReport }) {
 /* ------------------------------------------------------------------ */
 
 interface HealthReportPanelProps {
-  /** Deterministic health report from local scoring engine */
   report: HealthReport | null;
-  /** Raw ai_scans.report JSON from the latest completed scan */
+  /** All completed AI scans (newest first) for history navigation */
+  aiScans?: AiScan[];
+  /** @deprecated Use aiScans instead — kept for backwards compat */
   aiScanReport?: unknown;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called when user clicks an issue to spotlight the batch on the timeline */
   onSpotlightBatch?: (batchId: string, targetResourceId?: string | null, targetDate?: string | null) => void;
 }
 
 export function HealthReportPanel({
   report,
+  aiScans,
   aiScanReport,
   open,
   onOpenChange,
@@ -414,15 +431,47 @@ export function HealthReportPanel({
   const updateBatch = useUpdateBatch();
   const recordMovement = useRecordMovement();
   const createDraft = useCreateDraft();
+  const { data: resources = [] } = useResources();
+  const { data: batches = [] } = useBatches();
 
   // Track per-issue completion state
   const [completions, setCompletions] = useState<Map<string, "success" | "draft_created" | "error">>(new Map());
 
-  // Parse AI scan report if available
-  const aiAnalysis = useMemo(() => parseAiScanReport(aiScanReport), [aiScanReport]);
+  // Scan history navigation (0 = most recent)
+  const [scanIndex, setScanIndex] = useState(0);
+
+  // Build completed scans list
+  const completedScans = useMemo(() => {
+    if (aiScans) return aiScans.filter((s) => s.status === "completed");
+    return [];
+  }, [aiScans]);
+
+  // Reset to latest when scans change (new scan completes)
+  const latestScanId = completedScans[0]?.id;
+  const [trackedLatestId, setTrackedLatestId] = useState(latestScanId);
+  if (latestScanId !== trackedLatestId) {
+    setTrackedLatestId(latestScanId);
+    setScanIndex(0);
+  }
+
+  // Parse the selected scan
+  const selectedScanReport = completedScans[scanIndex]?.report ?? aiScanReport;
+  const aiAnalysis = useMemo(() => parseAiScanReport(selectedScanReport), [selectedScanReport]);
 
   // Use AI health report when available, fall back to deterministic
   const effectiveReport = aiAnalysis?.healthReport ?? report;
+
+  // Build UUID → display name lookup
+  const uuidLookup = useMemo<UuidLookup>(() => {
+    const map = new Map<string, string>();
+    for (const r of resources) {
+      map.set(r.id, r.displayName ?? r.resourceCode);
+    }
+    for (const b of batches) {
+      map.set(b.id, b.sapOrder ?? b.id.slice(0, 8));
+    }
+    return map;
+  }, [resources, batches]);
 
   const handleSpotlight = useCallback(
     (batchId: string, targetResourceId?: string | null, targetDate?: string | null) => {
@@ -443,11 +492,13 @@ export function HealthReportPanel({
       const key = issueKey(issue, idx);
 
       if (isHighImpact(issue)) {
+        const batchName = uuidLookup.get(issue.batchId) ?? issue.batchId;
+        const targetName = uuidLookup.get(action.targetResourceId) ?? action.targetResourceId;
         createDraft.mutate(
           {
             draftType: "schedule_change",
-            title: `Health fix: ${ISSUE_TYPE_LABELS[issue.type]} \u2014 ${issue.batchId}`,
-            description: `${issue.message}. Suggested: move to ${action.targetResourceId} on ${action.targetDate} (score ${action.placementScore}).`,
+            title: `Health fix: ${ISSUE_TYPE_LABELS[issue.type]} \u2014 ${batchName}`,
+            description: `${resolveUuids(issue.message, uuidLookup)}. Suggested: move to ${targetName} on ${action.targetDate} (score ${action.placementScore}).`,
             payload: {
               changes: [
                 {
@@ -490,9 +541,8 @@ export function HealthReportPanel({
                 reason: `Health fix: ${issue.message}`,
               });
               setCompletions((prev) => new Map(prev).set(key, "success"));
-              toast.success(
-                `Batch moved to ${action.targetResourceId} on ${action.targetDate}`,
-              );
+              const targetName = uuidLookup.get(action.targetResourceId) ?? action.targetResourceId;
+              toast.success(`Batch moved to ${targetName} on ${action.targetDate}`);
             },
             onError: (err) => {
               setCompletions((prev) => new Map(prev).set(key, "error"));
@@ -502,7 +552,62 @@ export function HealthReportPanel({
         );
       }
     },
-    [updateBatch, recordMovement, createDraft],
+    [updateBatch, recordMovement, createDraft, uuidLookup],
+  );
+
+  // Bulk create drafts for all actionable issues in a severity group
+  const [bulkCreating, setBulkCreating] = useState<string | null>(null);
+  const handleBulkCreateDrafts = useCallback(
+    (issues: HealthIssue[], globalOffset: number) => {
+      const actionable = issues.filter((i) => i.suggestedAction);
+      if (actionable.length === 0) return;
+
+      const severity = issues[0]?.severity ?? "warning";
+      setBulkCreating(severity);
+
+      const changes = actionable.map((issue) => ({
+        batch_id: issue.batchId,
+        plan_resource_id: issue.suggestedAction!.targetResourceId,
+        plan_date: issue.suggestedAction!.targetDate,
+      }));
+
+      const description = actionable
+        .map((issue) => {
+          const batchName = uuidLookup.get(issue.batchId) ?? issue.batchId;
+          const targetName = uuidLookup.get(issue.suggestedAction!.targetResourceId) ?? issue.suggestedAction!.targetResourceId;
+          return `${batchName} \u2192 ${targetName} on ${issue.suggestedAction!.targetDate}`;
+        })
+        .join("; ");
+
+      createDraft.mutate(
+        {
+          draftType: "schedule_change",
+          title: `Bulk fix: ${actionable.length} ${severity} issues`,
+          description,
+          payload: { changes },
+        },
+        {
+          onSuccess: () => {
+            setBulkCreating(null);
+            // Mark all as draft_created
+            setCompletions((prev) => {
+              const next = new Map(prev);
+              actionable.forEach((issue) => {
+                const realIdx = issues.indexOf(issue);
+                next.set(issueKey(issue, globalOffset + realIdx), "draft_created");
+              });
+              return next;
+            });
+            toast.success(`Draft created for ${actionable.length} issues`);
+          },
+          onError: (err) => {
+            setBulkCreating(null);
+            toast.error(err instanceof Error ? err.message : "Failed to create bulk draft");
+          },
+        },
+      );
+    },
+    [createDraft, uuidLookup],
   );
 
   if (!effectiveReport) return null;
@@ -521,6 +626,12 @@ export function HealthReportPanel({
         <IssueRow
           key={key}
           issue={issue}
+          displayMessage={resolveUuids(issue.message, uuidLookup)}
+          displaySuggestion={
+            issue.suggestedAction
+              ? resolveUuids(issue.suggestedAction.description, uuidLookup)
+              : undefined
+          }
           onApplyFix={(iss) => handleApplyFix(iss, globalIdx)}
           onSpotlight={onSpotlightBatch ? handleSpotlight : undefined}
           isApplying={isApplying}
@@ -529,6 +640,9 @@ export function HealthReportPanel({
         />
       );
     });
+
+  const actionableCount = (issues: HealthIssue[]) =>
+    issues.filter((i) => i.suggestedAction && !completions.has(issueKey(i, 0))).length;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -543,9 +657,39 @@ export function HealthReportPanel({
           </SheetDescription>
         </SheetHeader>
 
+        {/* Scan history navigation */}
+        {completedScans.length > 1 && (
+          <div className="mt-3 flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2">
+            <span className="text-xs text-muted-foreground flex-1">
+              {scanIndex === 0 ? "Latest scan" : `Scan ${scanIndex + 1} of ${completedScans.length}`}
+              {completedScans[scanIndex]?.completedAt && (
+                <> &middot; {new Date(completedScans[scanIndex].completedAt!).toLocaleString()}</>
+              )}
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0"
+              disabled={scanIndex >= completedScans.length - 1}
+              onClick={() => setScanIndex((i) => Math.min(i + 1, completedScans.length - 1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0"
+              disabled={scanIndex <= 0}
+              onClick={() => setScanIndex((i) => Math.max(i - 1, 0))}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
         <ScrollArea className="mt-4 h-[calc(100vh-8rem)]">
           <div className="space-y-6 pr-4">
-            {/* AI Analysis narrative (when scan data available) */}
+            {/* AI Analysis narrative */}
             {aiAnalysis && aiAnalysis.narrative && (
               <AiAnalysisCard
                 narrative={aiAnalysis.narrative}
@@ -559,10 +703,28 @@ export function HealthReportPanel({
             {/* Critical Issues */}
             {criticalIssues.length > 0 && (
               <section>
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-red-600">
-                  <AlertCircle className="h-4 w-4" />
-                  Critical Issues ({criticalIssues.length})
-                </h3>
+                <div className="mb-3 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                  <h3 className="text-sm font-semibold">
+                    Critical Issues ({criticalIssues.length})
+                  </h3>
+                  {actionableCount(criticalIssues) > 1 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-auto h-7 text-xs"
+                      disabled={isApplying || bulkCreating === "critical"}
+                      onClick={() => handleBulkCreateDrafts(criticalIssues, 0)}
+                    >
+                      {bulkCreating === "critical" ? (
+                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      ) : (
+                        <FileText className="mr-1 h-3 w-3" />
+                      )}
+                      Create Draft for All
+                    </Button>
+                  )}
+                </div>
                 <div className="space-y-2">
                   {renderIssues(criticalIssues, 0)}
                 </div>
@@ -572,23 +734,43 @@ export function HealthReportPanel({
             {/* Warnings */}
             {warningIssues.length > 0 && (
               <section>
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-yellow-600">
-                  <AlertTriangle className="h-4 w-4" />
-                  Warnings ({warningIssues.length})
-                </h3>
+                <div className="mb-3 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                  <h3 className="text-sm font-semibold">
+                    Warnings ({warningIssues.length})
+                  </h3>
+                  {actionableCount(warningIssues) > 1 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-auto h-7 text-xs"
+                      disabled={isApplying || bulkCreating === "warning"}
+                      onClick={() => handleBulkCreateDrafts(warningIssues, criticalIssues.length)}
+                    >
+                      {bulkCreating === "warning" ? (
+                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      ) : (
+                        <FileText className="mr-1 h-3 w-3" />
+                      )}
+                      Create Draft for All
+                    </Button>
+                  )}
+                </div>
                 <div className="space-y-2">
                   {renderIssues(warningIssues, criticalIssues.length)}
                 </div>
               </section>
             )}
 
-            {/* Recommendations (info) */}
+            {/* Recommendations */}
             {infoIssues.length > 0 && (
               <section>
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-blue-600">
-                  <Info className="h-4 w-4" />
-                  Recommendations ({infoIssues.length})
-                </h3>
+                <div className="mb-3 flex items-center gap-2">
+                  <Info className="h-4 w-4 text-blue-600" />
+                  <h3 className="text-sm font-semibold">
+                    Recommendations ({infoIssues.length})
+                  </h3>
+                </div>
                 <div className="space-y-2">
                   {renderIssues(infoIssues, criticalIssues.length + warningIssues.length)}
                 </div>
@@ -604,7 +786,6 @@ export function HealthReportPanel({
               </div>
             )}
 
-            {/* Generated at timestamp */}
             <p className="pb-4 text-xs text-muted-foreground">
               {aiAnalysis
                 ? `Deterministic baseline: ${effectiveReport.summary}`

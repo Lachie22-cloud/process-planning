@@ -6,6 +6,7 @@ import { Activity, AlertTriangle, AlertCircle, Info, Sparkles, Loader2 } from "l
 import { cn } from "@/lib/ui/cn";
 import { HealthReportPanel } from "./health-report-panel";
 import type { HealthReport } from "@/types/scoring";
+import type { AiScan } from "@/hooks/use-ai-scans";
 
 /* ------------------------------------------------------------------ */
 /*  Score colour helpers                                               */
@@ -58,7 +59,9 @@ interface ScheduleHealthBarProps {
   isLoading: boolean;
   onRunAnalysis?: () => void;
   isAnalysing?: boolean;
-  /** Raw ai_scans.report JSON from the latest completed scan */
+  /** All AI scans for history navigation */
+  aiScans?: AiScan[];
+  /** @deprecated Use aiScans instead */
   aiScanReport?: unknown;
   /** Called when user clicks an issue to spotlight a batch on the timeline */
   onSpotlightBatch?: (batchId: string, targetResourceId?: string | null, targetDate?: string | null) => void;
@@ -69,6 +72,7 @@ export function ScheduleHealthBar({
   isLoading,
   onRunAnalysis,
   isAnalysing,
+  aiScans,
   aiScanReport,
   onSpotlightBatch,
 }: ScheduleHealthBarProps) {
@@ -185,6 +189,7 @@ export function ScheduleHealthBar({
       {/* Slide-out panel */}
       <HealthReportPanel
         report={report}
+        aiScans={aiScans}
         aiScanReport={aiScanReport}
         open={panelOpen}
         onOpenChange={setPanelOpen}

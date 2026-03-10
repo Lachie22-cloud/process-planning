@@ -63,8 +63,7 @@ export function ResourcesPage() {
     weekEnding: week.weekEndingStr,
   });
 
-  const { data: aiScans = [] } = useAiScans(5);
-  const latestCompletedScan = aiScans.find((s) => s.status === "completed");
+  const { data: aiScans = [] } = useAiScans(40);
   const isScanning = aiScans.some(
     (s) => s.status === "pending" || s.status === "running",
   );
@@ -231,7 +230,7 @@ export function ResourcesPage() {
         isLoading={healthLoading}
         onRunAnalysis={handleRunAnalysis}
         isAnalysing={isScanning || triggerScan.isPending}
-        aiScanReport={latestCompletedScan?.report}
+        aiScans={aiScans}
         onSpotlightBatch={spotlightBatch}
       />
 
