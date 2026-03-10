@@ -233,6 +233,35 @@ export function useCreateDraft() {
 /*  useApplyDraft                                                      */
 /* ------------------------------------------------------------------ */
 
+export function usePurgeDrafts() {
+  const { site } = useCurrentSite();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!site) throw new Error("No site selected");
+
+      const { error } = await supabase
+        .from("ai_drafts")
+        .delete()
+        .eq("site_id", site.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai_drafts", site?.id] });
+      toast.success("All drafts purged");
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Failed to purge drafts");
+    },
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/*  useApplyDraft                                                      */
+/* ------------------------------------------------------------------ */
+
 export function useApplyDraft() {
   const { site } = useCurrentSite();
   const queryClient = useQueryClient();

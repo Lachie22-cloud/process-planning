@@ -30,6 +30,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowRight,
+  Trash2,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { formatDistanceToNow } from "date-fns";
@@ -42,6 +43,7 @@ import {
   useApproveDraft,
   useRejectDraft,
   useApplyDraft,
+  usePurgeDrafts,
   type AiDraft,
   type DraftStatus,
 } from "@/hooks/use-ai-drafts";
@@ -96,7 +98,9 @@ export function DraftReviewPanel({ compactMode = false }: { compactMode?: boolea
   const canVet = hasPermission("planning.vet");
 
   const { data: drafts = [], isLoading } = useAiDrafts();
+  const purgeDrafts = usePurgeDrafts();
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [confirmPurge, setConfirmPurge] = useState(false);
 
   if (!canViewDrafts) return null;
 
@@ -121,9 +125,54 @@ export function DraftReviewPanel({ compactMode = false }: { compactMode?: boolea
           <Sparkles className="h-5 w-5" />
           AI Drafts
           {pendingDrafts.length > 0 && (
-            <Badge variant="secondary" className="ml-auto">
+            <Badge variant="secondary">
               {pendingDrafts.length} pending
             </Badge>
+          )}
+          {drafts.length > 0 && (
+            <div className="ml-auto">
+              {confirmPurge ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground mr-1">Delete all?</span>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-7 px-2 text-xs"
+                    disabled={purgeDrafts.isPending}
+                    onClick={() => {
+                      purgeDrafts.mutate(undefined, {
+                        onSuccess: () => setConfirmPurge(false),
+                      });
+                    }}
+                  >
+                    {purgeDrafts.isPending ? (
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-1 h-3 w-3" />
+                    )}
+                    Confirm
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setConfirmPurge(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs text-muted-foreground"
+                  onClick={() => setConfirmPurge(true)}
+                >
+                  <Trash2 className="mr-1 h-3 w-3" />
+                  Purge All
+                </Button>
+              )}
+            </div>
           )}
         </CardTitle>
       </CardHeader>
