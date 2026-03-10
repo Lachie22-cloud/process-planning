@@ -24,6 +24,9 @@ interface ResourceLaneProps {
   batches: Batch[];
   blocks: ResourceBlock[];
   highlightedBatchIds?: Set<string>;
+  spotlightBatchId?: string | null;
+  spotlightTargetResourceId?: string | null;
+  movementDirections?: Map<string, "pulled" | "pushed" | "moved">;
   draggedBatchId?: string | null;
   dragOver?: DropTarget | null;
   dropTargets?: Map<string, DropTarget>;
@@ -238,9 +241,14 @@ export function ResourceLane({
                   batch={batch}
                   resource={resource}
                   isHighlighted={highlightedBatchIds?.has(batch.id)}
+                  isSpotlighted={spotlightBatchId === batch.id}
+                  isDimmed={
+                    !!spotlightBatchId && spotlightBatchId !== batch.id
+                  }
                   isDragging={draggedBatchId === batch.id}
                   draggable={canDrag}
                   canSchedule={canSchedule}
+                  movementDirection={movementDirections?.get(batch.id)}
                   onClick={onBatchClick}
                   onDragStart={onDragStart}
                   onDragEnd={onDragEnd}

@@ -13,9 +13,13 @@ interface BatchCardProps {
   batch: Batch;
   resource: Resource | undefined;
   isHighlighted?: boolean;
+  isSpotlighted?: boolean;
+  isDimmed?: boolean;
   isDragging?: boolean;
   draggable?: boolean;
   canSchedule?: boolean;
+  /** Movement direction from schedule_movements ('pulled' | 'pushed' | 'moved') */
+  movementDirection?: "pulled" | "pushed" | "moved" | null;
   onClick?: (batch: Batch) => void;
   onDragStart?: (batch: Batch, e: React.DragEvent) => void;
   onDragEnd?: () => void;
@@ -38,13 +42,22 @@ function getCardStyle(batch: Batch): { className: string; borderLeftColor?: stri
   };
 }
 
+const MOVEMENT_BORDER: Record<string, string> = {
+  pulled: "#16a34a",  // green
+  pushed: "#dc2626",  // red
+  moved: "#2563eb",   // blue
+};
+
 export function BatchCard({
   batch,
   resource,
   isHighlighted = false,
+  isSpotlighted = false,
+  isDimmed = false,
   isDragging = false,
   draggable = false,
   canSchedule = false,
+  movementDirection,
   onClick,
   onDragStart,
   onDragEnd,
@@ -65,16 +78,24 @@ export function BatchCard({
 
   const cardStyle = getCardStyle(batch);
 
+  // Movement direction overrides status border color
+  const borderLeft = movementDirection
+    ? MOVEMENT_BORDER[movementDirection]
+    : cardStyle.borderLeftColor;
+
   return (
     <div
+      data-batch-id={batch.id}
       className={cn(
-        "group relative cursor-pointer rounded-md border px-2 py-1.5 text-xs transition-shadow hover:shadow-md",
+        "group relative cursor-pointer rounded-md border px-2 py-1.5 text-xs transition-all hover:shadow-md",
         cardStyle.className,
         isHighlighted && "ring-2 ring-primary ring-offset-1",
+        isSpotlighted && "z-[35] ring-2 ring-amber-400 shadow-[0_0_0_4px_rgba(245,158,11,0.3),0_0_20px_rgba(245,158,11,0.4)] scale-[1.02] animate-pulse",
+        isDimmed && "opacity-30",
         isDragging && "opacity-60 shadow-lg",
         draggable && "cursor-grab active:cursor-grabbing",
       )}
-      style={cardStyle.borderLeftColor ? { borderLeftWidth: 3, borderLeftColor: cardStyle.borderLeftColor } : undefined}
+      style={borderLeft ? { borderLeftWidth: 3, borderLeftColor: borderLeft } : undefined}
       draggable={draggable}
       onDragStart={(e) => {
         if (!draggable) return;

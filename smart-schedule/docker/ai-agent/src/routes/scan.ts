@@ -21,9 +21,10 @@ function siteUserId(user: JwtUserClaims): string {
  */
 scanRouter.post('/scan', async (req: Request, res: Response) => {
   const user = req.user!;
-  const { siteId, scanType } = req.body as {
+  const { siteId, scanType, promptOverride } = req.body as {
     siteId: string;
     scanType: 'schedule_optimization' | 'rule_analysis' | 'capacity_check' | 'full_audit';
+    promptOverride?: string;
   };
 
   if (!siteId || !scanType) {
@@ -81,6 +82,7 @@ scanRouter.post('/scan', async (req: Request, res: Response) => {
     currentKey: encryptionConfig.currentKey,
     previousKey: encryptionConfig.previousKey,
     existingScanId: pendingScan.id,
+    promptOverride: promptOverride ?? null,
   }).catch((err) => {
     console.error(`[scan] Async scan ${pendingScan.id} failed:`, err);
     supabaseAdmin

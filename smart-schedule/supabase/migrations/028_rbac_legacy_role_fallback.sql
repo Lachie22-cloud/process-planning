@@ -153,7 +153,7 @@ BEGIN
         'batches.read', 'batches.status',
         'resources.read',
         'rules.read',
-        'planning.coverage',
+        'planning.coverage', 'planning.ai',
         'alerts.read', 'alerts.acknowledge'
       ]
       ELSE ARRAY[]::TEXT[]

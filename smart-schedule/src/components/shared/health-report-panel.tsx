@@ -160,23 +160,39 @@ function isHighImpact(issue: HealthIssue): boolean {
 interface IssueRowProps {
   issue: HealthIssue;
   onApplyFix: (issue: HealthIssue) => void;
+  onSpotlight?: (batchId: string, targetResourceId?: string | null) => void;
   isApplying: boolean;
   /** Whether this fix will create a draft (shown as hint) */
   willCreateDraft: boolean;
 }
 
-function IssueRow({ issue, onApplyFix, isApplying, willCreateDraft }: IssueRowProps) {
+function IssueRow({ issue, onApplyFix, onSpotlight, isApplying, willCreateDraft }: IssueRowProps) {
   const cfg = SEVERITY_CONFIG[issue.severity];
   const Icon = cfg.icon;
+  const canSpotlight = !!issue.batchId && !!onSpotlight;
 
   return (
-    <div className={cn("flex items-start gap-3 rounded-md border p-3", cfg.bg)}>
+    <div
+      className={cn(
+        "flex items-start gap-3 rounded-md border p-3",
+        cfg.bg,
+        canSpotlight && "cursor-pointer hover:ring-2 hover:ring-primary/30 transition-shadow",
+      )}
+      onClick={() => {
+        if (canSpotlight) {
+          onSpotlight(issue.batchId, issue.suggestedAction?.targetResourceId ?? null);
+        }
+      }}
+    >
       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", cfg.colour)} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <Badge variant={cfg.badge} className="text-xs">
             {ISSUE_TYPE_LABELS[issue.type]}
           </Badge>
+          {canSpotlight && (
+            <span className="text-[10px] text-muted-foreground">Click to locate</span>
+          )}
         </div>
         <p className="mt-1 text-sm">{issue.message}</p>
         <div className="mt-2 flex items-center gap-2">
@@ -296,6 +312,8 @@ interface HealthReportPanelProps {
   aiScanReport?: unknown;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called when user clicks an issue to spotlight the batch on the timeline */
+  onSpotlightBatch?: (batchId: string, targetResourceId?: string | null) => void;
 }
 
 export function HealthReportPanel({
@@ -303,6 +321,7 @@ export function HealthReportPanel({
   aiScanReport,
   open,
   onOpenChange,
+  onSpotlightBatch,
 }: HealthReportPanelProps) {
   const updateBatch = useUpdateBatch();
   const recordMovement = useRecordMovement();
@@ -313,6 +332,14 @@ export function HealthReportPanel({
 
   // Use AI health report when available, fall back to deterministic
   const effectiveReport = aiAnalysis?.healthReport ?? report;
+
+  const handleSpotlight = useCallback(
+    (batchId: string, targetResourceId?: string | null) => {
+      onSpotlightBatch?.(batchId, targetResourceId);
+      onOpenChange(false); // Close the panel so the timeline is visible
+    },
+    [onSpotlightBatch, onOpenChange],
+  );
 
   const handleApplyFix = useCallback(
     (issue: HealthIssue) => {
@@ -427,6 +454,7 @@ export function HealthReportPanel({
                       key={`${issue.batchId}-${issue.type}-${idx}`}
                       issue={issue}
                       onApplyFix={handleApplyFix}
+                      onSpotlight={onSpotlightBatch ? handleSpotlight : undefined}
                       isApplying={isApplying}
                       willCreateDraft={isHighImpact(issue)}
                     />
@@ -448,6 +476,7 @@ export function HealthReportPanel({
                       key={`${issue.batchId}-${issue.type}-${idx}`}
                       issue={issue}
                       onApplyFix={handleApplyFix}
+                      onSpotlight={onSpotlightBatch ? handleSpotlight : undefined}
                       isApplying={isApplying}
                       willCreateDraft={isHighImpact(issue)}
                     />
@@ -469,6 +498,7 @@ export function HealthReportPanel({
                       key={`${issue.batchId}-${issue.type}-${idx}`}
                       issue={issue}
                       onApplyFix={handleApplyFix}
+                      onSpotlight={onSpotlightBatch ? handleSpotlight : undefined}
                       isApplying={isApplying}
                       willCreateDraft={isHighImpact(issue)}
                     />

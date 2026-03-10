@@ -90,8 +90,11 @@ export function useTriggerScan() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (scanType: ScanType) => {
+    mutationFn: async (input: ScanType | { scanType: ScanType; promptOverride?: string }) => {
       if (!site) throw new Error("No site selected");
+
+      const scanType = typeof input === "string" ? input : input.scanType;
+      const promptOverride = typeof input === "string" ? undefined : input.promptOverride;
 
       const token = await getAccessToken();
       const res = await fetch(`${getAiAgentUrl()}/ai/scan`, {
@@ -100,7 +103,7 @@ export function useTriggerScan() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ siteId: site.id, scanType }),
+        body: JSON.stringify({ siteId: site.id, scanType, promptOverride }),
       });
 
       if (!res.ok) {

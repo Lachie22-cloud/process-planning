@@ -17,6 +17,7 @@ import {
   XCircle,
   Clock,
   Play,
+  Zap,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
@@ -47,6 +48,31 @@ const SCAN_TYPES: { value: ScanType; label: string; description: string }[] = [
     value: "full_audit",
     label: "Full Audit",
     description: "Comprehensive analysis of all aspects",
+  },
+];
+
+const QUICK_ACTIONS: {
+  label: string;
+  scanType: ScanType;
+  prompt: string;
+}[] = [
+  {
+    label: "Optimise Week",
+    scanType: "schedule_optimization",
+    prompt:
+      "Analyse the current week's schedule and suggest batch moves that improve efficiency. Focus on reducing colour changeovers, balancing resource utilisation, and consolidating under-utilised days. For each suggestion provide the batch ID, current placement, recommended placement, and expected benefit.",
+  },
+  {
+    label: "Show Issues",
+    scanType: "schedule_optimization",
+    prompt:
+      "Identify all issues in the current schedule: capacity overloads, colour violations, batches waiting on materials or packaging, under-utilised resources, and rule violations. Use score_health to generate a comprehensive health report.",
+  },
+  {
+    label: "Colour Violations",
+    scanType: "schedule_optimization",
+    prompt:
+      "Focus specifically on colour group transitions across all resources. Identify any batches where the colour sequence creates washout problems or violates light-to-dark ordering. Suggest reorderings that minimise colour changeover waste.",
   },
 ];
 
@@ -141,6 +167,28 @@ function ScanTriggerInner() {
         <p className="text-xs text-muted-foreground">
           {SCAN_TYPES.find((t) => t.value === scanType)?.description}
         </p>
+
+        {/* Quick action buttons */}
+        <div className="flex flex-wrap gap-2">
+          {QUICK_ACTIONS.map((qa) => (
+            <Button
+              key={qa.label}
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1"
+              disabled={trigger.isPending}
+              onClick={() =>
+                trigger.mutate({
+                  scanType: qa.scanType,
+                  promptOverride: qa.prompt,
+                })
+              }
+            >
+              <Zap className="h-3 w-3" />
+              {qa.label}
+            </Button>
+          ))}
+        </div>
 
         {recentScans.length > 0 && (
           <>

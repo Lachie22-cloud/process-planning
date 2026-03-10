@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { format, addDays, isToday, isWeekend } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import type { Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import type { ResourceBlock } from "@/types/site";
 import type { DayBlock } from "@/hooks/use-day-blocks";
+import { useSpotlight } from "@/contexts/spotlight-context";
 import type { PlacementScore } from "@/types/scoring";
 
 type ResourceTab = "mixers" | "dispersers" | "all";
@@ -93,6 +94,32 @@ export function ResourceTimeline({
   );
 
   const canSchedule = hasPermission("batches.schedule");
+
+  // Spotlight context (for navigating to a specific batch from health issues)
+  const { spotlight, clearSpotlight } = useSpotlight();
+  const spotlightBatchId = spotlight.active ? spotlight.batchId : null;
+  const spotlightTargetResourceId = spotlight.active ? spotlight.targetResourceId : null;
+  const timelineRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to spotlighted batch and clear after delay
+  useEffect(() => {
+    if (!spotlightBatchId) return;
+    // Wait a tick for render
+    const raf = requestAnimationFrame(() => {
+      const el = timelineRef.current?.querySelector(
+        `[data-batch-id="${spotlightBatchId}"]`,
+      );
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+    // Auto-clear spotlight after 5s
+    const timer = setTimeout(() => clearSpotlight(), 5000);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [spotlightBatchId, clearSpotlight]);
 
   const dates = useMemo(
     () => getWeekDates(weekStart, weekEnding),
@@ -507,7 +534,7 @@ export function ResourceTimeline({
       </div>
 
       {/* Timeline grid */}
-      <div className="rounded-lg border bg-card">
+      <div className="rounded-lg border bg-card" ref={timelineRef}>
         <div
           className="grid min-w-[800px]"
           style={{
@@ -605,6 +632,8 @@ export function ResourceTimeline({
               highlightedBatchIds={
                 search ? highlightedBatchIds : undefined
               }
+              spotlightBatchId={spotlightBatchId}
+              spotlightTargetResourceId={spotlightTargetResourceId}
               draggedBatchId={draggedBatch?.id ?? null}
               dropTargets={dropTargets}
               canDrag={canSchedule}

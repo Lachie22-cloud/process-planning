@@ -23,6 +23,7 @@ import { useAiScans, useTriggerScan } from "@/hooks/use-ai-scans";
 import { useColourGroups, useColourTransitions } from "@/hooks/use-colour-groups";
 import { useSubstitutionRules, useScheduleRules } from "@/hooks/use-rules";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useSpotlight } from "@/contexts/spotlight-context";
 import { assignBatchToResource } from "@/lib/utils/resource-assignment";
 import { exportBatchesCsv } from "@/lib/utils/csv-export";
 import type { Batch } from "@/types/batch";
@@ -76,6 +77,7 @@ export function ResourcesPage() {
   const { data: scheduleRules = [] } = useScheduleRules();
 
   const { hasPermission } = usePermissions();
+  const { spotlightBatch } = useSpotlight();
 
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -216,6 +218,7 @@ export function ResourcesPage() {
         onRunAnalysis={handleRunAnalysis}
         isAnalysing={triggerScan.isPending}
         aiScanReport={latestCompletedScan?.report}
+        onSpotlightBatch={spotlightBatch}
       />
 
       <PermissionGate permission="alerts.read">

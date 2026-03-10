@@ -36,6 +36,8 @@ interface ScheduleHealthBarProps {
   isAnalysing?: boolean;
   /** Raw ai_scans.report JSON from the latest completed scan */
   aiScanReport?: unknown;
+  /** Called when user clicks an issue to spotlight a batch on the timeline */
+  onSpotlightBatch?: (batchId: string, targetResourceId?: string | null) => void;
 }
 
 export function ScheduleHealthBar({
@@ -44,6 +46,7 @@ export function ScheduleHealthBar({
   onRunAnalysis,
   isAnalysing,
   aiScanReport,
+  onSpotlightBatch,
 }: ScheduleHealthBarProps) {
   const [panelOpen, setPanelOpen] = useState(false);
 
@@ -141,6 +144,7 @@ export function ScheduleHealthBar({
         aiScanReport={aiScanReport}
         open={panelOpen}
         onOpenChange={setPanelOpen}
+        onSpotlightBatch={onSpotlightBatch}
       />
     </>
   );
