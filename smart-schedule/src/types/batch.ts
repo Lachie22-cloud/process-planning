@@ -26,6 +26,7 @@ export interface Batch {
   bulkCode: string | null;
   planDate: string | null;
   planResourceId: string | null;
+  planDisperserId: string | null;
   batchVolume: number | null;
   status: BatchStatus;
   sapColorGroup: string | null;

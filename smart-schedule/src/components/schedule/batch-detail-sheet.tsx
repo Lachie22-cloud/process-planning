@@ -135,6 +135,9 @@ export function BatchDetailSheet({
   const resource = batch?.planResourceId
     ? resources.find((r) => r.id === batch.planResourceId)
     : null;
+  const disperser = batch?.planDisperserId
+    ? resources.find((r) => r.id === batch.planDisperserId)
+    : null;
 
   const handleStatusChange = (newStatus: string) => {
     if (!batch) return;
@@ -283,11 +286,20 @@ export function BatchDetailSheet({
                   />
                   <DetailRow
                     icon={Beaker}
-                    label="Resource"
+                    label="Mixer"
                     value={
                       resource
-                        ? `${resource.displayName ?? resource.resourceCode} (${resource.resourceType})`
+                        ? `${resource.displayName ?? resource.resourceCode}`
                         : "Unassigned"
+                    }
+                  />
+                  <DetailRow
+                    icon={Beaker}
+                    label="Disperser"
+                    value={
+                      disperser
+                        ? `${disperser.displayName ?? disperser.resourceCode}`
+                        : "None"
                     }
                   />
                   <DetailRow

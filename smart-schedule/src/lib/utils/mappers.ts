@@ -67,6 +67,7 @@ export function mapBatch(row: DatabaseRow["batches"]): Batch {
     bulkCode: row.bulk_code,
     planDate: row.plan_date,
     planResourceId: row.plan_resource_id,
+    planDisperserId: row.plan_disperser_id,
     batchVolume: row.batch_volume,
     status: row.status as BatchStatus,
     sapColorGroup: row.sap_color_group,

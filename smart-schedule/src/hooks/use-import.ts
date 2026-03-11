@@ -645,6 +645,7 @@ export function useImport() {
   const [files, setFiles] = useState<ParsedFile[]>([]);
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [resourceAssignments, setResourceAssignments] = useState<Map<string, string>>(new Map());
+  const [disperserAssignmentsState, setDisperserAssignmentsState] = useState<Map<string, string>>(new Map());
   const [isProcessing, setIsProcessing] = useState(false);
 
   const addFiles = useCallback(
@@ -687,14 +688,21 @@ export function useImport() {
           // Auto-assign resources: prefer SAP mixer resource codes, fall back to generic
           if (resources.length > 0 && result.batches.length > 0) {
             const assignments = new Map<string, string>();
+            const disperserAssignments = new Map<string, string>();
 
             // Build lookup: resource_code (uppercase) → resource ID
             const codeToId = new Map<string, string>();
+            // Also build type-specific lookups for disperser-only matching
+            const disperserCodeToId = new Map<string, string>();
             for (const r of resources) {
               if (r.active) {
                 // Store both raw code and normalised (strip hyphens) for flexible matching
                 codeToId.set(r.resourceCode.toUpperCase(), r.id);
                 codeToId.set(r.resourceCode.replace(/-/g, "").toUpperCase(), r.id);
+                if (r.resourceType === "disperser") {
+                  disperserCodeToId.set(r.resourceCode.toUpperCase(), r.id);
+                  disperserCodeToId.set(r.resourceCode.replace(/-/g, "").toUpperCase(), r.id);
+                }
               }
             }
 
@@ -720,8 +728,18 @@ export function useImport() {
             const batchesNeedingGenericAssignment: typeof result.batches = [];
 
             for (const batch of result.batches) {
-              // Try mixer resource first, then fall back to disperser columns
-              const sapResource = batch.sapMixerResource ?? batch.sapDisperser1;
+              // --- Disperser assignment (independent of mixer) ---
+              if (batch.sapDisperser1) {
+                const dCode = batch.sapDisperser1.toUpperCase();
+                const disperserId = disperserCodeToId.get(dCode);
+                if (disperserId) {
+                  disperserAssignments.set(batch.sapOrder, disperserId);
+                }
+              }
+
+              // --- Primary resource assignment (mixer) ---
+              // Only use mixer resource for plan_resource_id; disperser is stored separately
+              const sapResource = batch.sapMixerResource;
               if (!sapResource) {
                 batchesNeedingGenericAssignment.push(batch);
                 continue;
@@ -789,6 +807,7 @@ export function useImport() {
             }
 
             setResourceAssignments(assignments);
+            setDisperserAssignmentsState(disperserAssignments);
             const sapDirectCount = result.batches.length - batchesNeedingGenericAssignment.length;
             const assignedCount = assignments.size;
             const unassignedCount = result.batches.length - assignedCount;
@@ -822,6 +841,7 @@ export function useImport() {
     setFiles([]);
     setBatches([]);
     setResourceAssignments(new Map());
+    setDisperserAssignmentsState(new Map());
   }, []);
 
   const importMutation = useMutation({
@@ -843,6 +863,7 @@ export function useImport() {
         bulk_code: b.bulkCode,
         plan_date: b.planDate,
         plan_resource_id: resourceAssignments.get(b.sapOrder) ?? null,
+        plan_disperser_id: disperserAssignmentsState.get(b.sapOrder) ?? null,
         batch_volume: b.batchVolume,
         sap_color_group: b.sapColorGroup,
         pack_size: b.packSize,

@@ -140,15 +140,20 @@ export function ResourceTimeline({
     }
   }, [resources, tab]);
 
-  // Group batches by resource
+  // Group batches by resource (including disperser assignments)
   const batchesByResource = useMemo(() => {
     const map = new Map<string, Batch[]>();
     for (const r of filteredResources) {
       map.set(r.id, []);
     }
     for (const batch of batches) {
+      // Primary resource (mixer/pot)
       if (batch.planResourceId && map.has(batch.planResourceId)) {
         map.get(batch.planResourceId)!.push(batch);
+      }
+      // Disperser resource (separate column, may overlap with a different resource type)
+      if (batch.planDisperserId && map.has(batch.planDisperserId) && batch.planDisperserId !== batch.planResourceId) {
+        map.get(batch.planDisperserId)!.push(batch);
       }
     }
     return map;
