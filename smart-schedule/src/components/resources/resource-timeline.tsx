@@ -25,7 +25,7 @@ import type { DayBlock } from "@/hooks/use-day-blocks";
 import { useSpotlight } from "@/contexts/spotlight-context";
 import type { PlacementScore } from "@/types/scoring";
 
-type ResourceTab = "mixers" | "dispersers" | "all";
+type ResourceTab = "mixers" | "dispersers" | "pots" | "all";
 
 interface ResourceTimelineProps {
   batches: Batch[];
@@ -133,6 +133,8 @@ export function ResourceTimeline({
         return resources.filter((r) => r.resourceType === "mixer");
       case "dispersers":
         return resources.filter((r) => r.resourceType === "disperser");
+      case "pots":
+        return resources.filter((r) => r.resourceType === "pot");
       case "all":
         return resources;
     }
@@ -481,6 +483,9 @@ export function ResourceTimeline({
             </TabsTrigger>
             <TabsTrigger value="dispersers">
               Dispersers ({resources.filter((r) => r.resourceType === "disperser").length})
+            </TabsTrigger>
+            <TabsTrigger value="pots">
+              Pots ({resources.filter((r) => r.resourceType === "pot").length})
             </TabsTrigger>
             <TabsTrigger value="all">
               All ({resources.length})

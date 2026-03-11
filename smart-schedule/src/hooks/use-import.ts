@@ -720,12 +720,14 @@ export function useImport() {
             const batchesNeedingGenericAssignment: typeof result.batches = [];
 
             for (const batch of result.batches) {
-              if (!batch.sapMixerResource) {
+              // Try mixer resource first, then fall back to disperser columns
+              const sapResource = batch.sapMixerResource ?? batch.sapDisperser1;
+              if (!sapResource) {
                 batchesNeedingGenericAssignment.push(batch);
                 continue;
               }
 
-              const code = batch.sapMixerResource.toUpperCase();
+              const code = sapResource.toUpperCase();
 
               // Check exact text group mapping first (e.g. "SB POT" → SBPOT*)
               const exactPrefix = exactGroupMap[code];

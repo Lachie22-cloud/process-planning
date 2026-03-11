@@ -5,7 +5,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/ui/cn";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
-import { AlertTriangle, Package, Eye, Move, CalendarClock } from "lucide-react";
+import { Eye, Move, CalendarClock } from "lucide-react";
 import type { Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 
@@ -109,7 +109,7 @@ export function BatchCard({
         onClick?.(batch);
       }}
     >
-      {/* Top row: SAP order + volume + move button */}
+      {/* Top row: SAP order + material code + move buttons */}
       <div className="flex items-center justify-between gap-1">
         <span className="font-semibold truncate">{batch.sapOrder}</span>
         <div className="flex items-center gap-1 shrink-0">
@@ -149,11 +149,11 @@ export function BatchCard({
               <TooltipContent>Move to best placement</TooltipContent>
             </Tooltip>
           )}
-          <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
-            {batch.batchVolume != null
-              ? `${batch.batchVolume.toLocaleString()}L`
-              : "\u2014"}
-          </span>
+          {batch.materialCode && (
+            <span className="font-mono text-[10px] text-muted-foreground">
+              {batch.materialCode}
+            </span>
+          )}
         </div>
       </div>
 
@@ -162,8 +162,37 @@ export function BatchCard({
         {batch.materialDescription ?? "\u2014"}
       </div>
 
-      {/* Alert indicators */}
+      {/* Colour code + volume row */}
+      <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+        {batch.sapColorGroup && (
+          <span className="font-medium uppercase">{batch.sapColorGroup}</span>
+        )}
+        <span className="font-mono tabular-nums font-semibold text-foreground">
+          {batch.batchVolume != null
+            ? `${batch.batchVolume.toLocaleString()}L`
+            : "\u2014"}
+        </span>
+        {batch.packSize && (
+          <>
+            <span className="text-muted-foreground/50">&middot;</span>
+            <span>{batch.packSize}</span>
+          </>
+        )}
+      </div>
+
+      {/* Status & alert indicators */}
       <div className="mt-1 flex items-center gap-1 flex-wrap">
+        {!batch.rmAvailable && (
+          <span className="inline-flex items-center rounded-sm border px-1 py-0.5 text-[9px] font-semibold text-orange-600">
+            WOM
+          </span>
+        )}
+        {!batch.packagingAvailable && (
+          <span className="inline-flex items-center rounded-sm border px-1 py-0.5 text-[9px] font-semibold text-amber-600">
+            WOP
+          </span>
+        )}
+
         {/* Status badge (only for non-Planned) */}
         {batch.status !== "Planned" && (
           <span className="inline-flex items-center rounded-sm px-1 py-0.5 text-[9px] font-semibold bg-muted text-muted-foreground">
@@ -171,22 +200,6 @@ export function BatchCard({
           </span>
         )}
 
-        {!batch.rmAvailable && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <AlertTriangle className="h-3 w-3 text-orange-500" />
-            </TooltipTrigger>
-            <TooltipContent>Waiting on Materials</TooltipContent>
-          </Tooltip>
-        )}
-        {!batch.packagingAvailable && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Package className="h-3 w-3 text-amber-500" />
-            </TooltipTrigger>
-            <TooltipContent>Waiting on Packaging</TooltipContent>
-          </Tooltip>
-        )}
         {isOverCapacity && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -212,9 +225,15 @@ export function BatchCard({
           </Tooltip>
         )}
 
-        {batch.packSize && (
-          <span className="text-[9px] text-muted-foreground">
-            {batch.packSize}
+        {/* Vetting status */}
+        {batch.vettingStatus === "approved" && (
+          <span className="inline-flex items-center rounded-sm border border-emerald-300 px-1 py-0.5 text-[9px] font-semibold text-emerald-700">
+            VETTED
+          </span>
+        )}
+        {batch.vettingStatus === "pending" && (
+          <span className="inline-flex items-center rounded-sm border border-amber-300 px-1 py-0.5 text-[9px] font-semibold text-amber-700">
+            NOT VETTED
           </span>
         )}
 
