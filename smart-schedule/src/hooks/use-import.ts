@@ -956,7 +956,48 @@ export function useImport() {
         }
       }
     },
-    onSuccess: () => {
+    onSuccess: async (_result, { data }) => {
+      // After batches are written, create linked fill orders for batches that have fill data
+      if (site) {
+        const fillBatches = data.filter((b) => b.sapFillOrder);
+        if (fillBatches.length > 0) {
+          // Look up batch IDs by SAP order
+          const sapOrders = fillBatches.map((b) => b.sapOrder);
+          const { data: batchRows } = await supabase
+            .from("batches")
+            .select("id, sap_order")
+            .eq("site_id", site.id)
+            .in("sap_order", sapOrders);
+
+          if (batchRows && batchRows.length > 0) {
+            const orderToId = new Map(
+              batchRows.map((r: Record<string, unknown>) => [r.sap_order as string, r.id as string]),
+            );
+
+            // Delete existing fill orders for these batches first
+            const batchIds = batchRows.map((r: Record<string, unknown>) => r.id as string);
+            await supabase
+              .from("linked_fill_orders")
+              .delete()
+              .in("batch_id", batchIds);
+
+            // Insert new fill orders
+            const fillRows = fillBatches
+              .filter((b) => orderToId.has(b.sapOrder))
+              .map((b) => ({
+                batch_id: orderToId.get(b.sapOrder)!,
+                site_id: site.id,
+                fill_order: b.sapFillOrder,
+                quantity: b.sapFillQuantity,
+              }));
+
+            if (fillRows.length > 0) {
+              await supabase.from("linked_fill_orders").insert(fillRows as never);
+            }
+          }
+        }
+      }
+
       queryClient.invalidateQueries({ queryKey: ["batches"] });
       clearFiles();
       toast.success("Import completed successfully");

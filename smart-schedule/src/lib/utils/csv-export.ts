@@ -50,6 +50,15 @@ export function exportBatchesCsv(batches: Batch[], resources: Resource[]) {
     "RM Available",
     "Packaging Available",
     "Stock Cover",
+    "Safety Stock",
+    "Forecast",
+    "Material Shortage",
+    "Vetting Status",
+    "Vetted By",
+    "Job Location",
+    "PO Date",
+    "PO Quantity",
+    "QC Observed Stage",
   ];
 
   const rows = batches.map((b) => {
@@ -68,6 +77,15 @@ export function exportBatchesCsv(batches: Batch[], resources: Resource[]) {
       b.rmAvailable ? "Yes" : "No",
       b.packagingAvailable ? "Yes" : "No",
       b.stockCover,
+      b.safetyStock,
+      b.forecast,
+      b.materialShortage ? "Yes" : "No",
+      b.vettingStatus,
+      b.vettedBy,
+      b.jobLocation,
+      b.poDate,
+      b.poQuantity,
+      b.qcObservedStage,
     ]);
   });
 

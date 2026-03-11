@@ -32,7 +32,10 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase/client";
 import { useBatch } from "@/hooks/use-batches";
+import type { LinkedFillOrder } from "@/types/batch";
 import { useUpdateBatch, useAddAuditEntry } from "@/hooks/use-batch-mutations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useCurrentSite } from "@/hooks/use-current-site";
@@ -94,6 +97,30 @@ export function BatchDetailSheet({
   onReschedule,
 }: BatchDetailSheetProps) {
   const { data: batch, isLoading } = useBatch(batchId);
+  const { data: fillOrders = [] } = useQuery<LinkedFillOrder[]>({
+    queryKey: ["linked_fill_orders", batchId],
+    queryFn: async () => {
+      if (!batchId) return [];
+      const { data, error } = await supabase
+        .from("linked_fill_orders")
+        .select("*")
+        .eq("batch_id", batchId);
+      if (error) throw error;
+      return (data ?? []).map((r: Record<string, unknown>) => ({
+        id: r.id as string,
+        batchId: r.batch_id as string,
+        siteId: r.site_id as string,
+        fillOrder: r.fill_order as string | null,
+        fillMaterial: r.fill_material as string | null,
+        fillDescription: r.fill_description as string | null,
+        packSize: r.pack_size as string | null,
+        quantity: r.quantity as number | null,
+        unit: r.unit as string | null,
+        lidType: r.lid_type as string | null,
+      }));
+    },
+    enabled: !!batchId,
+  });
   const updateBatch = useUpdateBatch();
   const addAudit = useAddAuditEntry();
   const { hasPermission } = usePermissions();
@@ -411,6 +438,42 @@ export function BatchDetailSheet({
                         label="Observed By"
                         value={batch.qcObservedBy}
                       />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Linked Fill Orders */}
+              {fillOrders.length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <h3 className="mb-2 text-sm font-semibold">
+                      Fill Orders ({fillOrders.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {fillOrders.map((fo) => (
+                        <div key={fo.id} className="rounded-md border p-2 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium">{fo.fillOrder ?? "Unknown"}</span>
+                            {fo.quantity != null && (
+                              <span className="text-xs text-muted-foreground">
+                                Qty: {fo.quantity.toLocaleString()}{fo.unit ? ` ${fo.unit}` : ""}
+                              </span>
+                            )}
+                          </div>
+                          {fo.fillMaterial && (
+                            <p className="text-xs text-muted-foreground">{fo.fillMaterial}</p>
+                          )}
+                          {fo.fillDescription && (
+                            <p className="text-xs text-muted-foreground">{fo.fillDescription}</p>
+                          )}
+                          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                            {fo.packSize && <span>Pack: {fo.packSize}</span>}
+                            {fo.lidType && <span>Lid: {fo.lidType}</span>}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </>
