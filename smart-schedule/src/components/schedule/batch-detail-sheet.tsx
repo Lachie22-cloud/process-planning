@@ -168,51 +168,37 @@ function MaterialAvailabilitySection({ batch }: { batch: Batch }) {
     <div className="space-y-2">
       <h3 className="text-sm font-semibold">Material Availability</h3>
       <div className="space-y-1.5">
-        <div
-          className={`flex items-center justify-between rounded-md px-3 py-2 text-sm ${
-            batch.rmAvailable
-              ? "bg-emerald-50 dark:bg-emerald-950/30"
-              : "bg-red-50 dark:bg-red-950/30"
-          }`}
-        >
-          <span className="font-medium">Raw Materials</span>
-          <Badge
-            variant="outline"
-            className={
-              batch.rmAvailable
-                ? "border-emerald-300 text-emerald-700 dark:text-emerald-400"
-                : "border-red-300 text-red-700 dark:text-red-400"
-            }
-          >
+        <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+          <div className="flex items-center gap-2">
+            {batch.rmAvailable ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            ) : (
+              <CircleAlert className="h-4 w-4 text-red-500" />
+            )}
+            <span className="font-medium">Raw Materials</span>
+          </div>
+          <span className="text-xs text-muted-foreground">
             {batch.rmAvailable ? "Available" : "Shortage"}
-          </Badge>
+          </span>
         </div>
-        <div
-          className={`flex items-center justify-between rounded-md px-3 py-2 text-sm ${
-            batch.packagingAvailable
-              ? "bg-emerald-50 dark:bg-emerald-950/30"
-              : "bg-amber-50 dark:bg-amber-950/30"
-          }`}
-        >
-          <span className="font-medium">Packaging</span>
-          <Badge
-            variant="outline"
-            className={
-              batch.packagingAvailable
-                ? "border-emerald-300 text-emerald-700 dark:text-emerald-400"
-                : "border-amber-300 text-amber-700 dark:text-amber-400"
-            }
-          >
+        <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+          <div className="flex items-center gap-2">
+            {batch.packagingAvailable ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            ) : (
+              <Package className="h-4 w-4 text-amber-500" />
+            )}
+            <span className="font-medium">Packaging</span>
+          </div>
+          <span className="text-xs text-muted-foreground">
             {batch.packagingAvailable ? "Available" : "Pending"}
-          </Badge>
+          </span>
         </div>
       </div>
       {batch.materialShortage && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-2 dark:border-red-800 dark:bg-red-950/30">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-red-700 dark:text-red-400">
-            <CircleAlert className="h-3 w-3" />
-            Material shortage flagged
-          </div>
+        <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+          <span className="text-xs text-muted-foreground">Material shortage flagged</span>
         </div>
       )}
     </div>
@@ -235,20 +221,20 @@ function CoverageSection({ batch }: { batch: Batch }) {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">Coverage Profile</h3>
         {isStockOut && (
-          <span className="flex items-center gap-1 text-xs font-semibold text-red-600">
-            <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <CircleAlert className="h-3.5 w-3.5 text-red-500" />
             Stock Out
           </span>
         )}
         {isLow && !isStockOut && (
-          <span className="flex items-center gap-1 text-xs font-semibold text-amber-600">
-            <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
             Low Cover
           </span>
         )}
         {!isStockOut && !isLow && (
-          <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
-            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
             Good
           </span>
         )}
