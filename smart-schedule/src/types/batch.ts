@@ -50,6 +50,13 @@ export interface Batch {
   vettedBy: string | null;
   vettedAt: string | null;
   vettingComment: string | null;
+  bulkBatchNumber: string | null;
+  premixCount: number;
+  ipt: number | null;
+  fillRequirement: string | null;
+  observationRequired: boolean;
+  ebrBatch: boolean;
+  physicalLocation: string | null;
   createdAt: string;
   updatedAt: string;
 }

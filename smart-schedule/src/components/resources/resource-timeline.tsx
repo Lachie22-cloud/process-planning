@@ -8,6 +8,7 @@ import { cn } from "@/lib/ui/cn";
 import { Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { ResourceLane, type DropTarget } from "./resource-lane";
+import { GroupedPotLane } from "./grouped-pot-lane";
 import { PlacementOverlay } from "./placement-overlay";
 import { RescheduleDialog } from "./reschedule-dialog";
 import { MoveReasonModal } from "@/components/shared/move-reason-modal";
@@ -25,7 +26,28 @@ import type { DayBlock } from "@/hooks/use-day-blocks";
 import { useSpotlight } from "@/contexts/spotlight-context";
 import type { PlacementScore } from "@/types/scoring";
 
-type ResourceTab = "mixers" | "dispersers" | "pots" | "all";
+type ResourceTab = "mixers" | "dispersers" | "all";
+
+interface PotGroup {
+  name: string;
+  resources: Resource[];
+  resourceIds: Set<string>;
+}
+
+const POT_GROUP_ORDER = ["SB Pot", "WB Pot", "SS Pot"];
+
+function getPotGroupKey(resource: Resource): string {
+  const code = resource.resourceCode.toUpperCase();
+  if (code.startsWith("SBPOT")) return "SB Pot";
+  if (code.startsWith("WBPOT")) return "WB Pot";
+  if (code.startsWith("SSPOT")) return "SS Pot";
+  // Fallback: try display name
+  const name = (resource.displayName ?? "").toUpperCase();
+  if (name.startsWith("SB")) return "SB Pot";
+  if (name.startsWith("WB")) return "WB Pot";
+  if (name.startsWith("SS")) return "SS Pot";
+  return resource.groupName ?? "Other Pot";
+}
 
 interface ResourceTimelineProps {
   batches: Batch[];
@@ -126,24 +148,57 @@ export function ResourceTimeline({
     [weekStart, weekEnding],
   );
 
-  // Filter resources by tab
+  // Filter resources by tab (mixers tab excludes pots — they render as grouped lanes)
   const filteredResources = useMemo(() => {
     switch (tab) {
       case "mixers":
         return resources.filter((r) => r.resourceType === "mixer");
       case "dispersers":
         return resources.filter((r) => r.resourceType === "disperser");
-      case "pots":
-        return resources.filter((r) => r.resourceType === "pot");
       case "all":
         return resources;
     }
   }, [resources, tab]);
 
+  // Pot groups: shown as collapsed rows in the mixer view
+  const potGroups = useMemo((): PotGroup[] => {
+    if (tab !== "mixers") return [];
+    const pots = resources.filter((r) => r.resourceType === "pot");
+    if (pots.length === 0) return [];
+
+    const groups = new Map<string, Resource[]>();
+    for (const pot of pots) {
+      const key = getPotGroupKey(pot);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(pot);
+    }
+
+    return Array.from(groups.entries())
+      .sort(([a], [b]) => {
+        const ai = POT_GROUP_ORDER.indexOf(a);
+        const bi = POT_GROUP_ORDER.indexOf(b);
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      })
+      .map(([name, res]) => ({
+        name,
+        resources: res,
+        resourceIds: new Set(res.map((r) => r.id)),
+      }));
+  }, [resources, tab]);
+
+  // All visible resources: includes pots when on mixer tab (for drop targets, completion stats)
+  const allVisibleResources = useMemo(() => {
+    if (tab === "mixers" && potGroups.length > 0) {
+      const potResources = potGroups.flatMap((g) => g.resources);
+      return [...filteredResources, ...potResources];
+    }
+    return filteredResources;
+  }, [tab, filteredResources, potGroups]);
+
   // Group batches by resource (including disperser assignments)
   const batchesByResource = useMemo(() => {
     const map = new Map<string, Batch[]>();
-    for (const r of filteredResources) {
+    for (const r of allVisibleResources) {
       map.set(r.id, []);
     }
     for (const batch of batches) {
@@ -157,7 +212,22 @@ export function ResourceTimeline({
       }
     }
     return map;
-  }, [batches, filteredResources]);
+  }, [batches, allVisibleResources]);
+
+  // Batches grouped by pot group (for grouped pot lanes)
+  const batchesByPotGroup = useMemo(() => {
+    const map = new Map<string, Batch[]>();
+    for (const group of potGroups) {
+      const groupBatches: Batch[] = [];
+      for (const batch of batches) {
+        if (batch.planResourceId && group.resourceIds.has(batch.planResourceId)) {
+          groupBatches.push(batch);
+        }
+      }
+      map.set(group.name, groupBatches);
+    }
+    return map;
+  }, [batches, potGroups]);
 
   // Blocked dates set for quick lookup (resource-level blocks)
   const blockedSet = useMemo(() => {
@@ -185,7 +255,7 @@ export function ResourceTimeline({
     if (!draggedBatch) return new Map<string, DropTarget>();
 
     const targets = new Map<string, DropTarget>();
-    for (const resource of filteredResources) {
+    for (const resource of allVisibleResources) {
       for (const date of dates) {
         const key = `${resource.id}:${date}`;
 
@@ -230,11 +300,11 @@ export function ResourceTimeline({
       }
     }
     return targets;
-  }, [draggedBatch, filteredResources, dates, blockedSet, dayBlockedSet, batchesByResource, enabledRules, colourGroups, colourTransitions]);
+  }, [draggedBatch, allVisibleResources, dates, blockedSet, dayBlockedSet, batchesByResource, enabledRules, colourGroups, colourTransitions]);
 
   // Completion stats per date (only visible resources)
   const completionByDate = useMemo(() => {
-    const visibleIds = new Set(filteredResources.map((r) => r.id));
+    const visibleIds = new Set(allVisibleResources.map((r) => r.id));
     const map = new Map<string, { total: number; completed: number }>();
     for (const date of dates) {
       map.set(date, { total: 0, completed: 0 });
@@ -252,7 +322,7 @@ export function ResourceTimeline({
       }
     }
     return map;
-  }, [batches, dates, filteredResources]);
+  }, [batches, dates, allVisibleResources]);
 
   // Highlighted batch IDs from search
   const highlightedBatchIds = useMemo(() => {
@@ -484,13 +554,10 @@ export function ResourceTimeline({
         >
           <TabsList>
             <TabsTrigger value="mixers">
-              Mixers ({resources.filter((r) => r.resourceType === "mixer").length})
+              Mixers &amp; Pots ({resources.filter((r) => r.resourceType === "mixer" || r.resourceType === "pot").length})
             </TabsTrigger>
             <TabsTrigger value="dispersers">
               Dispersers ({resources.filter((r) => r.resourceType === "disperser").length})
-            </TabsTrigger>
-            <TabsTrigger value="pots">
-              Pots ({resources.filter((r) => r.resourceType === "pot").length})
             </TabsTrigger>
             <TabsTrigger value="all">
               All ({resources.length})
@@ -618,7 +685,7 @@ export function ResourceTimeline({
           {movingBatch && (
             <PlacementOverlay
               movingBatch={movingBatch}
-              resources={filteredResources}
+              resources={allVisibleResources}
               dates={dates}
               batches={batches}
               blocks={blocks}
@@ -657,8 +724,32 @@ export function ResourceTimeline({
             />
           ))}
 
+          {/* Grouped pot lanes (shown in mixer view) */}
+          {!movingBatch && potGroups.map((group) => (
+            <GroupedPotLane
+              key={group.name}
+              groupName={group.name}
+              resources={group.resources}
+              dates={dates}
+              batches={batchesByPotGroup.get(group.name) ?? []}
+              highlightedBatchIds={
+                search ? highlightedBatchIds : undefined
+              }
+              draggedBatchId={draggedBatch?.id ?? null}
+              dropTargets={dropTargets}
+              canDrag={canSchedule}
+              canSchedule={canSchedule}
+              onBatchClick={onBatchClick}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDrop={handleDrop}
+              onMoveStart={handleMoveStart}
+              onReschedule={handleRescheduleStart}
+            />
+          ))}
+
           {/* Empty state */}
-          {filteredResources.length === 0 && (
+          {filteredResources.length === 0 && potGroups.length === 0 && (
             <div
               className="col-span-full flex items-center justify-center py-12 text-muted-foreground"
             >

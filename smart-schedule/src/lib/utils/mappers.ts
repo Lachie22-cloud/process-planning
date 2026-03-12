@@ -91,6 +91,13 @@ export function mapBatch(row: DatabaseRow["batches"]): Batch {
     vettedBy: row.vetted_by,
     vettedAt: row.vetted_at,
     vettingComment: row.vetting_comment,
+    bulkBatchNumber: row.bulk_batch_number,
+    premixCount: row.premix_count ?? 0,
+    ipt: row.ipt,
+    fillRequirement: row.fill_requirement,
+    observationRequired: row.observation_required ?? false,
+    ebrBatch: row.ebr_batch ?? false,
+    physicalLocation: row.physical_location,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

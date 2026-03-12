@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { StatusBadge } from "./status-badge";
 import { StatusSelect } from "@/components/shared/status-select";
 import { StatusCommentModal } from "@/components/shared/status-comment-modal";
@@ -18,17 +19,10 @@ import {
   Package,
   AlertTriangle,
   CheckCircle2,
-  Calendar,
   CalendarClock,
-  Beaker,
-  Droplets,
-  FileText,
-  Clock,
-  User,
-  TrendingUp,
-  ShieldCheck,
   History,
-  ShoppingCart,
+  MapPin,
+  CircleAlert,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -40,8 +34,9 @@ import { useUpdateBatch, useAddAuditEntry } from "@/hooks/use-batch-mutations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useCurrentSite } from "@/hooks/use-current-site";
 import { COMMENT_REQUIRED_STATUSES } from "@/types/batch";
-import type { BatchStatus } from "@/types/batch";
+import type { BatchStatus, Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
+import { BATCH_STATUSES } from "@/lib/constants/statuses";
 
 interface BatchDetailSheetProps {
   batchId: string | null;
@@ -49,26 +44,6 @@ interface BatchDetailSheetProps {
   onOpenChange: (open: boolean) => void;
   resources: Resource[];
   onReschedule?: (batchId: string) => void;
-}
-
-function DetailRow({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: React.ReactNode;
-  icon?: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <div className="flex items-start gap-3 py-2">
-      {Icon && <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className="text-sm">{value ?? "\u2014"}</p>
-      </div>
-    </div>
-  );
 }
 
 function formatDateTime(dateStr: string | null): string {
@@ -87,6 +62,287 @@ function formatDate(dateStr: string | null): string {
   } catch {
     return dateStr;
   }
+}
+
+/** Two-column detail row used in Bulk/Fill info sections */
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2 py-1.5">
+      <span className="text-xs text-muted-foreground whitespace-nowrap">{label}:</span>
+      <span className="text-sm font-medium text-right">{value ?? "\u2014"}</span>
+    </div>
+  );
+}
+
+const PHYSICAL_LOCATIONS = ["Mixing", "Lab", "Filling", "Waiting"] as const;
+
+/** Status description map for the alert banner */
+const STATUS_DESCRIPTIONS: Partial<Record<BatchStatus, string>> = {
+  WOM: "Waiting on raw materials for this batch",
+  WOP: "Packaging is not available for this batch",
+  Hold: "Batch is on hold pending resolution",
+  "On Test": "Batch is undergoing laboratory testing",
+  Rework: "Batch requires rework before proceeding",
+  NCB: "Non-conforming batch — requires investigation",
+  "Bulk Off": "Bulk material has been taken offline",
+  "Excess Paint": "Excess paint from production run",
+};
+
+function StatusAlertBanner({ batch }: { batch: Batch }) {
+  const cfg = BATCH_STATUSES[batch.status];
+  const description = STATUS_DESCRIPTIONS[batch.status];
+
+  // Show banner for warning/alert statuses
+  if (!description) return null;
+
+  const isError = ["NCB", "Bulk Off"].includes(batch.status);
+  const isWarning = ["WOM", "WOP", "Hold", "On Test", "Rework", "Excess Paint"].includes(batch.status);
+
+  if (!isError && !isWarning) return null;
+
+  return (
+    <div
+      className={`flex items-start gap-3 rounded-lg border-l-4 p-3 ${
+        isError
+          ? "border-l-red-500 bg-red-50 dark:bg-red-950/30"
+          : "border-l-amber-500 bg-amber-50 dark:bg-amber-950/30"
+      }`}
+    >
+      <AlertTriangle
+        className={`mt-0.5 h-4 w-4 shrink-0 ${
+          isError ? "text-red-600" : "text-amber-600"
+        }`}
+      />
+      <div>
+        <p className={`text-sm font-semibold ${isError ? "text-red-800 dark:text-red-300" : "text-amber-800 dark:text-amber-300"}`}>
+          {cfg?.label}: {batch.status === "WOM" ? "Waiting On Materials" : batch.status === "WOP" ? "Waiting On Packaging" : cfg?.label}
+        </p>
+        <p className={`text-xs ${isError ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}`}>
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function PhysicalLocationChips({
+  batch,
+  canEdit,
+  onUpdate,
+}: {
+  batch: Batch;
+  canEdit: boolean;
+  onUpdate: (location: string | null) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-muted-foreground">Physical Location:</p>
+      <div className="flex flex-wrap gap-1.5">
+        {PHYSICAL_LOCATIONS.map((loc) => {
+          const isActive = batch.physicalLocation === loc;
+          return (
+            <button
+              key={loc}
+              disabled={!canEdit}
+              onClick={() => onUpdate(isActive ? null : loc)}
+              className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
+                isActive
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background text-muted-foreground hover:bg-accent"
+              } ${!canEdit ? "cursor-default opacity-60" : "cursor-pointer"}`}
+            >
+              {loc}
+            </button>
+          );
+        })}
+      </div>
+      {canEdit && (
+        <p className="text-[10px] text-muted-foreground">
+          Tip: In production, operators would update status via tablets or barcode scans on the shop floor
+        </p>
+      )}
+    </div>
+  );
+}
+
+function MaterialAvailabilitySection({ batch }: { batch: Batch }) {
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold">Material Availability</h3>
+      <div className="space-y-1.5">
+        <div
+          className={`flex items-center justify-between rounded-md px-3 py-2 text-sm ${
+            batch.rmAvailable
+              ? "bg-emerald-50 dark:bg-emerald-950/30"
+              : "bg-red-50 dark:bg-red-950/30"
+          }`}
+        >
+          <span className="font-medium">Raw Materials</span>
+          <Badge
+            variant="outline"
+            className={
+              batch.rmAvailable
+                ? "border-emerald-300 text-emerald-700 dark:text-emerald-400"
+                : "border-red-300 text-red-700 dark:text-red-400"
+            }
+          >
+            {batch.rmAvailable ? "Available" : "Shortage"}
+          </Badge>
+        </div>
+        <div
+          className={`flex items-center justify-between rounded-md px-3 py-2 text-sm ${
+            batch.packagingAvailable
+              ? "bg-emerald-50 dark:bg-emerald-950/30"
+              : "bg-amber-50 dark:bg-amber-950/30"
+          }`}
+        >
+          <span className="font-medium">Packaging</span>
+          <Badge
+            variant="outline"
+            className={
+              batch.packagingAvailable
+                ? "border-emerald-300 text-emerald-700 dark:text-emerald-400"
+                : "border-amber-300 text-amber-700 dark:text-amber-400"
+            }
+          >
+            {batch.packagingAvailable ? "Available" : "Pending"}
+          </Badge>
+        </div>
+      </div>
+      {batch.materialShortage && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-2 dark:border-red-800 dark:bg-red-950/30">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-red-700 dark:text-red-400">
+            <CircleAlert className="h-3 w-3" />
+            Material shortage flagged
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CoverageSection({ batch }: { batch: Batch }) {
+  const hasData = batch.stockCover != null || batch.safetyStock != null || batch.forecast != null;
+  if (!hasData) return null;
+
+  // Visual coverage bar
+  const coverWeeks = batch.stockCover ?? 0;
+  const maxWeeks = 52; // scale
+  const pct = Math.min(100, (coverWeeks / maxWeeks) * 100);
+  const isStockOut = coverWeeks <= 0;
+  const isLow = coverWeeks > 0 && coverWeeks < 4;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Coverage Profile</h3>
+        {isStockOut && (
+          <span className="flex items-center gap-1 text-xs font-semibold text-red-600">
+            <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+            Stock Out
+          </span>
+        )}
+        {isLow && !isStockOut && (
+          <span className="flex items-center gap-1 text-xs font-semibold text-amber-600">
+            <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+            Low Cover
+          </span>
+        )}
+        {!isStockOut && !isLow && (
+          <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+            Good
+          </span>
+        )}
+      </div>
+
+      {/* Visual bar */}
+      <div className="h-5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className={`h-full rounded-full transition-all ${
+            isStockOut
+              ? "bg-red-400"
+              : isLow
+                ? "bg-amber-400"
+                : "bg-emerald-400"
+          }`}
+          style={{ width: `${Math.max(pct, 2)}%` }}
+        />
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div>
+          <p className="text-xs text-muted-foreground">Stock Cover</p>
+          <p className="text-sm font-semibold">
+            {batch.stockCover != null ? `${batch.stockCover}w` : "\u2014"}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Safety Stock</p>
+          <p className="text-sm font-semibold">
+            {batch.safetyStock != null ? batch.safetyStock.toLocaleString() : "\u2014"}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Forecast</p>
+          <p className="text-sm font-semibold">
+            {batch.forecast != null ? batch.forecast.toLocaleString() : "\u2014"}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QcControlsSection({
+  batch,
+  canEdit,
+  onUpdate,
+}: {
+  batch: Batch;
+  canEdit: boolean;
+  onUpdate: (field: string, value: boolean) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold">QC / P&C Controls</h3>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between rounded-md border px-3 py-2">
+          <span className="text-sm">Observation Required</span>
+          <Switch
+            checked={batch.observationRequired}
+            onCheckedChange={(checked) => onUpdate("observationRequired", checked)}
+            disabled={!canEdit}
+          />
+        </div>
+        <div className="flex items-center justify-between rounded-md border px-3 py-2">
+          <span className="text-sm">EBR Batch</span>
+          <Switch
+            checked={batch.ebrBatch}
+            onCheckedChange={(checked) => onUpdate("ebrBatch", checked)}
+            disabled={!canEdit}
+          />
+        </div>
+      </div>
+      {batch.qcObservedStage && (
+        <div className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
+          <p>
+            <span className="font-medium">Stage:</span> {batch.qcObservedStage}
+          </p>
+          {batch.qcObservedBy && (
+            <p>
+              <span className="font-medium">By:</span> {batch.qcObservedBy}
+            </p>
+          )}
+          {batch.qcObservedAt && (
+            <p>
+              <span className="font-medium">At:</span> {formatDateTime(batch.qcObservedAt)}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function BatchDetailSheet({
@@ -127,6 +383,7 @@ export function BatchDetailSheet({
   const { user } = useCurrentSite();
 
   const canEditStatus = hasPermission("batches.status");
+  const canEditSchedule = hasPermission("batches.schedule");
 
   // Status comment modal state
   const [commentModalOpen, setCommentModalOpen] = useState(false);
@@ -139,6 +396,20 @@ export function BatchDetailSheet({
     ? resources.find((r) => r.id === batch.planDisperserId)
     : null;
 
+  // Compute fill summary from linked orders
+  const fillSummary =
+    fillOrders.length > 0
+      ? (() => {
+          const totalQty = fillOrders.reduce((sum, fo) => sum + (fo.quantity ?? 0), 0);
+          const packSizes = [...new Set(fillOrders.map((fo) => fo.packSize).filter(Boolean))];
+          return packSizes.length > 0
+            ? `${packSizes.join(", ")} \u00D7 ${totalQty.toLocaleString()}`
+            : totalQty > 0
+              ? totalQty.toLocaleString()
+              : null;
+        })()
+      : null;
+
   const handleStatusChange = (newStatus: string) => {
     if (!batch) return;
     const status = newStatus as BatchStatus;
@@ -150,7 +421,6 @@ export function BatchDetailSheet({
       return;
     }
 
-    // Direct status change (no comment required)
     updateBatch.mutate(
       { batchId: batch.id, updates: { status } },
       {
@@ -204,9 +474,29 @@ export function BatchDetailSheet({
     );
   };
 
+  const handleFieldUpdate = (field: string, value: unknown) => {
+    if (!batch) return;
+    updateBatch.mutate(
+      { batchId: batch.id, updates: { [field]: value } },
+      {
+        onSuccess: () => {
+          addAudit.mutate({
+            batchId: batch.id,
+            action: "field_update",
+            details: {
+              field,
+              value,
+              changed_by: user?.email ?? user?.id ?? "unknown",
+            },
+          });
+        },
+      },
+    );
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+      <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
         {isLoading ? (
           <div className="space-y-4 pt-6">
             <Skeleton className="h-6 w-48" />
@@ -215,180 +505,227 @@ export function BatchDetailSheet({
           </div>
         ) : batch ? (
           <>
+            {/* Header */}
             <SheetHeader>
-              <div className="flex items-center gap-3">
-                <SheetTitle>Batch {batch.sapOrder}</SheetTitle>
-                {canEditStatus ? (
-                  <StatusSelect
-                    value={batch.status}
-                    onValueChange={handleStatusChange}
-                    disabled={updateBatch.isPending}
-                  />
-                ) : (
-                  <StatusBadge status={batch.status} />
-                )}
-              </div>
-              <SheetDescription>
+              <SheetTitle className="text-lg">
+                Batch: {batch.sapOrder}
+              </SheetTitle>
+              <SheetDescription className="text-sm">
                 {batch.materialDescription ?? "No description"}
               </SheetDescription>
             </SheetHeader>
 
-            <div className="mt-6 space-y-6">
-              {/* Material alerts */}
-              {(!batch.rmAvailable || !batch.packagingAvailable) ? (
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    {!batch.rmAvailable && (
-                      <Badge variant="outline" className="border-orange-300 bg-orange-50 text-orange-700">
-                        <AlertTriangle className="mr-1 h-3 w-3" />
-                        Waiting on Materials
-                      </Badge>
-                    )}
-                    {!batch.packagingAvailable && (
-                      <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700">
-                        <Package className="mr-1 h-3 w-3" />
-                        Waiting on Packaging
-                      </Badge>
-                    )}
-                  </div>
-                  {hasPermission("batches.schedule") && onReschedule && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
-                      onClick={() => {
-                        onReschedule(batch.id);
-                        onOpenChange(false);
-                      }}
-                    >
-                      <CalendarClock className="h-3.5 w-3.5" />
-                      Reschedule
-                    </Button>
+            <div className="mt-4 space-y-5">
+              {/* Status alert banner */}
+              <StatusAlertBanner batch={batch} />
+
+              {/* Current Status + Physical Location */}
+              <div className="rounded-lg border p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Current Status</h3>
+                  {canEditStatus ? (
+                    <StatusSelect
+                      value={batch.status}
+                      onValueChange={handleStatusChange}
+                      disabled={updateBatch.isPending}
+                    />
+                  ) : (
+                    <StatusBadge status={batch.status} />
                   )}
                 </div>
-              ) : (
-                <div className="flex items-center gap-1.5 text-sm">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <span className="text-muted-foreground">All Materials Available</span>
-                </div>
-              )}
 
-              <Separator />
+                <PhysicalLocationChips
+                  batch={batch}
+                  canEdit={canEditStatus}
+                  onUpdate={(loc) => handleFieldUpdate("physicalLocation", loc)}
+                />
+              </div>
 
-              {/* Schedule details */}
-              <div>
-                <h3 className="mb-2 text-sm font-semibold">Schedule</h3>
-                <div className="grid gap-1">
-                  <DetailRow
-                    icon={Calendar}
-                    label="Plan Date"
-                    value={formatDate(batch.planDate)}
-                  />
-                  <DetailRow
-                    icon={Beaker}
-                    label="Mixer"
-                    value={
-                      resource
-                        ? `${resource.displayName ?? resource.resourceCode}`
-                        : "Unassigned"
-                    }
-                  />
-                  <DetailRow
-                    icon={Beaker}
-                    label="Disperser"
-                    value={
-                      disperser
-                        ? `${disperser.displayName ?? disperser.resourceCode}`
-                        : "None"
-                    }
-                  />
-                  <DetailRow
-                    icon={Droplets}
-                    label="Volume"
-                    value={
-                      batch.batchVolume != null
-                        ? `${batch.batchVolume.toLocaleString()}L`
-                        : null
-                    }
-                  />
-                  {resource && batch.batchVolume != null && (
-                    <div className="ml-7 text-xs text-muted-foreground">
+              {/* Reschedule action for blocked batches */}
+              {(!batch.rmAvailable || !batch.packagingAvailable) &&
+                canEditSchedule &&
+                onReschedule && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
+                    onClick={() => {
+                      onReschedule(batch.id);
+                      onOpenChange(false);
+                    }}
+                  >
+                    <CalendarClock className="h-3.5 w-3.5" />
+                    Reschedule
+                  </Button>
+                )}
+
+              {/* Two-column: Bulk Information / Fill Information */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {/* Bulk Information */}
+                <div className="rounded-lg border p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Badge variant="outline" className="text-[10px] font-bold">
+                      BULK
+                    </Badge>
+                    <h3 className="text-sm font-semibold">Bulk Information</h3>
+                  </div>
+                  <div className="divide-y">
+                    <InfoRow label="Bulk Code" value={batch.bulkCode} />
+                    <InfoRow label="Bulk Batch Number" value={batch.bulkBatchNumber ?? batch.sapOrder} />
+                    <InfoRow label="Colour" value={batch.sapColorGroup} />
+                    <InfoRow label="Premix Count" value={batch.premixCount} />
+                    <InfoRow
+                      label="Volume"
+                      value={
+                        batch.batchVolume != null
+                          ? `${batch.batchVolume.toLocaleString()}L`
+                          : null
+                      }
+                    />
+                    <InfoRow
+                      label="Mixer"
+                      value={resource ? (resource.displayName ?? resource.resourceCode) : "Unassigned"}
+                    />
+                    <InfoRow
+                      label="Disperser"
+                      value={disperser ? (disperser.displayName ?? disperser.resourceCode) : "None"}
+                    />
+                  </div>
+                  {resource && batch.batchVolume != null && resource.maxCapacity != null && (
+                    <div className="mt-2 text-[10px] text-muted-foreground">
                       Capacity: {resource.minCapacity?.toLocaleString() ?? "?"}L
-                      {" \u2014 "}{resource.maxCapacity?.toLocaleString() ?? "?"}L
-                      {resource.maxCapacity != null &&
-                        batch.batchVolume > resource.maxCapacity && (
-                          <span className="ml-2 font-semibold text-red-500">
-                            Over capacity by{" "}
-                            {(batch.batchVolume - resource.maxCapacity).toLocaleString()}L
-                          </span>
-                        )}
+                      {" \u2014 "}{resource.maxCapacity.toLocaleString()}L
+                      {batch.batchVolume > resource.maxCapacity && (
+                        <span className="ml-1 font-semibold text-red-500">
+                          (over by {(batch.batchVolume - resource.maxCapacity).toLocaleString()}L)
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
-              </div>
 
-              <Separator />
-
-              {/* Material details */}
-              <div>
-                <h3 className="mb-2 text-sm font-semibold">Material</h3>
-                <div className="grid gap-1">
-                  <DetailRow
-                    icon={FileText}
-                    label="Material Code"
-                    value={batch.materialCode}
-                  />
-                  <DetailRow label="Bulk Code" value={batch.bulkCode} />
-                  <DetailRow label="Pack Size" value={batch.packSize} />
-                  <DetailRow label="Colour Group" value={batch.sapColorGroup} />
+                {/* Fill Information */}
+                <div className="rounded-lg border p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Badge variant="outline" className="border-emerald-300 text-[10px] font-bold text-emerald-700">
+                      FILL
+                    </Badge>
+                    <h3 className="text-sm font-semibold">Fill Information</h3>
+                  </div>
+                  <div className="divide-y">
+                    {fillSummary && (
+                      <div className="rounded-md bg-emerald-50 px-2 py-1.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 mb-1">
+                        Pack Summary: {fillSummary}
+                      </div>
+                    )}
+                    <InfoRow label="Material Code" value={batch.materialCode} />
+                    {fillOrders[0]?.fillOrder && (
+                      <InfoRow label="SAP Fill Order" value={fillOrders[0].fillOrder} />
+                    )}
+                    <InfoRow label="Pack Size" value={batch.packSize} />
+                    {fillOrders.length > 0 && (
+                      <InfoRow
+                        label="Quantity"
+                        value={`${fillOrders.reduce((s, fo) => s + (fo.quantity ?? 0), 0).toLocaleString()} units`}
+                      />
+                    )}
+                    {fillOrders[0]?.lidType && (
+                      <InfoRow label="Lid Type" value={fillOrders[0].lidType} />
+                    )}
+                    <InfoRow label="Fill Requirement" value={batch.fillRequirement ?? "Standard"} />
+                  </div>
                 </div>
               </div>
 
-              {/* Coverage & stock */}
-              {(batch.stockCover != null || batch.safetyStock != null || batch.forecast != null) && (
+              {/* Linked Fill Orders table */}
+              {fillOrders.length > 0 && (
                 <>
                   <Separator />
                   <div>
-                    <h3 className="mb-2 text-sm font-semibold">Coverage</h3>
-                    <div className="grid gap-1">
-                      <DetailRow
-                        icon={TrendingUp}
-                        label="Stock Cover"
-                        value={batch.stockCover != null ? `${batch.stockCover} weeks` : null}
-                      />
-                      <DetailRow
-                        label="Safety Stock"
-                        value={batch.safetyStock != null ? batch.safetyStock.toLocaleString() : null}
-                      />
-                      <DetailRow
-                        label="Forecast"
-                        value={batch.forecast != null ? batch.forecast.toLocaleString() : null}
-                      />
+                    <h3 className="mb-2 text-sm font-semibold">
+                      Linked Fill Orders ({fillOrders.length})
+                    </h3>
+                    <div className="overflow-x-auto rounded-md border">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="px-3 py-1.5 text-left text-xs font-medium text-muted-foreground">
+                              SAP Order
+                            </th>
+                            <th className="px-3 py-1.5 text-left text-xs font-medium text-muted-foreground">
+                              Material
+                            </th>
+                            <th className="px-3 py-1.5 text-left text-xs font-medium text-muted-foreground">
+                              Pack Size
+                            </th>
+                            <th className="px-3 py-1.5 text-right text-xs font-medium text-muted-foreground">
+                              Quantity
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {fillOrders.map((fo) => (
+                            <tr key={fo.id} className="border-b last:border-0">
+                              <td className="px-3 py-1.5 text-xs">
+                                {fo.fillOrder ?? "\u2014"}
+                              </td>
+                              <td className="px-3 py-1.5 text-xs text-muted-foreground">
+                                {fo.fillMaterial ?? "\u2014"}
+                              </td>
+                              <td className="px-3 py-1.5 text-xs">
+                                {fo.packSize ?? "\u2014"}
+                              </td>
+                              <td className="px-3 py-1.5 text-right text-xs font-medium">
+                                {fo.quantity != null
+                                  ? fo.quantity.toLocaleString()
+                                  : "\u2014"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </>
               )}
 
-              {/* Purchase orders */}
+              <Separator />
+
+              {/* Material Availability */}
+              <MaterialAvailabilitySection batch={batch} />
+
+              {/* Coverage Profile */}
+              <CoverageSection batch={batch} />
+
+              {/* Purchase Orders */}
               {(batch.poDate || batch.poQuantity != null) && (
                 <>
                   <Separator />
                   <div>
                     <h3 className="mb-2 text-sm font-semibold">Purchase Order</h3>
-                    <div className="grid gap-1">
-                      <DetailRow
-                        icon={ShoppingCart}
-                        label="PO Date"
-                        value={formatDate(batch.poDate)}
-                      />
-                      <DetailRow
+                    <div className="divide-y rounded-md border p-3">
+                      <InfoRow label="PO Date" value={formatDate(batch.poDate)} />
+                      <InfoRow
                         label="PO Quantity"
-                        value={batch.poQuantity != null ? batch.poQuantity.toLocaleString() : null}
+                        value={
+                          batch.poQuantity != null
+                            ? batch.poQuantity.toLocaleString()
+                            : null
+                        }
                       />
                     </div>
                   </div>
                 </>
               )}
+
+              <Separator />
+
+              {/* QC / P&C Controls */}
+              <QcControlsSection
+                batch={batch}
+                canEdit={canEditStatus}
+                onUpdate={(field, value) => handleFieldUpdate(field, value)}
+              />
 
               {/* Vetting */}
               {batch.vettingStatus !== "not_required" && (
@@ -396,97 +733,28 @@ export function BatchDetailSheet({
                   <Separator />
                   <div>
                     <h3 className="mb-2 text-sm font-semibold">Vetting</h3>
-                    <div className="grid gap-1">
-                      <DetailRow
-                        icon={ShieldCheck}
-                        label="Vetting Status"
+                    <div className="space-y-1 rounded-md border p-3">
+                      <InfoRow
+                        label="Status"
                         value={
-                          <span className="capitalize">
-                            {batch.vettingStatus}
-                          </span>
+                          <span className="capitalize">{batch.vettingStatus}</span>
                         }
                       />
                       {batch.vettedBy && (
-                        <DetailRow
-                          icon={User}
-                          label="Vetted By"
-                          value={batch.vettedBy}
-                        />
+                        <InfoRow label="Vetted By" value={batch.vettedBy} />
                       )}
                       {batch.vettedAt && (
-                        <DetailRow
-                          icon={Clock}
+                        <InfoRow
                           label="Vetted At"
                           value={formatDateTime(batch.vettedAt)}
                         />
                       )}
-                      {batch.vettingComment && (
-                        <div className="ml-7 rounded-md bg-muted p-2 text-sm">
-                          {batch.vettingComment}
-                        </div>
-                      )}
                     </div>
-                  </div>
-                </>
-              )}
-
-              {/* QC observation */}
-              {batch.qcObservedStage && (
-                <>
-                  <Separator />
-                  <div>
-                    <h3 className="mb-2 text-sm font-semibold">
-                      QC Observation
-                    </h3>
-                    <div className="grid gap-1">
-                      <DetailRow label="Stage" value={batch.qcObservedStage} />
-                      <DetailRow
-                        icon={Clock}
-                        label="Observed At"
-                        value={formatDateTime(batch.qcObservedAt)}
-                      />
-                      <DetailRow
-                        icon={User}
-                        label="Observed By"
-                        value={batch.qcObservedBy}
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* Linked Fill Orders */}
-              {fillOrders.length > 0 && (
-                <>
-                  <Separator />
-                  <div>
-                    <h3 className="mb-2 text-sm font-semibold">
-                      Fill Orders ({fillOrders.length})
-                    </h3>
-                    <div className="space-y-2">
-                      {fillOrders.map((fo) => (
-                        <div key={fo.id} className="rounded-md border p-2 text-sm">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-medium">{fo.fillOrder ?? "Unknown"}</span>
-                            {fo.quantity != null && (
-                              <span className="text-xs text-muted-foreground">
-                                Qty: {fo.quantity.toLocaleString()}{fo.unit ? ` ${fo.unit}` : ""}
-                              </span>
-                            )}
-                          </div>
-                          {fo.fillMaterial && (
-                            <p className="text-xs text-muted-foreground">{fo.fillMaterial}</p>
-                          )}
-                          {fo.fillDescription && (
-                            <p className="text-xs text-muted-foreground">{fo.fillDescription}</p>
-                          )}
-                          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                            {fo.packSize && <span>Pack: {fo.packSize}</span>}
-                            {fo.lidType && <span>Lid: {fo.lidType}</span>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    {batch.vettingComment && (
+                      <div className="mt-2 rounded-md bg-muted p-2 text-sm">
+                        {batch.vettingComment}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -496,9 +764,7 @@ export function BatchDetailSheet({
                 <>
                   <Separator />
                   <div>
-                    <h3 className="mb-2 text-sm font-semibold">
-                      Status Comment
-                    </h3>
+                    <h3 className="mb-2 text-sm font-semibold">Status Comment</h3>
                     <p className="rounded-md bg-muted p-3 text-sm">
                       {batch.statusComment}
                     </p>
@@ -515,7 +781,13 @@ export function BatchDetailSheet({
               {batch.jobLocation && (
                 <>
                   <Separator />
-                  <DetailRow label="Job Location" value={batch.jobLocation} />
+                  <div className="flex items-start gap-3 py-2">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">Job Location</p>
+                      <p className="text-sm">{batch.jobLocation}</p>
+                    </div>
+                  </div>
                 </>
               )}
 

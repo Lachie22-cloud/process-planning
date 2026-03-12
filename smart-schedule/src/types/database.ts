@@ -75,6 +75,13 @@ export interface DatabaseRow {
     vetted_by: string | null;
     vetted_at: string | null;
     vetting_comment: string | null;
+    bulk_batch_number: string | null;
+    premix_count: number;
+    ipt: number | null;
+    fill_requirement: string | null;
+    observation_required: boolean;
+    ebr_batch: boolean;
+    physical_location: string | null;
     created_at: string;
     updated_at: string;
   };

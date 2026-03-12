@@ -53,6 +53,10 @@ export interface ImportBatch {
   sapIpt: number | null;
   sapFillOrder: string | null;
   sapFillQuantity: number | null;
+  /** "X" in Mat.Grping column — material requires vetting */
+  matGrping: boolean;
+  /** "X" in Recipient column — material has been vetted */
+  recipient: boolean;
 }
 
 export type ImportMode = "replace" | "update" | "merge";
@@ -599,6 +603,12 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     const sapFillOrder = fill?.fillOrder ?? rowValue(row, headers, "fill order") ?? null;
     const sapFillQuantity = fill?.fillQuantity ?? rowNumeric(row, headers, "fill quantity", "fill qty") ?? null;
 
+    // Vetting columns: Mat.Grping = needs vetting, Recipient = has been vetted
+    const matGrpRaw = rowValue(row, headers, "mat.grping", "matgrping", "mat grping", "mat. grping");
+    const recipientRaw = rowValue(row, headers, "recipient");
+    const matGrping = matGrpRaw?.trim().toUpperCase() === "X";
+    const recipient = recipientRaw?.trim().toUpperCase() === "X";
+
     batches.push({
       sapOrder,
       materialCode,
@@ -623,6 +633,8 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
       sapIpt,
       sapFillOrder,
       sapFillQuantity,
+      matGrping,
+      recipient,
     });
   }
 
@@ -854,6 +866,12 @@ export function useImport() {
     }) => {
       if (!site) throw new Error("No site selected");
 
+      /** Derive vetting status from Mat.Grping / Recipient columns */
+      const deriveVettingStatus = (b: ImportBatch): string => {
+        if (!b.matGrping) return "not_required";
+        return b.recipient ? "approved" : "pending";
+      };
+
       /** SAP-sourced fields that should always be updated from import data */
       const buildSapFields = (b: ImportBatch) => ({
         site_id: site.id,
@@ -875,6 +893,8 @@ export function useImport() {
         po_quantity: b.poQuantity,
         forecast: b.forecast,
         material_shortage: b.materialShortage,
+        premix_count: b.sapPreMixCount ?? 0,
+        ipt: b.sapIpt,
       });
 
       if (mode === "replace") {
@@ -888,7 +908,7 @@ export function useImport() {
         const rows = data.map((b) => ({
           ...buildSapFields(b),
           status: "Planned",
-          vetting_status: "pending",
+          vetting_status: deriveVettingStatus(b),
           vetted_by: null,
           vetted_at: null,
           vetting_comment: null,
@@ -921,9 +941,9 @@ export function useImport() {
           const existing = existingMap.get(b.sapOrder);
           return {
             ...buildSapFields(b),
-            // Preserve workflow fields for existing rows, defaults for new
+            // Preserve workflow fields for existing rows, derive from SAP for new
             status: existing?.status ?? "Planned",
-            vetting_status: existing?.vetting_status ?? "pending",
+            vetting_status: existing?.vetting_status ?? deriveVettingStatus(b),
             vetted_by: existing?.vetted_by ?? null,
             vetted_at: existing?.vetted_at ?? null,
             vetting_comment: existing?.vetting_comment ?? null,

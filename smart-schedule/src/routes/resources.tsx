@@ -134,6 +134,8 @@ export function ResourcesPage() {
         sapIpt: null,
         sapFillOrder: null,
         sapFillQuantity: null,
+        matGrping: false,
+        recipient: false,
       };
       const resourceId = assignBatchToResource(importBatch, resources);
       if (resourceId) {

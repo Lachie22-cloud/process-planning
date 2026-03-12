@@ -14,6 +14,9 @@ interface UpdateBatchInput {
     qcObservedStage?: string | null;
     qcObservedAt?: string | null;
     qcObservedBy?: string | null;
+    observationRequired?: boolean;
+    ebrBatch?: boolean;
+    physicalLocation?: string | null;
   };
 }
 
@@ -47,6 +50,12 @@ export function useUpdateBatch() {
         dbUpdates.qc_observed_at = updates.qcObservedAt;
       if (updates.qcObservedBy !== undefined)
         dbUpdates.qc_observed_by = updates.qcObservedBy;
+      if (updates.observationRequired !== undefined)
+        dbUpdates.observation_required = updates.observationRequired;
+      if (updates.ebrBatch !== undefined)
+        dbUpdates.ebr_batch = updates.ebrBatch;
+      if (updates.physicalLocation !== undefined)
+        dbUpdates.physical_location = updates.physicalLocation;
 
       if (updates.status !== undefined) {
         dbUpdates.status_changed_at = new Date().toISOString();
