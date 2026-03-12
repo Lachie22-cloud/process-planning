@@ -58,7 +58,7 @@ const FIELD_LABELS: Record<string, string> = {
   vettedBy: "Vetted By",
 };
 
-function formatFieldValue(field: string, value: unknown): string {
+function formatFieldValue(_field: string, value: unknown): string {
   if (value === true) return "Yes";
   if (value === false) return "No";
   if (value === null || value === undefined) return "cleared";
