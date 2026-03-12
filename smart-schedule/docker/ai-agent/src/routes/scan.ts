@@ -23,7 +23,7 @@ scanRouter.post('/scan', async (req: Request, res: Response) => {
   const user = req.user!;
   const { siteId, scanType, promptOverride } = req.body as {
     siteId: string;
-    scanType: 'schedule_optimization' | 'rule_analysis' | 'capacity_check' | 'full_audit';
+    scanType: string;
     promptOverride?: string;
   };
 
@@ -32,9 +32,21 @@ scanRouter.post('/scan', async (req: Request, res: Response) => {
     return;
   }
 
-  const validTypes = ['schedule_optimization', 'rule_analysis', 'capacity_check', 'full_audit'];
-  if (!validTypes.includes(scanType)) {
-    res.status(400).json({ error: `Invalid scanType. Must be one of: ${validTypes.join(', ')}` });
+  // Validate scan type against the ai_scan_types table
+  const { data: scanTypeRow, error: lookupErr } = await supabaseAdmin
+    .from('ai_scan_types')
+    .select('key, ai_objective, enabled')
+    .eq('site_id', siteId)
+    .eq('key', scanType)
+    .single<{ key: string; ai_objective: string | null; enabled: boolean }>();
+
+  if (lookupErr || !scanTypeRow) {
+    res.status(400).json({ error: `Invalid scanType: "${scanType}" is not configured for this site` });
+    return;
+  }
+
+  if (!scanTypeRow.enabled) {
+    res.status(400).json({ error: `Scan type "${scanType}" is currently disabled` });
     return;
   }
 
@@ -83,6 +95,7 @@ scanRouter.post('/scan', async (req: Request, res: Response) => {
     previousKey: encryptionConfig.previousKey,
     existingScanId: pendingScan.id,
     promptOverride: promptOverride ?? null,
+    aiObjective: scanTypeRow.ai_objective ?? undefined,
   }).catch((err) => {
     console.error(`[scan] Async scan ${pendingScan.id} failed:`, err);
     supabaseAdmin

@@ -73,6 +73,11 @@ const AdminColourGroupsPage = lazy(() =>
     default: m.AdminColourGroupsPage,
   })),
 );
+const AdminAiScanTypesPage = lazy(() =>
+  import("./admin/ai-scan-types").then((m) => ({
+    default: m.AdminAiScanTypesPage,
+  })),
+);
 
 function RouteFallback() {
   return (
@@ -125,6 +130,10 @@ export function AppRoutes() {
             <Route
               path="/admin/colour-groups"
               element={<AdminColourGroupsPage />}
+            />
+            <Route
+              path="/admin/ai-scan-types"
+              element={<AdminAiScanTypesPage />}
             />
           </Route>
 

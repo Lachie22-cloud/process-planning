@@ -442,17 +442,26 @@ async function defaultTaskExecutor(ctx: TaskExecutionContext): Promise<TaskExecu
       ? [ctx.createdBy]
       : [];
 
+  // Look up AI objective from scan types table
+  const { data: scanTypeRow } = await supabaseAdmin
+    .from('ai_scan_types')
+    .select('ai_objective')
+    .eq('site_id', ctx.siteId)
+    .eq('key', ctx.taskType)
+    .single<{ ai_objective: string | null }>();
+
   const result = await runClaudeScan({
     supabase: supabaseAdmin,
     supabaseUrl: runtimeConfig.supabaseUrl,
     supabaseServiceKey: runtimeConfig.supabaseServiceKey,
     siteId: ctx.siteId,
-    scanType: ctx.taskType as 'schedule_optimization' | 'rule_analysis' | 'capacity_check' | 'full_audit',
+    scanType: ctx.taskType,
     promptOverride: ctx.customPrompt,
     triggeredBy: null,
     scheduledTaskId: ctx.taskId,
     currentKey: encryptionConfig.currentKey,
     previousKey: encryptionConfig.previousKey,
+    aiObjective: scanTypeRow?.ai_objective ?? undefined,
   });
 
   if (!result.success) {

@@ -90,7 +90,7 @@ export function useTriggerScan() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: ScanType | { scanType: ScanType; promptOverride?: string }) => {
+    mutationFn: async (input: string | { scanType: string; promptOverride?: string }) => {
       if (!site) throw new Error("No site selected");
 
       const scanType = typeof input === "string" ? input : input.scanType;
@@ -125,6 +125,38 @@ export function useTriggerScan() {
     },
     onError: (err) => {
       toast.error(err instanceof Error ? err.message : "Failed to trigger scan");
+    },
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/*  useAiScan — fetch a single scan by ID (for output viewer)          */
+/* ------------------------------------------------------------------ */
+
+export function useAiScan(scanId: string | null) {
+  return useQuery<AiScan | null>({
+    queryKey: ["ai_scan", scanId],
+    queryFn: async () => {
+      if (!scanId) return null;
+
+      const { data, error } = await supabase
+        .from("ai_scans")
+        .select("*")
+        .eq("id", scanId)
+        .single();
+
+      if (error) throw error;
+      return data ? mapScan(data as DatabaseRow["ai_scans"]) : null;
+    },
+    enabled: !!scanId,
+    staleTime: 10_000,
+    refetchInterval: (query) => {
+      const scan = query.state.data;
+      // Poll while scan is still in progress
+      if (scan && (scan.status === "pending" || scan.status === "running")) {
+        return 3_000;
+      }
+      return false;
     },
   });
 }

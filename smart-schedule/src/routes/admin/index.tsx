@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Server, Settings, Building2, Key, BookOpen, Clock, Bot, Palette } from "lucide-react";
+import { Users, Server, Settings, Building2, Key, BookOpen, Clock, Bot, Palette, ScanSearch } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { usePermissions } from "@/hooks/use-permissions";
 
@@ -59,6 +59,12 @@ export function AdminIndexPage() {
             description: "Configure automated AI analysis schedules",
             icon: Clock,
             path: "/admin/ai-scheduled-tasks",
+          },
+          {
+            title: "AI Scan Types",
+            description: "Configure and manage AI analysis scan types",
+            icon: ScanSearch,
+            path: "/admin/ai-scan-types",
           },
         ]
       : []),

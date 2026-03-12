@@ -365,17 +365,26 @@ adminRouter.post('/admin/tasks/:id/run', async (req: Request, res: Response) => 
 
   const runId = runInsert.data?.id as string | undefined;
 
+  // Look up AI objective from scan types table
+  const { data: scanTypeRow } = await supabaseAdmin
+    .from('ai_scan_types')
+    .select('ai_objective')
+    .eq('site_id', siteId)
+    .eq('key', task.task_type)
+    .single<{ ai_objective: string | null }>();
+
   const result = await runClaudeScan({
     supabase: supabaseAdmin,
     supabaseUrl: runtimeConfig.supabaseUrl,
     supabaseServiceKey: runtimeConfig.supabaseServiceKey,
     siteId,
-    scanType: task.task_type as 'schedule_optimization' | 'rule_analysis' | 'capacity_check' | 'full_audit',
+    scanType: task.task_type,
     promptOverride: task.custom_prompt,
     triggeredBy: siteUserId(user),
     scheduledTaskId: task.id,
     currentKey: encryptionConfig.currentKey,
     previousKey: encryptionConfig.previousKey,
+    aiObjective: scanTypeRow?.ai_objective ?? undefined,
   });
 
   const durationMs = Date.now() - startedAt;

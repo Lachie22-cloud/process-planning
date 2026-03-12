@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -18,42 +18,21 @@ import {
   Clock,
   Play,
   Zap,
+  ChevronRight,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
   useAiScans,
   useTriggerScan,
-  type ScanType,
   type ScanStatus,
 } from "@/hooks/use-ai-scans";
+import { useAiScanTypes } from "@/hooks/use-ai-scan-types";
+import { ScanOutputSheet } from "./scan-output-sheet";
 import { formatDistanceToNow } from "date-fns";
-
-const SCAN_TYPES: { value: ScanType; label: string; description: string }[] = [
-  {
-    value: "schedule_optimization",
-    label: "Schedule Optimisation",
-    description: "Analyse schedule for efficiency improvements",
-  },
-  {
-    value: "rule_analysis",
-    label: "Rule Analysis",
-    description: "Review substitution and scheduling rules",
-  },
-  {
-    value: "capacity_check",
-    label: "Capacity Check",
-    description: "Check resource capacity and utilisation",
-  },
-  {
-    value: "full_audit",
-    label: "Full Audit",
-    description: "Comprehensive analysis of all aspects",
-  },
-];
 
 const QUICK_ACTIONS: {
   label: string;
-  scanType: ScanType;
+  scanType: string;
   prompt: string;
 }[] = [
   {
@@ -120,108 +99,135 @@ export function ScanTrigger() {
 }
 
 function ScanTriggerInner() {
-  const [scanType, setScanType] = useState<ScanType>("schedule_optimization");
+  const { data: scanTypes = [] } = useAiScanTypes(true);
+  const [scanType, setScanType] = useState<string>("");
   const trigger = useTriggerScan();
   const { data: recentScans = [] } = useAiScans(5);
+  const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
+
+  // Default to first scan type once loaded
+  useEffect(() => {
+    const firstScanType = scanTypes[0];
+    if (firstScanType && !scanType) {
+      setScanType(firstScanType.key);
+    }
+  }, [scanTypes, scanType]);
+
+  const selectedType = scanTypes.find((t) => t.key === scanType);
+  const labelLookup = new Map(scanTypes.map((t) => [t.key, t.label]));
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <ScanSearch className="h-5 w-5" />
-          AI Analysis
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-end gap-3">
-          <div className="flex-1">
-            <Select
-              value={scanType}
-              onValueChange={(v) => setScanType(v as ScanType)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SCAN_TYPES.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    <span>{t.label}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
-            onClick={() => trigger.mutate(scanType)}
-            disabled={trigger.isPending}
-          >
-            {trigger.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Play className="mr-2 h-4 w-4" />
-            )}
-            Run Scan
-          </Button>
-        </div>
-
-        <p className="text-xs text-muted-foreground">
-          {SCAN_TYPES.find((t) => t.value === scanType)?.description}
-        </p>
-
-        {/* Quick action buttons */}
-        <div className="flex flex-wrap gap-2">
-          {QUICK_ACTIONS.map((qa) => (
-            <Button
-              key={qa.label}
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs gap-1"
-              disabled={trigger.isPending}
-              onClick={() =>
-                trigger.mutate({
-                  scanType: qa.scanType,
-                  promptOverride: qa.prompt,
-                })
-              }
-            >
-              <Zap className="h-3 w-3" />
-              {qa.label}
-            </Button>
-          ))}
-        </div>
-
-        {recentScans.length > 0 && (
-          <>
-            <Separator />
-            <div>
-              <p className="mb-2 text-xs font-medium text-muted-foreground">
-                Recent Scans
-              </p>
-              <div className="space-y-2">
-                {recentScans.map((scan) => (
-                  <div
-                    key={scan.id}
-                    className="flex items-center justify-between text-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      {statusBadge(scan.status)}
-                      <span className="text-muted-foreground">
-                        {SCAN_TYPES.find((t) => t.value === scan.scanType)?.label ??
-                          scan.scanType}
-                      </span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(scan.createdAt), {
-                        addSuffix: true,
-                      })}
-                    </span>
-                  </div>
-                ))}
-              </div>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ScanSearch className="h-5 w-5" />
+            AI Analysis
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <Select
+                value={scanType}
+                onValueChange={(v) => setScanType(v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select scan type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {scanTypes.map((t) => (
+                    <SelectItem key={t.key} value={t.key}>
+                      <span>{t.label}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+            <Button
+              onClick={() => trigger.mutate(scanType)}
+              disabled={trigger.isPending || !scanType}
+            >
+              {trigger.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="mr-2 h-4 w-4" />
+              )}
+              Run Scan
+            </Button>
+          </div>
+
+          {selectedType?.description && (
+            <p className="text-xs text-muted-foreground">
+              {selectedType.description}
+            </p>
+          )}
+
+          {/* Quick action buttons */}
+          <div className="flex flex-wrap gap-2">
+            {QUICK_ACTIONS.map((qa) => (
+              <Button
+                key={qa.label}
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1"
+                disabled={trigger.isPending}
+                onClick={() =>
+                  trigger.mutate({
+                    scanType: qa.scanType,
+                    promptOverride: qa.prompt,
+                  })
+                }
+              >
+                <Zap className="h-3 w-3" />
+                {qa.label}
+              </Button>
+            ))}
+          </div>
+
+          {recentScans.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <p className="mb-2 text-xs font-medium text-muted-foreground">
+                  Recent Scans
+                </p>
+                <div className="space-y-1">
+                  {recentScans.map((scan) => (
+                    <button
+                      key={scan.id}
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-muted/50"
+                      onClick={() => setSelectedScanId(scan.id)}
+                    >
+                      <div className="flex items-center gap-2">
+                        {statusBadge(scan.status)}
+                        <span className="text-muted-foreground">
+                          {labelLookup.get(scan.scanType) ?? scan.scanType}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(scan.createdAt), {
+                            addSuffix: true,
+                          })}
+                        </span>
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <ScanOutputSheet
+        scanId={selectedScanId}
+        onClose={() => setSelectedScanId(null)}
+        scanTypeLabels={labelLookup}
+      />
+    </>
   );
 }

@@ -249,10 +249,23 @@ export interface DatabaseRow {
     metadata: Json;
     created_at: string;
   };
+  ai_scan_types: {
+    id: string;
+    site_id: string;
+    key: string;
+    label: string;
+    description: string | null;
+    ai_objective: string | null;
+    enabled: boolean;
+    is_default: boolean;
+    sort_order: number;
+    created_at: string;
+    updated_at: string;
+  };
   ai_scans: {
     id: string;
     site_id: string;
-    scan_type: 'schedule_optimization' | 'rule_analysis' | 'capacity_check' | 'full_audit';
+    scan_type: string;
     status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
     triggered_by: string | null;
     scheduled_task_id: string | null;
@@ -285,7 +298,7 @@ export interface DatabaseRow {
     site_id: string;
     name: string;
     description: string | null;
-    task_type: 'schedule_optimization' | 'rule_analysis' | 'capacity_check' | 'full_audit';
+    task_type: string;
     cron_expression: string;
     timezone: string;
     misfire_policy: 'skip_if_missed' | 'run_once_on_recovery';

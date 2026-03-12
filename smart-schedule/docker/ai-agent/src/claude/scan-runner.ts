@@ -76,7 +76,7 @@ export interface RunClaudeScanOptions {
   supabaseUrl: string;
   supabaseServiceKey: string;
   siteId: string;
-  scanType: 'schedule_optimization' | 'rule_analysis' | 'capacity_check' | 'full_audit';
+  scanType: string;
   promptOverride?: string | null;
   triggeredBy?: string | null;
   scheduledTaskId?: string | null;
@@ -84,6 +84,8 @@ export interface RunClaudeScanOptions {
   previousKey?: string | null;
   /** If provided, reuse this existing scan row instead of creating a new one. */
   existingScanId?: string | null;
+  /** Custom AI objective from ai_scan_types table. */
+  aiObjective?: string;
 }
 
 export interface RunClaudeScanResult {
@@ -94,22 +96,19 @@ export interface RunClaudeScanResult {
 }
 
 function buildScanPrompt(
-  scanType: RunClaudeScanOptions['scanType'],
+  scanType: string,
   promptOverride?: string | null,
+  aiObjective?: string,
 ): string {
   if (promptOverride && promptOverride.trim()) {
     return promptOverride.trim();
   }
-  const objectiveMap: Record<RunClaudeScanOptions['scanType'], string> = {
-    schedule_optimization: 'Find schedule bottlenecks and produce optimization recommendations.',
-    rule_analysis: 'Review planning rules and identify conflicts or inefficiencies.',
-    capacity_check: 'Check resource capacity constraints and identify overload/underutilization.',
-    full_audit: 'Perform a full planning audit and summarize top risks and actions.',
-  };
+
+  const objective = aiObjective ?? 'Perform an AI analysis scan and return concise findings.';
 
   return [
     `Run scan type: ${scanType}`,
-    objectiveMap[scanType],
+    objective,
     'Use MCP tools to inspect current site data.',
     'Return concise findings plus proposed draft actions.',
   ].join('\n');
@@ -179,7 +178,7 @@ export async function runClaudeScan(opts: RunClaudeScanOptions): Promise<RunClau
       supabaseUrl: opts.supabaseUrl,
       supabaseServiceKey: opts.supabaseServiceKey,
       siteId: opts.siteId,
-      prompt: buildScanPrompt(opts.scanType, opts.promptOverride),
+      prompt: buildScanPrompt(opts.scanType, opts.promptOverride, opts.aiObjective),
       systemPrompt: await assembleSystemPrompt({ supabase: opts.supabase, siteId: opts.siteId, siteName, context: 'scan' }),
       maxTurns: 8,
       supabase: opts.supabase,

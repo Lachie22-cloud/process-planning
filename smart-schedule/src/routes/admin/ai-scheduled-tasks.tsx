@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,16 +60,9 @@ import {
   XCircle,
 } from "lucide-react";
 import { Navigate } from "react-router-dom";
+import { useAiScanTypes } from "@/hooks/use-ai-scan-types";
 
-type TaskType = AiTaskInput["taskType"];
 type MisfirePolicy = AiTaskInput["misfirePolicy"];
-
-const TASK_TYPE_LABELS: Record<TaskType, string> = {
-  schedule_optimization: "Schedule Optimisation",
-  rule_analysis: "Rule Analysis",
-  capacity_check: "Capacity Check",
-  full_audit: "Full Audit",
-};
 
 const MISFIRE_LABELS: Record<NonNullable<MisfirePolicy>, string> = {
   skip_if_missed: "Skip if Missed",
@@ -79,7 +72,7 @@ const MISFIRE_LABELS: Record<NonNullable<MisfirePolicy>, string> = {
 interface TaskFormState {
   name: string;
   description: string;
-  taskType: TaskType;
+  taskType: string;
   cronExpression: string;
   timezone: string;
   misfirePolicy: NonNullable<MisfirePolicy>;
@@ -115,6 +108,8 @@ export function AdminAiScheduledTasksPage() {
   const deleteTask = useDeleteAiTask();
   const toggleTask = useToggleAiTask();
   const runNow = useRunAiTaskNow();
+  const { data: scanTypes = [] } = useAiScanTypes(true);
+  const taskTypeLabels = new Map(scanTypes.map((t) => [t.key, t.label]));
   const { data: siteUsers = [] } = useQuery({
     queryKey: ["site_users", site?.id, "ai_task_notify"],
     queryFn: async () => {
@@ -136,6 +131,21 @@ export function AdminAiScheduledTasksPage() {
   const [form, setForm] = useState<TaskFormState>(DEFAULT_FORM);
   const [deleteTarget, setDeleteTarget] = useState<AiScheduledTask | null>(null);
 
+  useEffect(() => {
+    if (scanTypes.length === 0) return;
+
+    setForm((current) => {
+      if (scanTypes.some((type) => type.key === current.taskType)) {
+        return current;
+      }
+
+      return {
+        ...current,
+        taskType: scanTypes[0]?.key ?? current.taskType,
+      };
+    });
+  }, [scanTypes]);
+
   if (!hasPermission("admin.settings")) {
     return <Navigate to="/admin" replace />;
   }
@@ -144,7 +154,10 @@ export function AdminAiScheduledTasksPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm(DEFAULT_FORM);
+    setForm({
+      ...DEFAULT_FORM,
+      taskType: scanTypes[0]?.key ?? DEFAULT_FORM.taskType,
+    });
     setFormOpen(true);
   };
 
@@ -272,7 +285,7 @@ export function AdminAiScheduledTasksPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {TASK_TYPE_LABELS[task.taskType]}
+                        {taskTypeLabels.get(task.taskType) ?? task.taskType}
                       </Badge>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
@@ -382,16 +395,16 @@ export function AdminAiScheduledTasksPage() {
                 <Select
                   value={form.taskType}
                   onValueChange={(v) =>
-                    setForm((f) => ({ ...f, taskType: v as TaskType }))
+                    setForm((f) => ({ ...f, taskType: v }))
                   }
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
+                    {scanTypes.map((t) => (
+                      <SelectItem key={t.key} value={t.key}>
+                        {t.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
