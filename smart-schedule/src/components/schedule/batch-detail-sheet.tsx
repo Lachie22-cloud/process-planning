@@ -18,8 +18,10 @@ import { AuditLog } from "@/components/shared/audit-log";
 import {
   AlertTriangle,
   CalendarClock,
+  CheckCircle2,
   History,
   MapPin,
+  Package,
   CircleAlert,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -99,23 +101,17 @@ function StatusAlertBanner({ batch }: { batch: Batch }) {
   if (!isError && !isWarning) return null;
 
   return (
-    <div
-      className={`flex items-start gap-3 rounded-lg border-l-4 p-3 ${
-        isError
-          ? "border-l-red-500 bg-red-50 dark:bg-red-950/30"
-          : "border-l-amber-500 bg-amber-50 dark:bg-amber-950/30"
-      }`}
-    >
+    <div className="flex items-start gap-3 rounded-lg border p-3">
       <AlertTriangle
         className={`mt-0.5 h-4 w-4 shrink-0 ${
-          isError ? "text-red-600" : "text-amber-600"
+          isError ? "text-red-500" : "text-amber-500"
         }`}
       />
       <div>
-        <p className={`text-sm font-semibold ${isError ? "text-red-800 dark:text-red-300" : "text-amber-800 dark:text-amber-300"}`}>
+        <p className="text-sm font-semibold">
           {cfg?.label}: {batch.status === "WOM" ? "Waiting On Materials" : batch.status === "WOP" ? "Waiting On Packaging" : cfg?.label}
         </p>
-        <p className={`text-xs ${isError ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}`}>
+        <p className="text-xs text-muted-foreground">
           {description}
         </p>
       </div>
@@ -532,7 +528,7 @@ export function BatchDetailSheet({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
+                    className="gap-1.5"
                     onClick={() => {
                       onReschedule(batch.id);
                       onOpenChange(false);
@@ -591,14 +587,14 @@ export function BatchDetailSheet({
                 {/* Fill Information */}
                 <div className="rounded-lg border p-3">
                   <div className="mb-2 flex items-center gap-2">
-                    <Badge variant="outline" className="border-emerald-300 text-[10px] font-bold text-emerald-700">
+                    <Badge variant="outline" className="text-[10px] font-bold">
                       FILL
                     </Badge>
                     <h3 className="text-sm font-semibold">Fill Information</h3>
                   </div>
                   <div className="divide-y">
                     {fillSummary && (
-                      <div className="rounded-md bg-emerald-50 px-2 py-1.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 mb-1">
+                      <div className="rounded-md border bg-muted/50 px-2 py-1.5 text-xs font-medium mb-1">
                         Pack Summary: {fillSummary}
                       </div>
                     )}

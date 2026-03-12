@@ -22,6 +22,7 @@ import {
   Calendar,
   ArrowRight,
   CheckCircle2,
+  CircleAlert,
   Loader2,
   Info,
 } from "lucide-react";
@@ -143,22 +144,7 @@ function getEarliestAvailableDate(batch: Batch): string | null {
   return candidates.sort().pop() ?? null;
 }
 
-/** Get the score colour class for visual feedback */
-function getScoreBgClass(score: number, feasible: boolean): string {
-  if (!feasible) return "bg-gray-100 dark:bg-gray-800";
-  if (score >= 70) return "bg-emerald-50 dark:bg-emerald-950/30";
-  if (score >= 40) return "bg-yellow-50 dark:bg-yellow-950/30";
-  if (score >= 15) return "bg-orange-50 dark:bg-orange-950/30";
-  return "bg-red-50 dark:bg-red-950/30";
-}
-
-function getScoreTextClass(score: number, feasible: boolean): string {
-  if (!feasible) return "text-gray-500";
-  if (score >= 70) return "text-emerald-700 dark:text-emerald-300";
-  if (score >= 40) return "text-yellow-700 dark:text-yellow-300";
-  if (score >= 15) return "text-orange-700 dark:text-orange-300";
-  return "text-red-700 dark:text-red-300";
-}
+// Score colour helpers removed — using inline coloured dots with neutral text
 
 // ---------------------------------------------------------------------------
 // Types
@@ -450,20 +436,14 @@ export function RescheduleDialog({
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
             {isWom && (
-              <Badge
-                variant="outline"
-                className="border-orange-300 bg-orange-50 text-orange-700"
-              >
-                <AlertTriangle className="mr-1 h-3 w-3" />
+              <Badge variant="outline">
+                <AlertTriangle className="mr-1 h-3 w-3 text-orange-500" />
                 Waiting on Materials
               </Badge>
             )}
             {isWop && (
-              <Badge
-                variant="outline"
-                className="border-amber-300 bg-amber-50 text-amber-700"
-              >
-                <Package className="mr-1 h-3 w-3" />
+              <Badge variant="outline">
+                <Package className="mr-1 h-3 w-3 text-amber-500" />
                 Waiting on Packaging
               </Badge>
             )}
@@ -538,7 +518,6 @@ export function RescheduleDialog({
                         ? "hover:ring-2 hover:ring-primary/50 cursor-pointer"
                         : "opacity-50 cursor-not-allowed",
                       isSelected && "ring-2 ring-primary border-primary",
-                      !isSelected && getScoreBgClass(option.score.score, option.score.feasible),
                     )}
                     onClick={() => {
                       if (option.score.feasible && !isCurrent) {
@@ -548,17 +527,27 @@ export function RescheduleDialog({
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0">
-                        {/* Score badge */}
-                        <span
-                          className={cn(
-                            "inline-flex items-center justify-center rounded-md px-2 py-0.5 font-mono text-xs font-bold tabular-nums min-w-[40px]",
-                            getScoreTextClass(option.score.score, option.score.feasible),
-                            getScoreBgClass(option.score.score, option.score.feasible),
-                          )}
-                        >
-                          {option.score.feasible
-                            ? Math.round(option.score.score)
-                            : "N/A"}
+                        {/* Score badge — coloured icon dot + neutral text */}
+                        <span className="inline-flex items-center gap-1 rounded-md border bg-muted/50 px-2 py-0.5 font-mono text-xs font-bold tabular-nums min-w-[40px]">
+                          <span
+                            className={cn(
+                              "inline-block h-2 w-2 rounded-full shrink-0",
+                              option.score.feasible
+                                ? option.score.score >= 70
+                                  ? "bg-emerald-500"
+                                  : option.score.score >= 40
+                                    ? "bg-yellow-500"
+                                    : option.score.score >= 15
+                                      ? "bg-orange-500"
+                                      : "bg-red-500"
+                                : "bg-gray-400",
+                            )}
+                          />
+                          <span className="text-foreground">
+                            {option.score.feasible
+                              ? Math.round(option.score.score)
+                              : "N/A"}
+                          </span>
                         </span>
 
                         {/* Resource name */}
@@ -619,9 +608,10 @@ export function RescheduleDialog({
                         </Tooltip>
                       )}
 
-                      {/* Violations for infeasible */}
+                      {/* Violations for infeasible — icon + neutral text */}
                       {!option.score.feasible && (
-                        <span className="text-[10px] text-red-500 shrink-0">
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
+                          <CircleAlert className="h-3 w-3 text-red-500" />
                           {option.score.violations.join(", ")}
                         </span>
                       )}
