@@ -476,7 +476,7 @@ export function BatchDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+      <SheetContent className="w-full overflow-y-auto pb-16 sm:max-w-xl">
         {isLoading ? (
           <div className="space-y-4 pt-6">
             <Skeleton className="h-6 w-48" />
