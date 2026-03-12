@@ -16,9 +16,7 @@ import { StatusSelect } from "@/components/shared/status-select";
 import { StatusCommentModal } from "@/components/shared/status-comment-modal";
 import { AuditLog } from "@/components/shared/audit-log";
 import {
-  Package,
   AlertTriangle,
-  CheckCircle2,
   CalendarClock,
   History,
   MapPin,
