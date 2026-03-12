@@ -45,12 +45,22 @@ interface ParsedReport {
 
 function cleanNarrative(text: string): string {
   return text
+    // Strip emojis
     .replace(/[\p{Extended_Pictographic}\uFE0F]/gu, "")
+    // Strip XML tags (tool calls like <get_batches>, <invoke name="...">)
     .replace(/<\/?[a-z_][a-z_0-9]*(?:\s[^>]*)?\/?>/gi, "")
+    // Strip UUIDs
     .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "")
+    // Strip scan status lines
     .replace(/scan_\w+\s+(running|pending|completed)\s*\d*/gi, "")
+    // Strip bare dates
     .replace(/\bscheduled\s+\d{4}-\d{2}-\d{2}\b/gi, "")
     .replace(/^\s*\d{4}-\d{2}-\d{2}(\s+\d{4}-\d{2}-\d{2})?\s*$/gm, "")
+    // Strip AI reasoning/thinking phrases (common patterns)
+    .replace(/^(?:Let me|I'll|I will|Now let me|Now I'll|First,? (?:let me|I'll))[^.]*[.:]\s*/gm, "")
+    // Strip "Step N:" headers that are just planning
+    .replace(/^##?\s*Step\s+\d+[^#\n]*/gm, "")
+    // Clean up empty lines
     .replace(/^\s*$/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -63,10 +73,22 @@ function parseReport(raw: unknown): ParsedReport | null {
 
   const messages = r.messages as AiScanMessage[];
 
-  const textChunks = messages
-    .filter((m) => m.type === "text" && m.content)
-    .map((m) => m.content);
-  const narrative = textChunks.join("");
+  // Deduplicate text: if we have many tiny fragments, they're stream deltas.
+  // If we also have larger text blocks (assistant), prefer those.
+  const textMsgs = messages.filter((m) => m.type === "text" && m.content);
+  const hasLargeBlocks = textMsgs.some((m) => m.content.length > 200);
+
+  let narrative: string;
+  if (hasLargeBlocks) {
+    // Use only the large blocks (full assistant responses), skip tiny stream deltas
+    narrative = textMsgs
+      .filter((m) => m.content.length > 50)
+      .map((m) => m.content)
+      .join("\n\n");
+  } else {
+    // All fragments — join them (likely all stream deltas)
+    narrative = textMsgs.map((m) => m.content).join("");
+  }
 
   let healthReport: HealthReport | null = null;
   for (const msg of messages) {

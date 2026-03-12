@@ -160,15 +160,62 @@ class SdkRunner implements AgentRunner {
           messages.push(toolProgress);
         }
 
-        const delta = mapStreamEventToText(msg);
-        if (delta) {
-          messages.push({ type: 'text', content: delta, metadata: { sessionId } });
-        }
-
+        // Only capture full assistant text blocks — skip stream_event deltas
+        // to avoid duplicating every piece of text as tiny fragments + full block.
         if (msg.type === 'assistant') {
           const text = extractTextFromAssistant(msg);
           if (text) {
             messages.push({ type: 'text', content: text, metadata: { sessionId } });
+          }
+
+          // Also capture tool_use blocks from assistant messages for structured data
+          const blocks = msg.message?.content;
+          if (Array.isArray(blocks)) {
+            for (const block of blocks) {
+              if (block?.type === 'tool_use') {
+                const b = block as { name?: string; id?: string; input?: unknown };
+                messages.push({
+                  type: 'tool_use',
+                  content: `Tool call: ${b.name}`,
+                  metadata: { toolName: b.name, toolUseId: b.id, input: b.input, sessionId },
+                });
+              }
+            }
+          }
+        }
+
+        // Capture tool results (from the SDK result event)
+        if (msg.type === 'tool_result') {
+          const r = msg as unknown as { tool_use_id?: string; content?: unknown };
+          const content = typeof r.content === 'string' ? r.content : JSON.stringify(r.content ?? '');
+          messages.push({
+            type: 'tool_result',
+            content,
+            metadata: { toolUseId: r.tool_use_id, sessionId },
+          });
+        }
+
+        // Capture user messages that contain tool results (SDK pattern)
+        if (msg.type === 'user') {
+          const userContent = (msg as unknown as { message?: { content?: unknown[] } }).message?.content;
+          if (Array.isArray(userContent)) {
+            for (const block of userContent) {
+              if (block && typeof block === 'object' && (block as Record<string, unknown>).type === 'tool_result') {
+                const tb = block as { tool_use_id?: string; content?: unknown };
+                const content = typeof tb.content === 'string'
+                  ? tb.content
+                  : Array.isArray(tb.content)
+                    ? tb.content.map((c: unknown) => (c && typeof c === 'object' && 'text' in (c as Record<string,unknown>)) ? (c as { text: string }).text : '').join('')
+                    : JSON.stringify(tb.content ?? '');
+                if (content) {
+                  messages.push({
+                    type: 'tool_result',
+                    content,
+                    metadata: { toolUseId: tb.tool_use_id, sessionId },
+                  });
+                }
+              }
+            }
           }
         }
 
