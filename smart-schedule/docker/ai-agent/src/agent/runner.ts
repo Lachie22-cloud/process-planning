@@ -184,17 +184,6 @@ class SdkRunner implements AgentRunner {
           }
         }
 
-        // Capture tool results (from the SDK result event)
-        if (msg.type === 'tool_result') {
-          const r = msg as unknown as { tool_use_id?: string; content?: unknown };
-          const content = typeof r.content === 'string' ? r.content : JSON.stringify(r.content ?? '');
-          messages.push({
-            type: 'tool_result',
-            content,
-            metadata: { toolUseId: r.tool_use_id, sessionId },
-          });
-        }
-
         // Capture user messages that contain tool results (SDK pattern)
         if (msg.type === 'user') {
           const userContent = (msg as unknown as { message?: { content?: unknown[] } }).message?.content;
