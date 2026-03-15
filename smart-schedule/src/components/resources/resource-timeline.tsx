@@ -66,7 +66,9 @@ function getWeekDates(weekStart: Date, weekEnding: Date): string[] {
   const end = new Date(weekEnding);
 
   while (current <= end) {
-    dates.push(format(current, "yyyy-MM-dd"));
+    if (!isWeekend(current)) {
+      dates.push(format(current, "yyyy-MM-dd"));
+    }
     current = addDays(current, 1);
   }
   return dates;
@@ -287,6 +289,7 @@ export function ResourceTimeline({
           rules: enabledRules,
           colourGroups,
           colourTransitions,
+          substitutionRules,
         });
 
         targets.set(key, {
@@ -300,7 +303,7 @@ export function ResourceTimeline({
       }
     }
     return targets;
-  }, [draggedBatch, allVisibleResources, dates, blockedSet, dayBlockedSet, batchesByResource, enabledRules, colourGroups, colourTransitions]);
+  }, [draggedBatch, allVisibleResources, dates, blockedSet, dayBlockedSet, batchesByResource, enabledRules, colourGroups, colourTransitions, substitutionRules]);
 
   // Completion stats per date (only visible resources)
   const completionByDate = useMemo(() => {

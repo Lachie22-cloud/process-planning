@@ -9,7 +9,8 @@ export type HardViolation =
   | "incompatible_base"
   | "resource_blocked"
   | "max_batches_exceeded"
-  | "resource_inactive";
+  | "resource_inactive"
+  | "substitution_blocked";
 
 /** Soft-factor identifiers used in score breakdowns */
 export type SoftFactor =
@@ -18,8 +19,7 @@ export type SoftFactor =
   | "trunk_line_match"
   | "group_match"
   | "workload_balance"
-  | "wom_check"
-  | "substitution";
+  | "wom_check";
 
 /** A single scored soft factor with weight, raw value, and weighted contribution */
 export interface SoftFactorScore {

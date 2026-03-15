@@ -188,6 +188,23 @@ export class PlacementScorer {
       violations.push("max_batches_exceeded");
     }
 
+    // 6. Substitution rules: block moves to resources not allowed by any rule
+    if (
+      batch.planResourceId != null &&
+      batch.planResourceId !== resource.id &&
+      ctx.substitutionRules.length > 0
+    ) {
+      const allowed = this.isSubstitutionAllowed(
+        batch.planResourceId,
+        resource.id,
+        batch,
+        ctx.substitutionRules,
+      );
+      if (!allowed) {
+        violations.push("substitution_blocked");
+      }
+    }
+
     return violations;
   }
 
@@ -221,9 +238,6 @@ export class PlacementScorer {
 
     // 6. WOM/WOP date checks
     factors.push(this.scoreWomCheck(batch, targetDate, w));
-
-    // 7. Substitution rules (positive/negative contribution)
-    factors.push(this.scoreSubstitution(batch, resource, ctx));
 
     return factors;
   }
@@ -572,74 +586,6 @@ export class PlacementScorer {
       weight: 1,
       weighted: -w.womPenalty * issues.length,
       reason: issues.join("; "),
-    };
-  }
-
-  /**
-   * Substitution rules: soft-factor scoring for cross-resource moves.
-   * If the batch is staying on the same resource or has no prior resource,
-   * this is neutral (no penalty). If moving to a different resource,
-   * matching substitution rules contribute a bonus; no matching rule
-   * contributes a penalty.
-   */
-  private scoreSubstitution(
-    batch: ScoringBatch,
-    resource: ScoringResource,
-    ctx: ScoringContext,
-  ): SoftFactorScore {
-    const substitutionPenalty = 15;
-    const substitutionBonus = 5;
-
-    // Not moving or no prior resource → neutral
-    if (
-      batch.planResourceId == null ||
-      batch.planResourceId === resource.id
-    ) {
-      return {
-        factor: "substitution",
-        raw: 50,
-        weight: 1,
-        weighted: 0,
-        reason: "Same resource or no prior assignment – neutral",
-      };
-    }
-
-    // No substitution rules defined → neutral (unregulated)
-    if (ctx.substitutionRules.length === 0) {
-      return {
-        factor: "substitution",
-        raw: 50,
-        weight: 1,
-        weighted: 0,
-        reason: "No substitution rules defined – neutral",
-      };
-    }
-
-    // Check if any rule allows this substitution
-    const allowed = this.isSubstitutionAllowed(
-      batch.planResourceId,
-      resource.id,
-      batch,
-      ctx.substitutionRules,
-    );
-
-    if (allowed) {
-      return {
-        factor: "substitution",
-        raw: 100,
-        weight: 1,
-        weighted: substitutionBonus,
-        reason: `Substitution ${batch.planResourceId}→${resource.id} allowed by rule`,
-      };
-    }
-
-    // No matching rule → penalty
-    return {
-      factor: "substitution",
-      raw: 0,
-      weight: 1,
-      weighted: -substitutionPenalty,
-      reason: `No substitution rule allows ${batch.planResourceId}→${resource.id}`,
     };
   }
 

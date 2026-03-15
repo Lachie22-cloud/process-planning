@@ -2,7 +2,8 @@ import { useCallback, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Upload, FileSpreadsheet, X, Loader2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Upload, FileSpreadsheet, X, Loader2, Info } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { toast } from "sonner";
 import type { ParsedFile, SapFileType } from "@/hooks/use-import";
@@ -109,10 +110,62 @@ export function FileUpload({
               <p className="text-sm font-medium">
                 Drop SAP spreadsheets here or click to browse
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Accepts .xlsx, .xls, .csv — Bulk Data, Fill Data, COOIS, ZP40,
-                ZW04, MB52, SOH Report, Requirements, IBP Forecast
-              </p>
+              <div className="mt-1 flex items-center justify-center gap-1">
+                <p className="text-xs text-muted-foreground">
+                  Accepts .xlsx, .xls, .csv — Bulk Data, Fill Data, COOIS, ZP40,
+                  ZW04, MB52, SOH Report, Requirements, IBP Forecast
+                </p>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={(e) => e.stopPropagation()}
+                      className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label="How rules are applied during upload"
+                    >
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-80 text-xs leading-relaxed"
+                    side="top"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="mb-2 font-semibold text-sm">How rules are applied</p>
+                    <p className="mb-3 text-muted-foreground">
+                      During upload, batches are assigned to mixers based on SAP resource codes
+                      and capacity only. Most scheduling rules are not enforced at this stage.
+                    </p>
+                    <div className="mb-3">
+                      <p className="font-medium mb-1">Applied at upload</p>
+                      <ul className="space-y-0.5 text-muted-foreground list-disc list-inside">
+                        <li>Resource active status</li>
+                        <li>Batch volume within capacity</li>
+                        <li>Maximum batches per day</li>
+                      </ul>
+                    </div>
+                    <div className="mb-3">
+                      <p className="font-medium mb-1">Enforced on all moves (drag-drop and AI)</p>
+                      <ul className="space-y-0.5 text-muted-foreground list-disc list-inside">
+                        <li>Substitution rules (blocked if no rule allows the mixer change)</li>
+                        <li>Chemical base compatibility</li>
+                        <li>Colour transition constraints</li>
+                      </ul>
+                    </div>
+                    <div className="mb-3">
+                      <p className="font-medium mb-1">Evaluated by the AI agent only</p>
+                      <ul className="space-y-0.5 text-muted-foreground list-disc list-inside">
+                        <li>Trunk line and group preferences</li>
+                        <li>WOM and workload balancing</li>
+                      </ul>
+                    </div>
+                    <p className="text-muted-foreground">
+                      After uploading, run an AI scan to evaluate the full rule set.
+                      The agent will propose any changes as a draft for you to review and approve.
+                    </p>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </>
           )}
           <input

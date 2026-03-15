@@ -8,7 +8,7 @@
 
 import type { Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
-import type { ScheduleRule } from "@/types/rule";
+import type { ScheduleRule, SubstitutionRule } from "@/types/rule";
 import type { ColourGroup, ColourTransition } from "@/hooks/use-colour-groups";
 
 export interface EvalContext {
@@ -21,6 +21,8 @@ export interface EvalContext {
   rules: ScheduleRule[];
   colourGroups: ColourGroup[];
   colourTransitions: ColourTransition[];
+  /** Enabled substitution rules for hard-blocking invalid mixer moves. */
+  substitutionRules: SubstitutionRule[];
 }
 
 export interface EvalResult {
@@ -187,6 +189,62 @@ export function evaluateDropTarget(ctx: EvalContext): EvalResult {
     }
     if (result.warn) {
       warnings.push(result.warn);
+    }
+  }
+
+  // Hard constraint: substitution rules block moves to disallowed mixers
+  if (
+    ctx.substitutionRules.length > 0 &&
+    ctx.batch.planResourceId != null &&
+    ctx.batch.planResourceId !== ctx.targetResource.id
+  ) {
+    const allowed = ctx.substitutionRules.some((rule) => {
+      if (!rule.enabled) return false;
+      if (
+        rule.sourceResourceId !== null &&
+        rule.sourceResourceId !== ctx.batch.planResourceId
+      ) {
+        return false;
+      }
+      if (
+        rule.targetResourceId !== null &&
+        rule.targetResourceId !== ctx.targetResource.id
+      ) {
+        return false;
+      }
+      // Volume conditions
+      if (rule.conditions && ctx.batch.batchVolume != null) {
+        if (
+          rule.conditions.maxVolume != null &&
+          ctx.batch.batchVolume > rule.conditions.maxVolume
+        ) {
+          return false;
+        }
+        if (
+          rule.conditions.minVolume != null &&
+          ctx.batch.batchVolume < rule.conditions.minVolume
+        ) {
+          return false;
+        }
+      }
+      // Colour group conditions
+      if (
+        rule.conditions?.colorGroups &&
+        rule.conditions.colorGroups.length > 0 &&
+        ctx.batch.sapColorGroup
+      ) {
+        if (!rule.conditions.colorGroups.includes(ctx.batch.sapColorGroup)) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    if (!allowed) {
+      return {
+        valid: false,
+        warnings: ["No substitution rule allows this mixer change"],
+      };
     }
   }
 
