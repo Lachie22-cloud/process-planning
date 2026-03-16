@@ -7,12 +7,14 @@ const {
   getSessionMock,
   onAuthStateChangeMock,
   signInWithOAuthMock,
+  signInWithPasswordMock,
   signOutMock,
   unsubscribeMock,
 } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   onAuthStateChangeMock: vi.fn(),
   signInWithOAuthMock: vi.fn(),
+  signInWithPasswordMock: vi.fn(),
   signOutMock: vi.fn(),
   unsubscribeMock: vi.fn(),
 }));
@@ -23,6 +25,7 @@ vi.mock("@/lib/supabase/client", () => ({
       getSession: getSessionMock,
       onAuthStateChange: onAuthStateChangeMock,
       signInWithOAuth: signInWithOAuthMock,
+      signInWithPassword: signInWithPasswordMock,
       signOut: signOutMock,
     },
   },
@@ -71,6 +74,7 @@ describe("AuthProvider", () => {
       return { data: { subscription: { unsubscribe: unsubscribeMock } } };
     });
     signInWithOAuthMock.mockResolvedValue({ error: null });
+    signInWithPasswordMock.mockResolvedValue({ data: { session: null }, error: null });
     signOutMock.mockResolvedValue({ error: null });
   });
 

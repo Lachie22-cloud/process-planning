@@ -791,9 +791,9 @@ describe("PlacementScorer", () => {
   });
 
   // -----------------------------------------------------------------------
-  // Soft factors – substitution
+  // Hard constraint – substitution
   // -----------------------------------------------------------------------
-  describe("substitution scoring (soft factor)", () => {
+  describe("substitution enforcement", () => {
     it("gives neutral score when batch stays on same resource", () => {
       const resource = makeResource({ id: "resource-001" });
       const batch = makeBatch({ planResourceId: "resource-001" });
@@ -801,9 +801,6 @@ describe("PlacementScorer", () => {
 
       const result = scorer.score(batch, resource, "2025-03-10", ctx);
 
-      const subFactor = result.factors.find((f) => f.factor === "substitution");
-      expect(subFactor).toBeDefined();
-      expect(subFactor!.weighted).toBe(0);
       expect(result.feasible).toBe(true);
     });
 
@@ -814,8 +811,6 @@ describe("PlacementScorer", () => {
 
       const result = scorer.score(batch, resource, "2025-03-10", ctx);
 
-      const subFactor = result.factors.find((f) => f.factor === "substitution");
-      expect(subFactor!.weighted).toBe(0);
       expect(result.feasible).toBe(true);
     });
 
@@ -826,12 +821,10 @@ describe("PlacementScorer", () => {
 
       const result = scorer.score(batch, resource, "2025-03-10", ctx);
 
-      const subFactor = result.factors.find((f) => f.factor === "substitution");
-      expect(subFactor!.weighted).toBe(0);
       expect(result.feasible).toBe(true);
     });
 
-    it("gives bonus when matching substitution rule exists", () => {
+    it("allows a move when a matching substitution rule exists", () => {
       const batch = makeBatch({ planResourceId: "resource-source" });
       const resource = makeResource({ id: "resource-target" });
       const subRules: ScoringSubstitutionRule[] = [
@@ -846,12 +839,10 @@ describe("PlacementScorer", () => {
 
       const result = scorer.score(batch, resource, "2025-03-10", ctx);
 
-      const subFactor = result.factors.find((f) => f.factor === "substitution");
-      expect(subFactor!.weighted).toBeGreaterThan(0);
       expect(result.feasible).toBe(true);
     });
 
-    it("gives penalty when no rule allows the substitution", () => {
+    it("blocks a move when no rule allows the substitution", () => {
       const batch = makeBatch({ planResourceId: "resource-source" });
       const resource = makeResource({ id: "resource-target" });
       const subRules: ScoringSubstitutionRule[] = [
@@ -866,13 +857,11 @@ describe("PlacementScorer", () => {
 
       const result = scorer.score(batch, resource, "2025-03-10", ctx);
 
-      const subFactor = result.factors.find((f) => f.factor === "substitution");
-      expect(subFactor!.weighted).toBeLessThan(0);
-      // Still feasible – substitution is a soft factor, not a hard block
-      expect(result.feasible).toBe(true);
+      expect(result.feasible).toBe(false);
+      expect(result.violations).toContain("substitution_blocked");
     });
 
-    it("gives bonus with wildcard source rule", () => {
+    it("allows a move with a wildcard source rule", () => {
       const batch = makeBatch({ planResourceId: "resource-source" });
       const resource = makeResource({ id: "resource-target" });
       const subRules: ScoringSubstitutionRule[] = [
@@ -887,11 +876,10 @@ describe("PlacementScorer", () => {
 
       const result = scorer.score(batch, resource, "2025-03-10", ctx);
 
-      const subFactor = result.factors.find((f) => f.factor === "substitution");
-      expect(subFactor!.weighted).toBeGreaterThan(0);
+      expect(result.feasible).toBe(true);
     });
 
-    it("gives penalty when volume exceeds rule maxVolume", () => {
+    it("blocks a move when volume exceeds rule maxVolume", () => {
       const batch = makeBatch({
         planResourceId: "resource-source",
         batchVolume: 600,
@@ -912,12 +900,11 @@ describe("PlacementScorer", () => {
 
       const result = scorer.score(batch, resource, "2025-03-10", ctx);
 
-      const subFactor = result.factors.find((f) => f.factor === "substitution");
-      expect(subFactor!.weighted).toBeLessThan(0);
-      expect(result.feasible).toBe(true);
+      expect(result.feasible).toBe(false);
+      expect(result.violations).toContain("substitution_blocked");
     });
 
-    it("gives penalty when colour group not in rule's allowed list", () => {
+    it("blocks a move when colour group is not in the allowed list", () => {
       const batch = makeBatch({
         planResourceId: "resource-source",
         sapColorGroup: "RED",
@@ -935,12 +922,11 @@ describe("PlacementScorer", () => {
 
       const result = scorer.score(batch, resource, "2025-03-10", ctx);
 
-      const subFactor = result.factors.find((f) => f.factor === "substitution");
-      expect(subFactor!.weighted).toBeLessThan(0);
-      expect(result.feasible).toBe(true);
+      expect(result.feasible).toBe(false);
+      expect(result.violations).toContain("substitution_blocked");
     });
 
-    it("ignores disabled substitution rules (treats as no match)", () => {
+    it("ignores disabled substitution rules and blocks the move", () => {
       const batch = makeBatch({ planResourceId: "resource-source" });
       const resource = makeResource({ id: "resource-target" });
       const subRules: ScoringSubstitutionRule[] = [
@@ -955,9 +941,8 @@ describe("PlacementScorer", () => {
 
       const result = scorer.score(batch, resource, "2025-03-10", ctx);
 
-      const subFactor = result.factors.find((f) => f.factor === "substitution");
-      expect(subFactor!.weighted).toBeLessThan(0);
-      expect(result.feasible).toBe(true);
+      expect(result.feasible).toBe(false);
+      expect(result.violations).toContain("substitution_blocked");
     });
   });
 
@@ -1009,14 +994,14 @@ describe("PlacementScorer", () => {
       expect(result1).toEqual(result2);
     });
 
-    it("returns all 7 soft factors in breakdown", () => {
+    it("returns all 6 soft factors in breakdown", () => {
       const batch = makeBatch();
       const resource = makeResource();
       const ctx = makeContext();
 
       const result = scorer.score(batch, resource, "2025-03-10", ctx);
 
-      expect(result.factors).toHaveLength(7);
+      expect(result.factors).toHaveLength(6);
       const factorNames = result.factors.map((f) => f.factor);
       expect(factorNames).toContain("colour_transition");
       expect(factorNames).toContain("utilisation");
@@ -1024,7 +1009,6 @@ describe("PlacementScorer", () => {
       expect(factorNames).toContain("group_match");
       expect(factorNames).toContain("workload_balance");
       expect(factorNames).toContain("wom_check");
-      expect(factorNames).toContain("substitution");
     });
 
     it("includes human-readable summary", () => {

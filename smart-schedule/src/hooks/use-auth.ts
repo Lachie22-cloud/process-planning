@@ -1,7 +1,8 @@
 import { resolveAuthSubject, useAuthContext } from "@/providers/auth-provider";
 
 export function useAuth() {
-  const { session, loading, signIn, signOut } = useAuthContext();
+  const { session, loading, isDevAuth, signIn, signInWithEmail, signOut } =
+    useAuthContext();
   const authSubject = resolveAuthSubject(session);
 
   return {
@@ -9,7 +10,9 @@ export function useAuth() {
     authSubject,
     isAuthenticated: !!session,
     loading,
+    isDevAuth,
     signIn,
+    signInWithEmail,
     signOut,
   };
 }

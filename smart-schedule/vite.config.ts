@@ -26,6 +26,7 @@ export default defineConfig({
     },
   },
   server: {
+    allowedHosts: true,
     proxy: {
       "/rest/v1": {
         target: "http://localhost:3000",
@@ -45,5 +46,8 @@ export default defineConfig({
           path.replace(/^\/realtime\/v1/, "").replace(/^\/websocket/, "/socket/websocket"),
       },
     },
+  },
+  preview: {
+    allowedHosts: true,
   },
 });

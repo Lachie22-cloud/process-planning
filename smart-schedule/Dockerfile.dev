@@ -1,15 +1,138 @@
-FROM node:22-alpine
+# Smart Schedule — Dev Container (single-stage, no BuildKit)
+# Runs Postgres 16 + GoTrue (auth) + PostgREST (REST API) + nginx + Vite frontend.
+# Real auth: GoTrue issues JWTs, custom Postgres hook injects claims,
+# PostgREST enforces RLS. No mocking — identical to production.
+
+FROM node:22-slim
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci
+# ── System dependencies ──────────────────────────────────────────
+RUN apt-get update && apt-get install -y \
+    nginx supervisor gettext-base curl wget gnupg lsb-release openssl xz-utils \
+    build-essential git ca-certificates libcurl4-openssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY . .
+# ── PostgreSQL 16 ────────────────────────────────────────────────
+RUN echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+      > /etc/apt/sources.list.d/pgdg.list \
+    && wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - \
+    && apt-get update && apt-get install -y \
+       postgresql-16 postgresql-server-dev-16 postgresql-16-cron \
+    && rm -rf /var/lib/apt/lists/*
 
-ENV VITE_E2E_MOCK_AUTH=true
-ENV VITE_SUPABASE_URL=http://localhost
-ENV VITE_SUPABASE_ANON_KEY=mock-anon-key
+# Build pgjwt extension
+RUN cd /tmp \
+    && git clone --depth 1 https://github.com/michelp/pgjwt.git \
+    && cd pgjwt && make && make install \
+    && cd / && rm -rf /tmp/pgjwt
+
+# Build pgsql-http extension
+RUN cd /tmp \
+    && git clone --depth 1 https://github.com/pramsey/pgsql-http.git \
+    && cd pgsql-http && make && make install \
+    && cd / && rm -rf /tmp/pgsql-http
+
+# Clean up build tools (pgcrypto, uuid-ossp are included in postgresql-16)
+RUN apt-mark manual postgresql-16 postgresql-16-cron \
+    && apt-get purge -y build-essential postgresql-server-dev-16 \
+    && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+
+# ── PostgREST (static binary) ───────────────────────────────────
+RUN wget -qO- "https://github.com/PostgREST/postgrest/releases/download/v12.2.3/postgrest-v12.2.3-linux-static-x64.tar.xz" \
+       | tar -xJ -C /usr/local/bin/ \
+    && chmod +x /usr/local/bin/postgrest
+
+# ── GoTrue / Supabase Auth ──────────────────────────────────────
+# Cache bust: v3 (tar.gz URL fix)
+RUN mkdir -p /tmp/gotrue \
+    && wget -qO /tmp/gotrue.tar.gz \
+       "https://github.com/supabase/auth/releases/download/v2.158.1/auth-v2.158.1-x86.tar.gz" \
+    && tar -xzf /tmp/gotrue.tar.gz -C /tmp/gotrue/ \
+    && cp /tmp/gotrue/auth /usr/local/bin/gotrue \
+    && chmod +x /usr/local/bin/gotrue \
+    && mkdir -p /usr/local/share/gotrue \
+    && cp -r /tmp/gotrue/migrations /usr/local/share/gotrue/ \
+    && rm -rf /tmp/gotrue /tmp/gotrue.tar.gz
+
+# ── Frontend dependencies ────────────────────────────────────────
+COPY smart-schedule/package.json smart-schedule/package-lock.json ./frontend/
+RUN cd frontend && npm ci
+
+# ── Frontend source ──────────────────────────────────────────────
+COPY smart-schedule/ ./frontend/
+
+# ── Migrations ───────────────────────────────────────────────────
+COPY smart-schedule/supabase/migrations /migrations
+
+# ── Nginx config ─────────────────────────────────────────────────
+COPY smart-schedule/nginx.conf.template /etc/nginx/app.conf.template
+RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default
+
+# ── Loading placeholder ─────────────────────────────────────────
+RUN mkdir -p /var/www/html && echo '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="5"><title>Loading...</title><style>body{background:#0f172a;color:#e2e8f0;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;font-family:system-ui}.spinner{width:48px;height:48px;border:4px solid #334155;border-top-color:#3b82f6;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1rem}@keyframes spin{to{transform:rotate(360deg)}}.loader{text-align:center}</style></head><body><div class="loader"><div class="spinner"></div><h2>Starting Smart Schedule...</h2><p>Setting up database, auth, and frontend. Refreshes automatically.</p></div></body></html>' > /var/www/html/index.html
+
+# ── Supervisor config ────────────────────────────────────────────
+RUN echo '[unix_http_server]' > /etc/supervisor/conf.d/app.conf \
+    && echo 'file=/var/run/supervisor.sock' >> /etc/supervisor/conf.d/app.conf \
+    && echo '' >> /etc/supervisor/conf.d/app.conf \
+    && echo '[supervisorctl]' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'serverurl=unix:///var/run/supervisor.sock' >> /etc/supervisor/conf.d/app.conf \
+    && echo '' >> /etc/supervisor/conf.d/app.conf \
+    && echo '[rpcinterface:supervisor]' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface' >> /etc/supervisor/conf.d/app.conf \
+    && echo '' >> /etc/supervisor/conf.d/app.conf \
+    && echo '[supervisord]' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'nodaemon=true' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'user=root' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'logfile=/var/log/supervisord.log' >> /etc/supervisor/conf.d/app.conf \
+    && echo '' >> /etc/supervisor/conf.d/app.conf \
+    && echo '[program:postgres]' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'command=/app/start-postgres.sh' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'autostart=true' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'autorestart=true' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'stderr_logfile=/var/log/postgres.err.log' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'stdout_logfile=/var/log/postgres.out.log' >> /etc/supervisor/conf.d/app.conf \
+    && echo '' >> /etc/supervisor/conf.d/app.conf \
+    && echo '[program:nginx]' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'command=nginx -g "daemon off;"' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'autostart=true' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'autorestart=true' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'stderr_logfile=/var/log/nginx.err.log' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'stdout_logfile=/var/log/nginx.out.log' >> /etc/supervisor/conf.d/app.conf \
+    && echo '' >> /etc/supervisor/conf.d/app.conf \
+    && echo '[program:gotrue]' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'command=/app/start-gotrue.sh' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'autostart=false' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'autorestart=true' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'stderr_logfile=/var/log/gotrue.err.log' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'stdout_logfile=/var/log/gotrue.out.log' >> /etc/supervisor/conf.d/app.conf \
+    && echo '' >> /etc/supervisor/conf.d/app.conf \
+    && echo '[program:postgrest]' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'command=/app/start-postgrest.sh' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'autostart=false' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'autorestart=true' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'stderr_logfile=/var/log/postgrest.err.log' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'stdout_logfile=/var/log/postgrest.out.log' >> /etc/supervisor/conf.d/app.conf \
+    && echo '' >> /etc/supervisor/conf.d/app.conf \
+    && echo '[program:frontend-build]' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'command=/app/start-frontend.sh' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'autostart=false' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'autorestart=false' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'startsecs=0' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'stderr_logfile=/var/log/frontend.err.log' >> /etc/supervisor/conf.d/app.conf \
+    && echo 'stdout_logfile=/var/log/frontend.out.log' >> /etc/supervisor/conf.d/app.conf
+
+# ── Copy all startup scripts ────────────────────────────────────
+COPY smart-schedule/docker/dev-scripts/generate-secrets.sh /app/generate-secrets.sh
+COPY smart-schedule/docker/dev-scripts/start-postgres.sh /app/start-postgres.sh
+COPY smart-schedule/docker/dev-scripts/init-db.sh /app/init-db.sh
+COPY smart-schedule/docker/dev-scripts/seed-dev-user.sh /app/seed-dev-user.sh
+COPY smart-schedule/docker/dev-scripts/start-gotrue.sh /app/start-gotrue.sh
+COPY smart-schedule/docker/dev-scripts/start-postgrest.sh /app/start-postgrest.sh
+COPY smart-schedule/docker/dev-scripts/start-frontend.sh /app/start-frontend.sh
+COPY smart-schedule/docker/dev-scripts/start.sh /app/start.sh
+RUN chmod +x /app/*.sh
 
 EXPOSE 5173
-CMD sh -c 'export VITE_BASE_PATH=$PREVIEW_BASE_PATH && npm run build && npx vite preview --host 0.0.0.0 --port 5173'
+CMD ["/app/start.sh"]

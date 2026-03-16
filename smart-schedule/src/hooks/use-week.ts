@@ -8,6 +8,7 @@ import {
   isSameWeek,
   isValid,
   parseISO,
+  isWeekend,
 } from "date-fns";
 
 const WEEK_STORAGE_KEY = "smart-schedule:selected-week";
@@ -92,10 +93,18 @@ export function useWeek() {
     [weekEnding, getWeekEnding],
   );
 
-  const weekLabel = useMemo(
-    () => `${format(weekStart, "EEE d MMM")} — ${format(weekEnding, "EEE d MMM yyyy")}`,
-    [weekStart, weekEnding],
-  );
+  // For the label, show the first and last shop-floor (non-weekend) days in the range
+  const weekLabel = useMemo(() => {
+    let displayStart = new Date(weekStart);
+    while (isWeekend(displayStart)) {
+      displayStart = addDays(displayStart, 1);
+    }
+    let displayEnd = new Date(weekEnding);
+    while (isWeekend(displayEnd)) {
+      displayEnd = subDays(displayEnd, 1);
+    }
+    return `${format(displayStart, "EEE d MMM")} — ${format(displayEnd, "EEE d MMM yyyy")}`;
+  }, [weekStart, weekEnding]);
 
   const weekEndingStr = useMemo(
     () => format(weekEnding, "yyyy-MM-dd"),
