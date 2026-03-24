@@ -69,3 +69,28 @@ jobs:
           name: playwright-report
           path: smart-schedule/playwright-report
           if-no-files-found: ignore
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+
+    steps:
+      - name: Deploy to Azure VM
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          script: |
+            cd ~/process-planning
+            git fetch origin main
+            git reset --hard origin/main
+            cd smart-schedule/docker
+            docker compose build --no-cache frontend ai-agent
+            docker compose up -d
+            docker image prune -f
