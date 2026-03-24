@@ -56,6 +56,8 @@ interface ResourceTimelineProps {
   dayBlocks?: DayBlock[];
   weekStart: Date;
   weekEnding: Date;
+  extendedStart?: Date;
+  extendedEnd?: Date;
   isLoading: boolean;
   onBatchClick?: (batch: Batch) => void;
 }
@@ -74,6 +76,24 @@ function getWeekDates(weekStart: Date, weekEnding: Date): string[] {
   return dates;
 }
 
+/** Extended 7-day view: previous Friday + Mon-Fri + next Monday */
+function getExtendedWeekDates(
+  extendedStart: Date,
+  extendedEnd: Date,
+): string[] {
+  const dates: string[] = [];
+  let current = new Date(extendedStart);
+  const end = new Date(extendedEnd);
+
+  while (current <= end) {
+    if (!isWeekend(current)) {
+      dates.push(format(current, "yyyy-MM-dd"));
+    }
+    current = addDays(current, 1);
+  }
+  return dates;
+}
+
 export function ResourceTimeline({
   batches,
   resources,
@@ -81,6 +101,8 @@ export function ResourceTimeline({
   dayBlocks = [],
   weekStart,
   weekEnding,
+  extendedStart,
+  extendedEnd,
   isLoading,
   onBatchClick,
 }: ResourceTimelineProps) {
@@ -145,9 +167,24 @@ export function ResourceTimeline({
     };
   }, [spotlightBatchId, clearSpotlight]);
 
-  const dates = useMemo(
+  const coreDates = useMemo(
     () => getWeekDates(weekStart, weekEnding),
     [weekStart, weekEnding],
+  );
+  const coreDateSet = useMemo(() => new Set(coreDates), [coreDates]);
+
+  const dates = useMemo(
+    () =>
+      extendedStart && extendedEnd
+        ? getExtendedWeekDates(extendedStart, extendedEnd)
+        : coreDates,
+    [extendedStart, extendedEnd, coreDates],
+  );
+
+  // Bookend dates = dates outside the core Mon-Fri range (prev Friday, next Monday)
+  const bookendDates = useMemo(
+    () => new Set(dates.filter((d) => !coreDateSet.has(d))),
+    [dates, coreDateSet],
   );
 
   // Filter resources by tab (mixers tab excludes pots — they render as grouped lanes)
@@ -632,6 +669,7 @@ export function ResourceTimeline({
             const date = new Date(dateStr + "T12:00:00");
             const today = isToday(date);
             const weekend = isWeekend(date);
+            const isBookend = !coreDateSet.has(dateStr);
             const isDayBlocked = dayBlockedSet.has(dateStr);
             const { total, completed } = completionByDate.get(dateStr) ?? { total: 0, completed: 0 };
             const pct = total > 0 ? (completed / total) * 100 : 0;
@@ -642,16 +680,23 @@ export function ResourceTimeline({
                   "sticky top-0 z-30 border-b border-r px-2 py-2 text-center bg-card",
                   today && "bg-primary/5 ring-1 ring-inset ring-primary/15",
                   weekend && "bg-muted",
+                  isBookend && "bg-muted/60 opacity-70",
                   isDayBlocked && "bg-destructive/10 line-through",
                 )}
               >
-                <div className="text-xs font-semibold">
+                <div className={cn("text-xs font-semibold", isBookend && "text-muted-foreground")}>
                   {format(date, "EEE")}
+                  {isBookend && (
+                    <span className="ml-1 text-[9px] font-normal text-muted-foreground/70">
+                      {format(date, "EEE") === "Fri" ? "(prev)" : "(next)"}
+                    </span>
+                  )}
                 </div>
                 <div
                   className={cn(
                     "text-sm tabular-nums",
                     today && "font-semibold text-foreground",
+                    isBookend && "text-muted-foreground",
                   )}
                 >
                   {format(date, "d MMM")}
@@ -710,6 +755,7 @@ export function ResourceTimeline({
               dates={dates}
               batches={batchesByResource.get(resource.id) ?? []}
               blocks={blocks}
+              bookendDates={bookendDates}
               highlightedBatchIds={
                 search ? highlightedBatchIds : undefined
               }
@@ -736,6 +782,7 @@ export function ResourceTimeline({
               resources={group.resources}
               dates={dates}
               batches={batchesByPotGroup.get(group.name) ?? []}
+              bookendDates={bookendDates}
               highlightedBatchIds={
                 search ? highlightedBatchIds : undefined
               }

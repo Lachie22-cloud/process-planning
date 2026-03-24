@@ -23,6 +23,7 @@ interface ResourceLaneProps {
   dates: string[];
   batches: Batch[];
   blocks: ResourceBlock[];
+  bookendDates?: Set<string>;
   highlightedBatchIds?: Set<string>;
   spotlightBatchId?: string | null;
   spotlightTargetResourceId?: string | null;
@@ -99,6 +100,7 @@ export function ResourceLane({
   dates,
   batches,
   blocks,
+  bookendDates,
   highlightedBatchIds,
   spotlightBatchId,
   spotlightTargetResourceId,
@@ -195,11 +197,13 @@ export function ResourceLane({
           }
         }
 
+        const isBookend = bookendDates?.has(date);
         return (
           <div
             key={date}
             className={cn(
               "relative flex min-h-[80px] flex-col border-b border-r p-1.5 transition-colors",
+              isBookend && "bg-muted/40 opacity-70",
               dragCellClass,
             )}
             onDragOver={(e) => {

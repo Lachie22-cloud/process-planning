@@ -36,27 +36,31 @@ export function ResourcesPage() {
   const { data: resources = [], isLoading: resourcesLoading } = useResources();
   const deepLinkBatchId = searchParams.get("batchId");
 
+  // Use extended range (prev Friday – next Monday) for data fetching
+  const fetchStartStr = week.extendedStartStr;
+  const fetchEndStr = week.extendedEndStr;
+
+  const { data: batches = [], isLoading: batchesLoading } = useBatches({
+    weekStart: fetchStartStr,
+    weekEnding: fetchEndStr,
+  });
+
+  const { data: blocks = [], isLoading: blocksLoading } = useResourceBlocks({
+    weekStart: fetchStartStr,
+    weekEnding: fetchEndStr,
+  });
+
+  const { data: dayBlocks = [] } = useDayBlocks({
+    weekStart: fetchStartStr,
+    weekEnding: fetchEndStr,
+  });
+
+  const bulkAssign = useBulkAssignResources();
+
   const weekStartStr = useMemo(
     () => format(week.weekStart, "yyyy-MM-dd"),
     [week.weekStart],
   );
-
-  const { data: batches = [], isLoading: batchesLoading } = useBatches({
-    weekStart: weekStartStr,
-    weekEnding: week.weekEndingStr,
-  });
-
-  const { data: blocks = [], isLoading: blocksLoading } = useResourceBlocks({
-    weekStart: weekStartStr,
-    weekEnding: week.weekEndingStr,
-  });
-
-  const { data: dayBlocks = [] } = useDayBlocks({
-    weekStart: weekStartStr,
-    weekEnding: week.weekEndingStr,
-  });
-
-  const bulkAssign = useBulkAssignResources();
 
   const { report: healthReport, isLoading: healthLoading } = useHealthReport({
     weekStart: weekStartStr,
@@ -249,6 +253,8 @@ export function ResourcesPage() {
         dayBlocks={dayBlocks}
         weekStart={week.weekStart}
         weekEnding={week.weekEnding}
+        extendedStart={week.extendedStart}
+        extendedEnd={week.extendedEnd}
         isLoading={isLoading}
         onBatchClick={handleBatchClick}
       />

@@ -9,6 +9,10 @@ import {
   isValid,
   parseISO,
   isWeekend,
+  previousFriday,
+  nextMonday,
+  isFriday,
+  isMonday,
 } from "date-fns";
 
 const WEEK_STORAGE_KEY = "smart-schedule:selected-week";
@@ -111,6 +115,34 @@ export function useWeek() {
     [weekEnding],
   );
 
+  // Extended range: previous Friday before weekStart and next Monday after weekEnding
+  // This gives a 7-day view: prev Fri | Mon–Fri | next Mon
+  const extendedStart = useMemo(() => {
+    let d = new Date(weekStart);
+    // Walk back to find the previous Friday (skip weekends in the work-week range)
+    while (isWeekend(d)) d = addDays(d, 1);
+    // d is now the first weekday (Monday). Get the Friday before it.
+    return isFriday(d) ? d : previousFriday(d);
+  }, [weekStart]);
+
+  const extendedEnd = useMemo(() => {
+    let d = new Date(weekEnding);
+    // Walk forward past weekends to find the real last weekday
+    while (isWeekend(d)) d = subDays(d, 1);
+    // d is now the last weekday (Friday). Get the Monday after it.
+    return isMonday(d) ? d : nextMonday(d);
+  }, [weekEnding]);
+
+  const extendedStartStr = useMemo(
+    () => format(extendedStart, "yyyy-MM-dd"),
+    [extendedStart],
+  );
+
+  const extendedEndStr = useMemo(
+    () => format(extendedEnd, "yyyy-MM-dd"),
+    [extendedEnd],
+  );
+
   return {
     weekEnding,
     weekEndingStr,
@@ -122,5 +154,9 @@ export function useWeek() {
     previousWeek,
     goToThisWeek,
     goToDate,
+    extendedStart,
+    extendedEnd,
+    extendedStartStr,
+    extendedEndStr,
   };
 }

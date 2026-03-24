@@ -10,6 +10,7 @@ interface GroupedPotLaneProps {
   resources: Resource[];
   dates: string[];
   batches: Batch[];
+  bookendDates?: Set<string>;
   highlightedBatchIds?: Set<string>;
   draggedBatchId?: string | null;
   dropTargets?: Map<string, DropTarget>;
@@ -28,6 +29,7 @@ export function GroupedPotLane({
   resources,
   dates,
   batches,
+  bookendDates,
   highlightedBatchIds,
   draggedBatchId,
   dropTargets,
@@ -159,11 +161,13 @@ export function GroupedPotLane({
           }
         }
 
+        const isBookend = bookendDates?.has(date);
         return (
           <div
             key={date}
             className={cn(
               "relative flex min-h-[80px] flex-col border-b border-r p-1.5 transition-colors",
+              isBookend && "bg-muted/40 opacity-70",
               dragCellClass,
             )}
             onDragOver={(e) => {
