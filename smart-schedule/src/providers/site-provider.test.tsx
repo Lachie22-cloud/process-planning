@@ -58,7 +58,7 @@ const baseSite = {
   code: "SITE1",
   timezone: "Australia/Brisbane",
   week_end_day: 5,
-  schedule_horizon: 7,
+  schedule_horizon: 5,
   config: {},
   active: true,
   created_at: "2026-01-01",

@@ -18,7 +18,7 @@ export const siteFormSchema = z.object({
     .min(1, "Timezone is required")
     .refine((v) => VALID_TIMEZONES.has(v), "Please select a valid IANA timezone"),
   weekEndDay: z.coerce.number().int().min(0).max(6).default(5),
-  scheduleHorizon: z.coerce.number().int().min(1).max(30).default(7),
+  scheduleHorizon: z.coerce.number().int().min(1).max(30).default(5),
   active: z.boolean().default(true),
 });
 

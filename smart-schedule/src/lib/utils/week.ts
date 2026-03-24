@@ -1,7 +1,7 @@
 import { startOfWeek, endOfWeek, addWeeks, format } from "date-fns";
 
-/** Friday-based week: week starts on Friday (ISO day 5) */
-const WEEK_START_DAY = 5; // Friday
+/** Monday-based work week: week starts on Monday (ISO day 1) */
+const WEEK_START_DAY = 1; // Monday
 
 export function getWeekStart(date: Date): Date {
   return startOfWeek(date, { weekStartsOn: WEEK_START_DAY });

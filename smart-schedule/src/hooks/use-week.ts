@@ -59,7 +59,7 @@ export function useWeek() {
     }
   }, [weekEnding]);
 
-  const horizonDays = site?.scheduleHorizon ?? 7;
+  const horizonDays = site?.scheduleHorizon ?? 5;
 
   const weekStart = useMemo(
     () => subDays(weekEnding, horizonDays - 1),

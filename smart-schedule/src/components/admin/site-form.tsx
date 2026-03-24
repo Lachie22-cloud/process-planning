@@ -36,7 +36,7 @@ export function SiteForm() {
   const [name, setName] = useState("");
   const [timezone, setTimezone] = useState("Australia/Brisbane");
   const [weekEndDay, setWeekEndDay] = useState("5");
-  const [scheduleHorizon, setScheduleHorizon] = useState("7");
+  const [scheduleHorizon, setScheduleHorizon] = useState("5");
 
   useEffect(() => {
     if (site) {

@@ -46,7 +46,7 @@ const EMPTY_FORM: SiteFormInput = {
   code: "",
   timezone: "Australia/Brisbane",
   weekEndDay: 5,
-  scheduleHorizon: 7,
+  scheduleHorizon: 5,
   active: true,
 };
 
