@@ -24,7 +24,7 @@ import type { Resource } from "@/types/resource";
 import type { ResourceBlock } from "@/types/site";
 import type { DayBlock } from "@/hooks/use-day-blocks";
 import { useSpotlight } from "@/contexts/spotlight-context";
-import type { PlacementScore } from "@/types/scoring";
+
 
 type ResourceTab = "mixers" | "dispersers" | "all";
 
@@ -391,6 +391,7 @@ export function ResourceTimeline({
       executeBatchMove(draggedBatch, targetResourceId, targetDate);
       setDraggedBatch(null);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [draggedBatch, requiresReasonForAllMoves],
   );
 
@@ -490,7 +491,7 @@ export function ResourceTimeline({
   );
 
   const handleOverlayCellClick = useCallback(
-    (resourceId: string, date: string, _score: PlacementScore) => {
+    (resourceId: string, date: string) => {
       if (!movingBatch) return;
 
       const dateChanged = movingBatch.planDate !== date;

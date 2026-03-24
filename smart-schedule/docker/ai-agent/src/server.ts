@@ -73,6 +73,7 @@ export const runtimeConfig = {
 // ─── Augment Express Request ─────────────────────────────────────────────────
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: JwtUserClaims;
@@ -414,6 +415,7 @@ app.use('/ai', draftsRouter);
 app.use('/ai', adminRouter);
 
 // Global error handler
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   log({
     timestamp: new Date().toISOString(),

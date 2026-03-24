@@ -66,9 +66,8 @@ function makeResource(overrides: Partial<Resource> = {}): Resource {
     active: true,
     chemicalBase: "water",
     sortOrder: 1,
-    metadata: null,
+    config: {},
     createdAt: "2025-03-01T00:00:00.000Z",
-    updatedAt: "2025-03-01T00:00:00.000Z",
     ...overrides,
   };
 }

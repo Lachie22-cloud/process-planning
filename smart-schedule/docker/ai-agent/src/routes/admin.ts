@@ -615,6 +615,7 @@ adminRouter.post('/admin/prompt-sections/reset', async (req: Request, res: Respo
     // Build the defaults payload (exclude site_id — the DB function supplies it
     // via its p_site_id parameter).
     const defaults = getDefaultPromptSections(siteId).map(
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       ({ site_id: _ignored, ...section }) => section,
     );
 
