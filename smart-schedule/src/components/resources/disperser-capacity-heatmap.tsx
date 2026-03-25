@@ -48,15 +48,56 @@ export function DisperserCapacityHeatmap({
     [resources],
   );
 
+  // Build group lookup: groupName -> Set of disperser IDs in that group
+  const groupMembers = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const d of dispersers) {
+      if (d.groupName) {
+        let set = map.get(d.groupName);
+        if (!set) {
+          set = new Set();
+          map.set(d.groupName, set);
+        }
+        set.add(d.id);
+      }
+    }
+    return map;
+  }, [dispersers]);
+
+  // Pre-compute group-level PMC totals per date for groups with groupCapacity
+  // groupName -> date -> total PMC across all group members
+  const groupPmcByDate = useMemo(() => {
+    const map = new Map<string, Map<string, number>>();
+    for (const [groupName, memberIds] of groupMembers) {
+      const dateMap = new Map<string, number>();
+      for (const date of dates) {
+        const total = batches
+          .filter(
+            (b) =>
+              b.planDisperserId != null &&
+              memberIds.has(b.planDisperserId) &&
+              b.planDate === date,
+          )
+          .reduce((sum, b) => sum + (b.premixCount ?? 0), 0);
+        dateMap.set(date, total);
+      }
+      map.set(groupName, dateMap);
+    }
+    return map;
+  }, [groupMembers, dates, batches]);
+
   // Build heatmap data: disperserId -> date -> CellData
   const heatData = useMemo(() => {
     const data = new Map<string, Map<string, CellData>>();
 
     for (const disperser of dispersers) {
       const dateMap = new Map<string, CellData>();
+      const hasGroupCap =
+        disperser.groupName != null && disperser.groupCapacity != null;
+      const groupCap = disperser.groupCapacity ?? 0;
 
       for (const date of dates) {
-        // Count batches assigned to this disperser on this date
+        // Batches assigned to this individual disperser on this date
         const dayBatches = batches.filter(
           (b) => b.planDisperserId === disperser.id && b.planDate === date,
         );
@@ -66,22 +107,31 @@ export function DisperserCapacityHeatmap({
           (sum, b) => sum + (b.premixCount ?? 0),
           0,
         );
-        const cap = disperser.maxBatchesPerDay;
-        const pct = cap > 0 ? Math.round((batchCount / cap) * 100) : 0;
 
-        dateMap.set(date, {
-          pmc: pmcTotal,
-          batch: batchCount,
-          cap,
-          pct,
-        });
+        // Capacity & utilisation based on group or individual
+        let cap: number;
+        let pct: number;
+
+        if (hasGroupCap) {
+          // Group-based: CAP = group capacity, % = group PMC total / group capacity
+          cap = groupCap;
+          const groupPmc =
+            groupPmcByDate.get(disperser.groupName!)?.get(date) ?? 0;
+          pct = cap > 0 ? Math.round((groupPmc / cap) * 100) : 0;
+        } else {
+          // Individual fallback: CAP = maxBatchesPerDay, % = batch count / cap
+          cap = disperser.maxBatchesPerDay;
+          pct = cap > 0 ? Math.round((batchCount / cap) * 100) : 0;
+        }
+
+        dateMap.set(date, { pmc: pmcTotal, batch: batchCount, cap, pct });
       }
 
       data.set(disperser.id, dateMap);
     }
 
     return data;
-  }, [dispersers, dates, batches]);
+  }, [dispersers, dates, batches, groupPmcByDate]);
 
   if (dispersers.length === 0) return null;
 
@@ -118,9 +168,7 @@ export function DisperserCapacityHeatmap({
                     colSpan={4}
                     className={cn(
                       "border-x border-b px-1 py-2 text-center text-xs font-semibold",
-                      isBookend
-                        ? "text-primary/70"
-                        : "text-foreground",
+                      isBookend ? "text-primary/70" : "text-foreground",
                     )}
                   >
                     {dayLabel}
@@ -156,9 +204,7 @@ export function DisperserCapacityHeatmap({
                     if (!cell) {
                       return <EmptyCells key={dateStr} />;
                     }
-                    return (
-                      <DayCells key={dateStr} cell={cell} />
-                    );
+                    return <DayCells key={dateStr} cell={cell} />;
                   })}
                 </tr>
               );

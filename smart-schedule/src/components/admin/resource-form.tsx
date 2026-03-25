@@ -39,6 +39,7 @@ const EMPTY_FORM: ResourceFormInput = {
   minCapacity: null,
   maxCapacity: null,
   maxBatchesPerDay: 1,
+  groupCapacity: null,
   chemicalBase: null,
   sortOrder: 0,
   active: true,
@@ -67,6 +68,7 @@ export function ResourceForm({
           minCapacity: resource.minCapacity,
           maxCapacity: resource.maxCapacity,
           maxBatchesPerDay: resource.maxBatchesPerDay,
+          groupCapacity: resource.groupCapacity,
           chemicalBase: resource.chemicalBase,
           sortOrder: resource.sortOrder,
           active: resource.active,
@@ -226,6 +228,29 @@ export function ResourceForm({
                 <p className="text-xs text-destructive">{errors.maxBatchesPerDay}</p>
               )}
             </div>
+
+            {/* Group Capacity (PMC/Day) — only for dispersers with a group */}
+            {form.resourceType === "disperser" && form.groupName && (
+              <div className="space-y-1">
+                <Label htmlFor="groupCapacity">Group Capacity (PMC/Day)</Label>
+                <Input
+                  id="groupCapacity"
+                  type="number"
+                  min={1}
+                  value={form.groupCapacity ?? ""}
+                  onChange={(e) =>
+                    setField("groupCapacity", e.target.value ? Number(e.target.value) : null)
+                  }
+                  placeholder="e.g. 5"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Max combined premixes/day for all dispersers in group &ldquo;{form.groupName}&rdquo;
+                </p>
+                {errors.groupCapacity && (
+                  <p className="text-xs text-destructive">{errors.groupCapacity}</p>
+                )}
+              </div>
+            )}
 
             {/* Chemical Base */}
             <div className="space-y-1">

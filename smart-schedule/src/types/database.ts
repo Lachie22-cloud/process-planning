@@ -36,6 +36,7 @@ export interface DatabaseRow {
     min_capacity: number | null;
     max_capacity: number | null;
     max_batches_per_day: number;
+    group_capacity: number | null;
     chemical_base: string | null;
     sort_order: number;
     active: boolean;

@@ -17,6 +17,7 @@ export const resourceFormSchema = z
     minCapacity: z.coerce.number().int().min(0).nullable().default(null),
     maxCapacity: z.coerce.number().int().min(0).nullable().default(null),
     maxBatchesPerDay: z.coerce.number().int().min(1, "Must be at least 1").default(1),
+    groupCapacity: z.coerce.number().int().min(1).nullable().default(null),
     chemicalBase: z.string().max(50).nullable().default(null),
     sortOrder: z.coerce.number().int().min(0).default(0),
     active: z.boolean().default(true),

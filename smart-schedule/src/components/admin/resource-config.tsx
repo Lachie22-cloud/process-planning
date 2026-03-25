@@ -119,6 +119,7 @@ export function ResourceConfig() {
               <TableHead className="text-right">Min Cap</TableHead>
               <TableHead className="text-right">Max Cap</TableHead>
               <TableHead className="text-right">Max/Day</TableHead>
+              <TableHead className="text-right hidden lg:table-cell">Grp Cap</TableHead>
               <TableHead>Status</TableHead>
               {canWrite && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
@@ -127,7 +128,7 @@ export function ResourceConfig() {
             {resources.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={canWrite ? 10 : 9}
+                  colSpan={canWrite ? 11 : 10}
                   className="text-center text-muted-foreground"
                 >
                   No resources configured for this site.
@@ -157,6 +158,9 @@ export function ResourceConfig() {
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {r.maxBatchesPerDay}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums hidden lg:table-cell">
+                    {r.groupCapacity != null ? r.groupCapacity : "—"}
                   </TableCell>
                   <TableCell>
                     <Badge variant={r.active ? "default" : "secondary"}>

@@ -11,6 +11,7 @@ export interface Resource {
   minCapacity: number | null;
   maxCapacity: number | null;
   maxBatchesPerDay: number;
+  groupCapacity: number | null;
   chemicalBase: string | null;
   sortOrder: number;
   active: boolean;
