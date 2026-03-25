@@ -120,6 +120,26 @@ export function BatchTable({
         size: 130,
       },
       {
+        accessorKey: "bulkCode",
+        header: ({ column }) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-3 h-8"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            Bulk Code
+            <SortIcon sorted={column.getIsSorted()} />
+          </Button>
+        ),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-muted-foreground">
+            {row.original.bulkCode ?? "—"}
+          </span>
+        ),
+        size: 120,
+      },
+      {
         accessorKey: "materialDescription",
         header: ({ column }) => (
           <Button
