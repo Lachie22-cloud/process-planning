@@ -225,6 +225,26 @@ export function ResourceTimeline({
       }));
   }, [resources, tab]);
 
+  // Interleaved lane order: mixers and pot groups sorted together by sort_order
+  // Each pot group uses the minimum sort_order of its member resources for positioning
+  const sortedLanes = useMemo((): Array<{ type: "mixer"; resource: Resource } | { type: "pot_group"; group: PotGroup }> => {
+    if (tab !== "mixers") return filteredResources.map((r) => ({ type: "mixer" as const, resource: r }));
+
+    const lanes: Array<{ type: "mixer"; resource: Resource; sortOrder: number } | { type: "pot_group"; group: PotGroup; sortOrder: number }> = [];
+
+    for (const resource of filteredResources) {
+      lanes.push({ type: "mixer", resource, sortOrder: resource.sortOrder ?? 999 });
+    }
+
+    for (const group of potGroups) {
+      const minSort = Math.min(...group.resources.map((r) => r.sortOrder ?? 999));
+      lanes.push({ type: "pot_group", group, sortOrder: minSort });
+    }
+
+    lanes.sort((a, b) => a.sortOrder - b.sortOrder);
+    return lanes;
+  }, [tab, filteredResources, potGroups]);
+
   // All visible resources: includes pots when on mixer tab (for drop targets, completion stats)
   const allVisibleResources = useMemo(() => {
     if (tab === "mixers" && potGroups.length > 0) {
@@ -747,57 +767,56 @@ export function ResourceTimeline({
             />
           )}
 
-          {/* Resource lanes (hidden when overlay is active) */}
-          {!movingBatch && filteredResources.map((resource) => (
-            <ResourceLane
-              key={resource.id}
-              resource={resource}
-              dates={dates}
-              batches={batchesByResource.get(resource.id) ?? []}
-              blocks={blocks}
-              bookendDates={bookendDates}
-              highlightedBatchIds={
-                search ? highlightedBatchIds : undefined
-              }
-              spotlightBatchId={spotlightBatchId}
-              spotlightTargetResourceId={spotlightTargetResourceId}
-              draggedBatchId={draggedBatch?.id ?? null}
-              dropTargets={dropTargets}
-              canDrag={canSchedule}
-              canSchedule={canSchedule}
-              onBatchClick={onBatchClick}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-              onDrop={handleDrop}
-              onMoveStart={handleMoveStart}
-              onReschedule={handleRescheduleStart}
-            />
-          ))}
-
-          {/* Grouped pot lanes (shown in mixer view) */}
-          {!movingBatch && potGroups.map((group) => (
-            <GroupedPotLane
-              key={group.name}
-              groupName={group.name}
-              resources={group.resources}
-              dates={dates}
-              batches={batchesByPotGroup.get(group.name) ?? []}
-              bookendDates={bookendDates}
-              highlightedBatchIds={
-                search ? highlightedBatchIds : undefined
-              }
-              draggedBatchId={draggedBatch?.id ?? null}
-              dropTargets={dropTargets}
-              canDrag={canSchedule}
-              canSchedule={canSchedule}
-              onBatchClick={onBatchClick}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-              onDrop={handleDrop}
-              onMoveStart={handleMoveStart}
-              onReschedule={handleRescheduleStart}
-            />
-          ))}
+          {/* Resource lanes and pot groups interleaved by sort_order (hidden when overlay is active) */}
+          {!movingBatch && sortedLanes.map((lane) =>
+            lane.type === "mixer" ? (
+              <ResourceLane
+                key={lane.resource.id}
+                resource={lane.resource}
+                dates={dates}
+                batches={batchesByResource.get(lane.resource.id) ?? []}
+                blocks={blocks}
+                bookendDates={bookendDates}
+                highlightedBatchIds={
+                  search ? highlightedBatchIds : undefined
+                }
+                spotlightBatchId={spotlightBatchId}
+                spotlightTargetResourceId={spotlightTargetResourceId}
+                draggedBatchId={draggedBatch?.id ?? null}
+                dropTargets={dropTargets}
+                canDrag={canSchedule}
+                canSchedule={canSchedule}
+                onBatchClick={onBatchClick}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDrop={handleDrop}
+                onMoveStart={handleMoveStart}
+                onReschedule={handleRescheduleStart}
+              />
+            ) : (
+              <GroupedPotLane
+                key={lane.group.name}
+                groupName={lane.group.name}
+                resources={lane.group.resources}
+                dates={dates}
+                batches={batchesByPotGroup.get(lane.group.name) ?? []}
+                bookendDates={bookendDates}
+                highlightedBatchIds={
+                  search ? highlightedBatchIds : undefined
+                }
+                draggedBatchId={draggedBatch?.id ?? null}
+                dropTargets={dropTargets}
+                canDrag={canSchedule}
+                canSchedule={canSchedule}
+                onBatchClick={onBatchClick}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDrop={handleDrop}
+                onMoveStart={handleMoveStart}
+                onReschedule={handleRescheduleStart}
+              />
+            ),
+          )}
 
           {/* Empty state */}
           {filteredResources.length === 0 && potGroups.length === 0 && (

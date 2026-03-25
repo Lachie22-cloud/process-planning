@@ -185,9 +185,9 @@ INSERT INTO resources (site_id, resource_code, resource_type, display_name, trun
 
 -- TK1 - Solvent Pots (900L, multiple per day)
 INSERT INTO resources (site_id, resource_code, resource_type, display_name, trunk_line, group_name, min_capacity, max_capacity, max_batches_per_day, chemical_base, sort_order, config) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'SBPOT1', 'pot', 'SB Pot 1', 'TK1', 'POT', 100, 900, 4, 'solvent', 100, '{"pot_group": "SB_POT"}'),
-  ('00000000-0000-0000-0000-000000000001', 'SBPOT2', 'pot', 'SB Pot 2', 'TK1', 'POT', 100, 900, 4, 'solvent', 101, '{"pot_group": "SB_POT"}'),
-  ('00000000-0000-0000-0000-000000000001', 'SBPOT3', 'pot', 'SB Pot 3', 'TK1', 'POT', 100, 900, 4, 'solvent', 102, '{"pot_group": "SB_POT"}');
+  ('00000000-0000-0000-0000-000000000001', 'SBPOT1', 'pot', 'SB Pot 1', 'TK1', 'POT', 100, 900, 4, 'solvent', 32, '{"pot_group": "SB_POT"}'),
+  ('00000000-0000-0000-0000-000000000001', 'SBPOT2', 'pot', 'SB Pot 2', 'TK1', 'POT', 100, 900, 4, 'solvent', 33, '{"pot_group": "SB_POT"}'),
+  ('00000000-0000-0000-0000-000000000001', 'SBPOT3', 'pot', 'SB Pot 3', 'TK1', 'POT', 100, 900, 4, 'solvent', 34, '{"pot_group": "SB_POT"}');
 
 -- TK2 - Water Pots (900L, multiple per day)
 INSERT INTO resources (site_id, resource_code, resource_type, display_name, trunk_line, group_name, min_capacity, max_capacity, max_batches_per_day, chemical_base, sort_order, config) VALUES
