@@ -53,6 +53,8 @@ export interface ImportBatch {
   sapIpt: number | null;
   sapFillOrder: string | null;
   sapFillQuantity: number | null;
+  sapFillMaterial: string | null;
+  sapFillPackSize: string | null;
   /** "X" in Mat.Grping column — material requires vetting */
   matGrping: boolean;
   /** "X" in Recipient column — material has been vetted */
@@ -616,6 +618,8 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     // Fill order linking from Fill Data file
     const sapFillOrder = fill?.fillOrder ?? rowValue(row, headers, "fill order") ?? null;
     const sapFillQuantity = fill?.fillQuantity ?? rowNumeric(row, headers, "fill quantity", "fill qty") ?? null;
+    const sapFillMaterial = fill?.fillMaterial ?? null;
+    const sapFillPackSize = fill?.packSize ?? null;
 
     // Vetting columns: Mat.Grping = needs vetting, Recipient = has been vetted
     const matGrpRaw = rowValue(row, headers, "mat.grping", "matgrping", "mat grping", "mat. grping");
@@ -647,6 +651,8 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
       sapIpt,
       sapFillOrder,
       sapFillQuantity,
+      sapFillMaterial,
+      sapFillPackSize,
       matGrping,
       recipient,
     });
@@ -1094,6 +1100,9 @@ export function useImport() {
                 batch_id: orderToId.get(b.sapOrder)!,
                 site_id: site.id,
                 fill_order: b.sapFillOrder,
+                fill_material: b.sapFillMaterial,
+                fill_description: b.materialDescription,
+                pack_size: b.sapFillPackSize ?? b.packSize,
                 quantity: b.sapFillQuantity,
               }));
 

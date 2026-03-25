@@ -5,7 +5,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/ui/cn";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
-import { Eye, Move, CalendarClock } from "lucide-react";
+import { Eye, Move, CalendarClock, ArrowUp, ArrowDown } from "lucide-react";
 import type { Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 
@@ -46,11 +46,6 @@ function getCardStyle(batch: Batch): { className: string; borderLeftColor?: stri
   };
 }
 
-const MOVEMENT_BORDER: Record<string, string> = {
-  pulled: "#16a34a",  // green
-  pushed: "#dc2626",  // red
-  moved: "#2563eb",   // blue
-};
 
 export function BatchCard({
   batch,
@@ -82,14 +77,10 @@ export function BatchCard({
 
   const cardStyle = getCardStyle(batch);
 
-  // Movement direction overrides status border color
-  const borderLeft = movementDirection
-    ? MOVEMENT_BORDER[movementDirection]
-    : cardStyle.borderLeftColor;
+  const borderLeft = cardStyle.borderLeftColor;
 
-  // Status colour for top accent
+  // Status colour (used in badge, no longer for top accent)
   const statusCfg = BATCH_STATUSES[batch.status];
-  const statusColor = statusCfg?.color;
 
   return (
     <div
@@ -105,7 +96,6 @@ export function BatchCard({
       )}
       style={{
         ...(borderLeft ? { borderLeftWidth: 3, borderLeftColor: borderLeft } : {}),
-        ...(statusColor ? { borderTopWidth: 3, borderTopColor: statusColor } : {}),
       }}
       draggable={draggable}
       onDragStart={(e) => {
@@ -120,6 +110,28 @@ export function BatchCard({
         onClick?.(batch);
       }}
     >
+      {/* Movement direction indicator */}
+      {movementDirection === "pulled" && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="absolute top-0 right-0 flex items-center gap-0.5 rounded-bl-md rounded-tr-md bg-green-100 px-1.5 py-0.5 text-[9px] font-semibold text-green-700 dark:bg-green-900/60 dark:text-green-300">
+              <ArrowUp className="h-3 w-3" />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>Pulled forward</TooltipContent>
+        </Tooltip>
+      )}
+      {movementDirection === "pushed" && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="absolute top-0 right-0 flex items-center gap-0.5 rounded-bl-md rounded-tr-md bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-700 dark:bg-red-900/60 dark:text-red-300">
+              <ArrowDown className="h-3 w-3" />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>Pushed out</TooltipContent>
+        </Tooltip>
+      )}
+
       {/* Top row: SAP order + material code + move buttons */}
       <div className="flex items-center justify-between gap-1">
         <span className="font-semibold truncate">{batch.sapOrder}</span>
@@ -214,7 +226,7 @@ export function BatchCard({
         >
           <span
             className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
-            style={{ backgroundColor: statusColor }}
+            style={{ backgroundColor: statusCfg?.color }}
           />
           {statusCfg?.label ?? batch.status}
         </span>
