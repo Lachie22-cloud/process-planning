@@ -105,9 +105,10 @@ describe("SiteProvider", () => {
     const pendingLike = vi.fn(() => ({ eq: pendingEqActive }));
     const pendingEqEmail = vi.fn(() => ({ like: pendingLike }));
 
-    // After bind + refreshSession the code does: .from("site_users").select("*").eq("active", true)
-    // Only one .eq() call — resolves directly.
+    // After bind + refreshSession the code does:
+    // .from("site_users").select("*").eq("external_id", ...).eq("active", true)
     const relinkEqActive = vi.fn().mockResolvedValue({ data: [baseSiteUser], error: null });
+    const relinkEqExternal = vi.fn(() => ({ eq: relinkEqActive }));
 
     const sitesEqActive = vi.fn().mockResolvedValue({ data: [baseSite], error: null });
     const sitesIn = vi.fn(() => ({ eq: sitesEqActive }));
@@ -117,7 +118,7 @@ describe("SiteProvider", () => {
       siteUsersSelectCalls += 1;
       if (siteUsersSelectCalls === 1) return { eq: directEqExternal };
       if (siteUsersSelectCalls === 2) return { eq: pendingEqEmail };
-      if (siteUsersSelectCalls === 3) return { eq: relinkEqActive };
+      if (siteUsersSelectCalls === 3) return { eq: relinkEqExternal };
       return { eq: vi.fn() };
     });
 
