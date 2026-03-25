@@ -355,6 +355,36 @@ export interface DatabaseRow {
     created_at: string;
     updated_at: string;
   };
+  material_shortages: {
+    id: string;
+    site_id: string;
+    material_code: string;
+    material_desc: string | null;
+    material_type: 'RM' | 'PKG';
+    required_qty: number;
+    soh_qty: number;
+    short_qty: number;
+    uom: string;
+    eta: string | null;
+    planner_override: boolean;
+    override_by: string | null;
+    override_at: string | null;
+    override_comment: string | null;
+    created_at: string;
+    updated_at: string;
+  };
+  batch_material_shortages: {
+    id: string;
+    site_id: string;
+    batch_id: string;
+    shortage_id: string;
+    short_qty: number;
+    planner_override: boolean;
+    override_by: string | null;
+    override_at: string | null;
+    override_comment: string | null;
+    created_at: string;
+  };
   rule_exceptions: {
     id: string;
     site_id: string;

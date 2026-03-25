@@ -50,6 +50,7 @@ describe("ResourceForm", () => {
       sortOrder: 0,
       active: true,
       config: {},
+      groupCapacity: null,
       createdAt: "2026-01-01",
     };
 

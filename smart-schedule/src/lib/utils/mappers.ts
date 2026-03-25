@@ -7,6 +7,7 @@ import type { BulkAlert } from "@/types/alert";
 import type { AuditEntry } from "@/types/audit";
 import type { Notification } from "@/types/notification";
 import type { SubstitutionRule, ScheduleRule, SubstitutionConditions } from "@/types/rule";
+import type { MaterialShortage, BatchMaterialShortage } from "@/types/material-shortage";
 
 export function mapSite(row: DatabaseRow["sites"]): Site {
   return {
@@ -198,6 +199,42 @@ export function mapScheduleRule(row: DatabaseRow["schedule_rules"]): ScheduleRul
     schemaId: row.schema_id,
     enabled: row.enabled,
     createdBy: row.created_by,
+    createdAt: row.created_at,
+  };
+}
+
+export function mapMaterialShortage(row: DatabaseRow["material_shortages"]): MaterialShortage {
+  return {
+    id: row.id,
+    siteId: row.site_id,
+    materialCode: row.material_code,
+    materialDesc: row.material_desc,
+    materialType: row.material_type,
+    requiredQty: row.required_qty,
+    sohQty: row.soh_qty,
+    shortQty: row.short_qty,
+    uom: row.uom,
+    eta: row.eta,
+    plannerOverride: row.planner_override,
+    overrideBy: row.override_by,
+    overrideAt: row.override_at,
+    overrideComment: row.override_comment,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function mapBatchMaterialShortage(row: DatabaseRow["batch_material_shortages"]): BatchMaterialShortage {
+  return {
+    id: row.id,
+    siteId: row.site_id,
+    batchId: row.batch_id,
+    shortageId: row.shortage_id,
+    shortQty: row.short_qty,
+    plannerOverride: row.planner_override,
+    overrideBy: row.override_by,
+    overrideAt: row.override_at,
+    overrideComment: row.override_comment,
     createdAt: row.created_at,
   };
 }

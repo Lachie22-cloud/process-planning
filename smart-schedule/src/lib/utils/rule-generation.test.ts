@@ -28,6 +28,7 @@ function makeResource(overrides: Partial<Resource> = {}): Resource {
     sortOrder: idCounter,
     active: true,
     config: {},
+    groupCapacity: null,
     createdAt: "2024-01-01T00:00:00Z",
     ...overrides,
   };

@@ -29,9 +29,9 @@ function parsePackSizeLitres(packSize: string | null): number | null {
   const s = packSize.trim().toLowerCase();
   // Match patterns like "500ml", "0.5l", "1l", "2.5l", "10l", "20l"
   const mlMatch = s.match(/^([\d.]+)\s*ml$/);
-  if (mlMatch) return parseFloat(mlMatch[1]) / 1000;
+  if (mlMatch?.[1]) return parseFloat(mlMatch[1]) / 1000;
   const lMatch = s.match(/^([\d.]+)\s*l$/);
-  if (lMatch) return parseFloat(lMatch[1]);
+  if (lMatch?.[1]) return parseFloat(lMatch[1]);
   return null;
 }
 
@@ -106,13 +106,6 @@ export function WeeklyFillingBreakdown({
     () => getWeekdays(weekStart, weekEnding),
     [weekStart, weekEnding],
   );
-
-  // Build lookup: batchId → batch
-  const batchMap = useMemo(() => {
-    const m = new Map<string, Batch>();
-    for (const b of batches) m.set(b.id, b);
-    return m;
-  }, [batches]);
 
   // Build lookup: batchId → fill orders
   const fillOrdersByBatch = useMemo(() => {
@@ -459,7 +452,7 @@ export function WeeklyFillingBreakdown({
                       </TableCell>
                       {row.daily.map((val, i) => (
                         <TableCell
-                          key={dailyMetrics[i].dateStr}
+                          key={dailyMetrics[i]?.dateStr ?? i}
                           className="text-center tabular-nums"
                         >
                           {val.toLocaleString()}

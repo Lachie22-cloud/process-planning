@@ -23,6 +23,7 @@ import {
   MapPin,
   Package,
   CircleAlert,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -37,6 +38,17 @@ import { COMMENT_REQUIRED_STATUSES } from "@/types/batch";
 import type { BatchStatus, Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
+import { useBatchShortages, useOverrideBatchShortage } from "@/hooks/use-material-shortages";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface BatchDetailSheetProps {
   batchId: string | null;
@@ -197,6 +209,159 @@ function MaterialAvailabilitySection({ batch }: { batch: Batch }) {
           <span className="text-xs text-muted-foreground">Material shortage flagged</span>
         </div>
       )}
+    </div>
+  );
+}
+
+function BatchShortagesSection({ batch, canOverride }: { batch: Batch; canOverride: boolean }) {
+  const { data: batchShortages = [] } = useBatchShortages(batch.id);
+  const overrideMutation = useOverrideBatchShortage();
+  const [overrideTarget, setOverrideTarget] = useState<{ id: string; materialCode: string; shortQty: number; uom: string } | null>(null);
+  const [overrideComment, setOverrideComment] = useState("");
+  const [sohConfirmed, setSohConfirmed] = useState(false);
+
+  const activeShortages = batchShortages.filter((bs) => bs.shortQty < 0 || bs.shortage.shortQty < 0);
+  if (activeShortages.length === 0) return null;
+
+  const closeDialog = () => {
+    setOverrideTarget(null);
+    setOverrideComment("");
+    setSohConfirmed(false);
+  };
+
+  const handleConfirm = () => {
+    if (!overrideTarget || !sohConfirmed || !overrideComment.trim()) return;
+    overrideMutation.mutate(
+      {
+        batchShortageId: overrideTarget.id,
+        batchId: batch.id,
+        override: true,
+        comment: overrideComment,
+      },
+      { onSuccess: closeDialog },
+    );
+  };
+
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 text-red-500" />
+        Material Shortages ({activeShortages.length})
+      </h3>
+      <div className="space-y-1.5">
+        {activeShortages.map((bs) => (
+          <div
+            key={bs.id}
+            className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${
+              bs.plannerOverride ? "bg-green-50/50 border-green-200" : "bg-red-50/50 border-red-200"
+            }`}
+          >
+            <div className="flex-1 min-w-0">
+              <p className="font-mono text-xs font-semibold truncate">
+                {bs.shortage.materialCode}
+              </p>
+              {bs.shortage.materialDesc && (
+                <p className="text-[10px] text-muted-foreground truncate">
+                  {bs.shortage.materialDesc}
+                </p>
+              )}
+              <p className="text-[10px] mt-0.5">
+                <span className="text-muted-foreground">Short: </span>
+                <span className="font-semibold text-red-600">
+                  {bs.shortage.shortQty.toLocaleString()} {bs.shortage.uom}
+                </span>
+                {bs.shortage.eta && (
+                  <span className="ml-2 text-muted-foreground">
+                    ETA: {bs.shortage.eta}
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="ml-2 shrink-0">
+              {bs.plannerOverride ? (
+                <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">
+                  Overridden
+                </Badge>
+              ) : canOverride ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() =>
+                    setOverrideTarget({
+                      id: bs.id,
+                      materialCode: bs.shortage.materialCode,
+                      shortQty: bs.shortage.shortQty,
+                      uom: bs.shortage.uom,
+                    })
+                  }
+                >
+                  Override
+                </Button>
+              ) : (
+                <Badge variant="destructive" className="text-[10px]">
+                  Short
+                </Badge>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Dialog open={overrideTarget !== null} onOpenChange={(open) => { if (!open) closeDialog(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Override Batch Shortage</DialogTitle>
+            <DialogDescription>
+              Override shortage for{" "}
+              <span className="font-medium">{overrideTarget?.materialCode ?? "—"}</span> on
+              batch <span className="font-medium">{batch.sapOrder}</span>.
+              Short by{" "}
+              <span className="font-semibold text-red-600">
+                {overrideTarget?.shortQty.toLocaleString()} {overrideTarget?.uom}
+              </span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={sohConfirmed}
+                onChange={(e) => setSohConfirmed(e.target.checked)}
+                className="mt-0.5 accent-primary"
+              />
+              <span>
+                I confirm SOH check has been completed, or stock is in transit to site.
+              </span>
+            </label>
+            <div className="space-y-1">
+              <Label htmlFor="batch-override-comment" className="text-xs">
+                Comment (required)
+              </Label>
+              <Textarea
+                id="batch-override-comment"
+                placeholder="e.g. SOH verified — stock in receiving bay..."
+                value={overrideComment}
+                onChange={(e) => setOverrideComment(e.target.value)}
+                rows={2}
+                className="text-xs"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
+            <Button
+              onClick={handleConfirm}
+              disabled={!sohConfirmed || !overrideComment.trim() || overrideMutation.isPending}
+            >
+              {overrideMutation.isPending && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+              Confirm Override
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -673,6 +838,9 @@ export function BatchDetailSheet({
 
               {/* Material Availability */}
               <MaterialAvailabilitySection batch={batch} />
+
+              {/* Batch-Level Shortages (with override) */}
+              <BatchShortagesSection batch={batch} canOverride={hasPermission("planning.vet")} />
 
               {/* Coverage Profile */}
               <CoverageSection batch={batch} />
