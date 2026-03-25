@@ -23,7 +23,7 @@ test("rule CRUD happy path", async ({ page }) => {
   await page.getByRole("button", { name: "Edit substitution rule" }).first().click();
   await page.getByLabel("Max Volume (L)").fill("2500");
   await page.getByRole("button", { name: "Save Changes" }).click();
-  await expect(page.getByText('"maxVolume":2500')).toBeVisible();
+  await expect(page.getByText("Max volume: 2,500L")).toBeVisible();
 
   await page.getByRole("button", { name: "Edit substitution rule" }).first().click();
   await page.getByRole("button", { name: "Delete" }).click();
