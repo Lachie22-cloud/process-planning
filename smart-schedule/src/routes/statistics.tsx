@@ -27,6 +27,7 @@ import { useBatches } from "@/hooks/use-batches";
 import { BATCH_STATUSES, BATCH_STATUS_LIST } from "@/lib/constants/statuses";
 import { COLOR_GROUPS } from "@/lib/constants/color-groups";
 import { ScanTrigger } from "@/components/ai/scan-trigger";
+import { WeeklyFillingBreakdown } from "@/components/statistics/weekly-filling-breakdown";
 import type { Batch, BatchStatus } from "@/types/batch";
 
 function KpiCard({
@@ -170,6 +171,13 @@ export function StatisticsPage() {
           colour="text-emerald-600"
         />
       </div>
+
+      {/* Weekly Filling Line Breakdown */}
+      <WeeklyFillingBreakdown
+        batches={batches}
+        weekStart={week.weekStart}
+        weekEnding={week.weekEnding}
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Status Distribution */}
