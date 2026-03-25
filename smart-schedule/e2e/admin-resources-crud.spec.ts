@@ -25,7 +25,7 @@ test("admin resource CRUD happy path", async ({ page }) => {
   await page.getByRole("button", { name: "Save Changes" }).click();
   await expect(page.getByText("E2E Smoke Resource Updated")).toBeVisible();
 
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Deactivate resource E2E-RSRC-01" }).click();
+  await page.getByRole("button", { name: "Deactivate" }).click();
   await expect(page.getByText("Inactive")).toBeVisible();
 });

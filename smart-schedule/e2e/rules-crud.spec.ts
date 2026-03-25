@@ -15,7 +15,7 @@ test("rule CRUD happy path", async ({ page }) => {
   await page.getByLabel("Target Resource").click();
   await page.getByRole("option", { name: "Mixer 2" }).click();
   await page.getByLabel("Max Volume (L)").fill("2000");
-  await page.getByLabel("Colour Groups").fill("smoke-colour");
+  await page.getByRole("textbox", { name: "Colour Groups" }).fill("smoke-colour");
 
   await page.getByRole("button", { name: "Create Rule" }).click();
   await expect(page.getByText("Substitution Rules (1)")).toBeVisible();
