@@ -5,9 +5,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/ui/cn";
+import { BATCH_STATUSES } from "@/lib/constants/statuses";
 import { BatchCard } from "./batch-card";
 import { BlockedOverlay } from "./blocked-overlay";
 import type { Batch } from "@/types/batch";
+import type { BatchStatus } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import type { ResourceBlock } from "@/types/site";
 
@@ -44,49 +46,53 @@ interface ResourceLaneProps {
   onReschedule?: (batch: Batch) => void;
 }
 
-function CapacityBar({
-  totalVolume,
-  maxCapacity,
-  batchCount,
-}: {
-  totalVolume: number;
-  maxCapacity: number | null;
-  batchCount: number;
-}) {
-  if (maxCapacity == null || maxCapacity === 0) {
-    return (
-      <span className="text-[10px] text-muted-foreground tabular-nums">
-        {batchCount} batch{batchCount !== 1 ? "es" : ""}
-      </span>
-    );
+function CellStatusSummary({ batches }: { batches: Batch[] }) {
+  // Group batches by status and pick the dominant (most common) one
+  const statusCounts = new Map<BatchStatus, number>();
+  for (const b of batches) {
+    statusCounts.set(b.status, (statusCounts.get(b.status) ?? 0) + 1);
   }
 
-  const percentage = Math.round((totalVolume / maxCapacity) * 100);
-  const barColour =
-    percentage > 100
-      ? "bg-red-500"
-      : percentage > 80
-        ? "bg-amber-400"
-        : "bg-emerald-500";
+  // Sort by count descending, then by sortOrder ascending for ties
+  const sorted = [...statusCounts.entries()].sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1];
+    return (BATCH_STATUSES[a[0]]?.sortOrder ?? 0) - (BATCH_STATUSES[b[0]]?.sortOrder ?? 0);
+  });
+
+  // Show up to 2 statuses as pills
+  const pills = sorted.slice(0, 2);
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="flex items-center gap-1.5">
-          <div className="h-1.5 w-12 rounded-full bg-muted overflow-hidden">
-            <div
-              className={cn("h-full rounded-full transition-all", barColour)}
-              style={{ width: `${Math.min(percentage, 100)}%` }}
-            />
-          </div>
-          <span className="text-[10px] tabular-nums text-muted-foreground">
-            {percentage}%
-          </span>
+        <div className="flex items-center gap-1 flex-wrap">
+          {pills.map(([status, count]) => {
+            const cfg = BATCH_STATUSES[status];
+            return (
+              <span
+                key={status}
+                className={cn(
+                  "inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-[9px] font-semibold leading-none",
+                  cfg?.bgClass,
+                  cfg?.textClass,
+                )}
+              >
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: cfg?.color }}
+                />
+                {count > 1 ? `${count}× ` : ""}{cfg?.label ?? status}
+              </span>
+            );
+          })}
         </div>
       </TooltipTrigger>
       <TooltipContent>
-        {totalVolume.toLocaleString()}L / {maxCapacity.toLocaleString()}L
-        ({batchCount} batch{batchCount !== 1 ? "es" : ""})
+        {sorted.map(([status, count]) => (
+          <div key={status}>
+            {count}× {BATCH_STATUSES[status]?.label ?? status}
+          </div>
+        ))}
       </TooltipContent>
     </Tooltip>
   );
@@ -175,11 +181,6 @@ export function ResourceLane({
         const block = blockedDates.get(date);
         const isDayBlocked = dayBlockedMap?.has(date) ?? false;
         const dayBlockReason = dayBlockedMap?.get(date) ?? null;
-        const totalVolume = dayBatches.reduce(
-          (sum, b) => sum + (b.batchVolume ?? 0),
-          0,
-        );
-
         // Get drop target state for this cell
         const cellKey = getCellKey(resource.id, date);
         const target = draggedBatchId ? dropTargets?.get(cellKey) : undefined;
@@ -240,14 +241,10 @@ export function ResourceLane({
               </div>
             )}
 
-            {/* Capacity indicator */}
+            {/* Status summary indicator */}
             {dayBatches.length > 0 && !block && !isDayBlocked && (
               <div className="mb-1 flex justify-end">
-                <CapacityBar
-                  totalVolume={totalVolume}
-                  maxCapacity={resource.maxCapacity}
-                  batchCount={dayBatches.length}
-                />
+                <CellStatusSummary batches={dayBatches} />
               </div>
             )}
 

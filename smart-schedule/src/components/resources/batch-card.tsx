@@ -87,6 +87,10 @@ export function BatchCard({
     ? MOVEMENT_BORDER[movementDirection]
     : cardStyle.borderLeftColor;
 
+  // Status colour for top accent
+  const statusCfg = BATCH_STATUSES[batch.status];
+  const statusColor = statusCfg?.color;
+
   return (
     <div
       data-batch-id={batch.id}
@@ -99,7 +103,10 @@ export function BatchCard({
         isDragging && "opacity-60 shadow-lg",
         draggable && "cursor-grab active:cursor-grabbing",
       )}
-      style={borderLeft ? { borderLeftWidth: 3, borderLeftColor: borderLeft } : undefined}
+      style={{
+        ...(borderLeft ? { borderLeftWidth: 3, borderLeftColor: borderLeft } : {}),
+        ...(statusColor ? { borderTopWidth: 3, borderTopColor: statusColor } : {}),
+      }}
       draggable={draggable}
       onDragStart={(e) => {
         if (!draggable) return;
@@ -197,12 +204,20 @@ export function BatchCard({
           </span>
         )}
 
-        {/* Status badge (only for non-Planned) */}
-        {batch.status !== "Planned" && (
-          <span className="inline-flex items-center rounded-sm px-1 py-0.5 text-[9px] font-semibold bg-muted text-muted-foreground">
-            {batch.status}
-          </span>
-        )}
+        {/* Status badge */}
+        <span
+          className={cn(
+            "inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-[9px] font-semibold leading-none",
+            statusCfg?.bgClass ?? "bg-muted",
+            statusCfg?.textClass ?? "text-muted-foreground",
+          )}
+        >
+          <span
+            className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
+            style={{ backgroundColor: statusColor }}
+          />
+          {statusCfg?.label ?? batch.status}
+        </span>
 
         {isOverCapacity && (
           <Tooltip>
