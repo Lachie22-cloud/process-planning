@@ -5,6 +5,7 @@ import { ImportPreview } from "@/components/planning/import-preview";
 import { CoverageTable } from "@/components/planning/coverage-table";
 import { StockHeatmap } from "@/components/planning/stock-heatmap";
 import { VettingPanel } from "@/components/planning/vetting-panel";
+import { ShortagesPanel } from "@/components/planning/shortages-panel";
 import { DraftReviewPanel } from "@/components/ai/draft-review";
 import { ScheduleHealthBar } from "@/components/shared/schedule-health-bar";
 import { Button } from "@/components/ui/button";
@@ -122,6 +123,8 @@ export function PlanningPage() {
         importSuccess={importSuccess}
         onImport={importBatches}
       />
+
+      <ShortagesPanel />
 
       <CoverageTable files={files} batches={dbBatches} />
 
