@@ -28,16 +28,20 @@ interface BatchCardProps {
 }
 
 function getCardStyle(batch: Batch): { className: string; borderLeftColor?: string } {
+  // Grey: nothing available
   if (!batch.rmAvailable && !batch.packagingAvailable)
-    return { className: "border-red-300 bg-red-50/60 dark:border-red-800 dark:bg-red-950/20" };
+    return { className: "border-gray-300 bg-gray-50/60 dark:border-gray-600 dark:bg-gray-800/20" };
+  // Pink: packaging available but raws are NOT
   if (!batch.rmAvailable)
-    return { className: "border-orange-300 bg-orange-50/60 dark:border-orange-800 dark:bg-orange-950/20" };
+    return { className: "border-pink-300 bg-pink-50/60 dark:border-pink-800 dark:bg-pink-950/20" };
+  // Blue: raws available but packaging is NOT
   if (!batch.packagingAvailable)
-    return { className: "border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20" };
+    return { className: "border-blue-300 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-950/20" };
 
+  // Green: all available
   const cfg = BATCH_STATUSES[batch.status];
   return {
-    className: "border-border bg-card",
+    className: "border-green-300 bg-green-50/60 dark:border-green-800 dark:bg-green-950/20",
     borderLeftColor: cfg?.color,
   };
 }
@@ -118,7 +122,7 @@ export function BatchCard({
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="hidden group-hover:inline-flex items-center justify-center h-4 w-4 rounded hover:bg-orange-500/10 text-orange-500 hover:text-orange-600 transition-colors"
+                  className="hidden group-hover:inline-flex items-center justify-center h-4 w-4 rounded hover:bg-gray-500/10 text-gray-500 hover:text-gray-600 transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
                     onReschedule(batch);
@@ -183,12 +187,12 @@ export function BatchCard({
       {/* Status & alert indicators */}
       <div className="mt-1 flex items-center gap-1 flex-wrap">
         {!batch.rmAvailable && (
-          <span className="inline-flex items-center rounded-sm border px-1 py-0.5 text-[9px] font-semibold text-orange-600">
+          <span className="inline-flex items-center rounded-sm border px-1 py-0.5 text-[9px] font-semibold text-pink-600">
             WOM
           </span>
         )}
         {!batch.packagingAvailable && (
-          <span className="inline-flex items-center rounded-sm border px-1 py-0.5 text-[9px] font-semibold text-amber-600">
+          <span className="inline-flex items-center rounded-sm border px-1 py-0.5 text-[9px] font-semibold text-blue-600">
             WOP
           </span>
         )}

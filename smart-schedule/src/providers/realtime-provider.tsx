@@ -42,6 +42,7 @@ function getReconnectDelayMs(attempt: number) {
 }
 
 const IS_MOCK = import.meta.env.VITE_E2E_MOCK_AUTH === "true";
+const IS_DEV_AUTH = import.meta.env.VITE_SUPABASE_URL === "__SELF__";
 
 export function RealtimeProvider({ children }: { children: ReactNode }) {
   const { session } = useAuthContext();
@@ -54,8 +55,8 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const reconnectAttemptRef = useRef(0);
 
   useEffect(() => {
-    // Skip realtime connections in mock mode — no backend to connect to
-    if (IS_MOCK) return;
+    // Skip realtime connections when no Realtime server is available
+    if (IS_MOCK || IS_DEV_AUTH) return;
 
     function clearReconnectTimer() {
       if (reconnectTimerRef.current != null) {
