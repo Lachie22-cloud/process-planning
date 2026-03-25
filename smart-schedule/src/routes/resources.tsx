@@ -256,6 +256,7 @@ export function ResourcesPage() {
         extendedStart={week.extendedStart}
         extendedEnd={week.extendedEnd}
         isLoading={isLoading}
+        isThisWeek={week.isThisWeek}
         onBatchClick={handleBatchClick}
       />
 

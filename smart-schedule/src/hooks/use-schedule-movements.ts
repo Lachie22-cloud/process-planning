@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
 import { useCurrentSite } from "./use-current-site";
 
@@ -40,6 +40,47 @@ export function useRecordMovement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedule-movements"] });
+    },
+  });
+}
+
+/**
+ * Fetch the most recent movement direction per batch for the given date range.
+ * Returns a Map<batchId, "pulled" | "pushed" | "moved">.
+ */
+export function useMovementDirections({
+  weekStart,
+  weekEnding,
+  enabled = true,
+}: {
+  weekStart: string;
+  weekEnding: string;
+  enabled?: boolean;
+}) {
+  const { site } = useCurrentSite();
+
+  return useQuery({
+    queryKey: ["schedule-movements", site?.id, weekStart, weekEnding],
+    enabled: enabled && !!site,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("schedule_movements")
+        .select("batch_id, direction, moved_at")
+        .eq("site_id", site!.id)
+        .gte("to_date", weekStart)
+        .lte("to_date", weekEnding)
+        .order("moved_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Keep only the most recent movement per batch
+      const map = new Map<string, "pulled" | "pushed" | "moved">();
+      for (const row of data ?? []) {
+        if (row.batch_id && !map.has(row.batch_id)) {
+          map.set(row.batch_id, row.direction as "pulled" | "pushed" | "moved");
+        }
+      }
+      return map;
     },
   });
 }

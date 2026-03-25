@@ -14,7 +14,7 @@ import { DisperserCapacityHeatmap } from "./disperser-capacity-heatmap";
 import { RescheduleDialog } from "./reschedule-dialog";
 import { MoveReasonModal } from "@/components/shared/move-reason-modal";
 import { useUpdateBatch, useAddAuditEntry } from "@/hooks/use-batch-mutations";
-import { useRecordMovement } from "@/hooks/use-schedule-movements";
+import { useRecordMovement, useMovementDirections } from "@/hooks/use-schedule-movements";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useCurrentSite } from "@/hooks/use-current-site";
 import { useScheduleRules, useSubstitutionRules } from "@/hooks/use-rules";
@@ -60,6 +60,8 @@ interface ResourceTimelineProps {
   extendedStart?: Date;
   extendedEnd?: Date;
   isLoading: boolean;
+  /** When true, movement direction arrows are shown on batch cards */
+  isThisWeek?: boolean;
   onBatchClick?: (batch: Batch) => void;
 }
 
@@ -105,6 +107,7 @@ export function ResourceTimeline({
   extendedStart,
   extendedEnd,
   isLoading,
+  isThisWeek = false,
   onBatchClick,
 }: ResourceTimelineProps) {
   const [tab, setTab] = useState<ResourceTab>("mixers");
@@ -141,6 +144,15 @@ export function ResourceTimeline({
   );
 
   const canSchedule = hasPermission("batches.schedule");
+
+  // Movement directions — only fetched for the current production week
+  const weekStartStr = useMemo(() => format(weekStart, "yyyy-MM-dd"), [weekStart]);
+  const weekEndingStr = useMemo(() => format(weekEnding, "yyyy-MM-dd"), [weekEnding]);
+  const { data: movementDirections } = useMovementDirections({
+    weekStart: weekStartStr,
+    weekEnding: weekEndingStr,
+    enabled: isThisWeek,
+  });
 
   // Spotlight context (for navigating to a specific batch from health issues)
   const { spotlight, clearSpotlight } = useSpotlight();
@@ -800,6 +812,7 @@ export function ResourceTimeline({
                 }
                 spotlightBatchId={spotlightBatchId}
                 spotlightTargetResourceId={spotlightTargetResourceId}
+                movementDirections={isThisWeek ? movementDirections : undefined}
                 draggedBatchId={draggedBatch?.id ?? null}
                 dropTargets={dropTargets}
                 canDrag={canSchedule}

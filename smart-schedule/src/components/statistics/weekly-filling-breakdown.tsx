@@ -16,23 +16,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Batch } from "@/types/batch";
 import type { LinkedFillOrder } from "@/types/batch";
 import type { Resource } from "@/types/resource";
+import { parsePackSizeLitres } from "@/lib/utils/pack-size";
 
 interface WeeklyFillingBreakdownProps {
   batches: Batch[];
   weekStart: Date;
   weekEnding: Date;
-}
-
-/** Parse a pack size string like "500ml", "1L", "2.5L", "10L" into litres */
-function parsePackSizeLitres(packSize: string | null): number | null {
-  if (!packSize) return null;
-  const s = packSize.trim().toLowerCase();
-  // Match patterns like "500ml", "0.5l", "1l", "2.5l", "10l", "20l"
-  const mlMatch = s.match(/^([\d.]+)\s*ml$/);
-  if (mlMatch?.[1]) return parseFloat(mlMatch[1]) / 1000;
-  const lMatch = s.match(/^([\d.]+)\s*l$/);
-  if (lMatch?.[1]) return parseFloat(lMatch[1]);
-  return null;
 }
 
 /** Get weekday dates (Mon–Fri) between weekStart and weekEnding */
@@ -125,6 +114,13 @@ export function WeeklyFillingBreakdown({
     return m;
   }, [resources]);
 
+  // Build batch lookup: batchId → batch (for fallback data)
+  const batchMap = useMemo(() => {
+    const m = new Map<string, Batch>();
+    for (const b of batches) m.set(b.id, b);
+    return m;
+  }, [batches]);
+
   // Compute daily metrics
   const dailyMetrics = useMemo(() => {
     return weekdays.map((day) => {
@@ -144,10 +140,23 @@ export function WeeklyFillingBreakdown({
         0,
       );
 
+      // Resolve pack size: prefer fill order's pack_size, fall back to parent batch's packSize
+      const resolvePackSize = (fo: LinkedFillOrder): number | null => {
+        const foSize = parsePackSizeLitres(fo.packSize);
+        if (foSize !== null) return foSize;
+        const batch = batchMap.get(fo.batchId);
+        return batch ? parsePackSizeLitres(batch.packSize) : null;
+      };
+
+      // Resolve fill material: prefer fill order's fill_material, fall back to parent batch's materialCode
+      const resolveFillMaterial = (fo: LinkedFillOrder): string | null => {
+        return fo.fillMaterial ?? batchMap.get(fo.batchId)?.materialCode ?? null;
+      };
+
       // Small items: fill orders where pack size ≤ 3L
       const smallItems = dayFillOrders
         .filter((fo) => {
-          const litres = parsePackSizeLitres(fo.packSize);
+          const litres = resolvePackSize(fo);
           return litres !== null && litres <= 3;
         })
         .reduce((sum, fo) => sum + (fo.quantity ?? 0), 0);
@@ -155,21 +164,21 @@ export function WeeklyFillingBreakdown({
       // Blue lids: fill orders where fill_material contains LOPBOCAPF
       const blueLids = dayFillOrders
         .filter((fo) =>
-          fo.fillMaterial?.toUpperCase().includes(BLUE_LID_COMPONENT),
+          resolveFillMaterial(fo)?.toUpperCase().includes(BLUE_LID_COMPONENT),
         )
         .reduce((sum, fo) => sum + (fo.quantity ?? 0), 0);
 
       // Red lids: fill orders where fill_material contains ANOPR15X
       const redLids = dayFillOrders
         .filter((fo) =>
-          fo.fillMaterial?.toUpperCase().includes(RED_LID_COMPONENT),
+          resolveFillMaterial(fo)?.toUpperCase().includes(RED_LID_COMPONENT),
         )
         .reduce((sum, fo) => sum + (fo.quantity ?? 0), 0);
 
       // 500ml items
       const items500ml = dayFillOrders
         .filter((fo) => {
-          const litres = parsePackSizeLitres(fo.packSize);
+          const litres = resolvePackSize(fo);
           return litres !== null && litres === 0.5;
         })
         .reduce((sum, fo) => sum + (fo.quantity ?? 0), 0);
@@ -199,7 +208,7 @@ export function WeeklyFillingBreakdown({
         manualFills,
       };
     });
-  }, [weekdays, batches, fillOrdersByBatch]);
+  }, [weekdays, batches, fillOrdersByBatch, batchMap]);
 
   // Compute totals
   const totals = useMemo(() => {
