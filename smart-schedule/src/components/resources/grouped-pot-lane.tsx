@@ -10,6 +10,7 @@ interface GroupedPotLaneProps {
   resources: Resource[];
   dates: string[];
   batches: Batch[];
+  dayBlockedMap?: Map<string, string | null>;
   bookendDates?: Set<string>;
   highlightedBatchIds?: Set<string>;
   draggedBatchId?: string | null;
@@ -29,6 +30,7 @@ export function GroupedPotLane({
   resources,
   dates,
   batches,
+  dayBlockedMap,
   bookendDates,
   highlightedBatchIds,
   draggedBatchId,
@@ -145,10 +147,12 @@ export function GroupedPotLane({
       {dates.map((date) => {
         const dayBatches = batchesByDate.get(date) ?? [];
         const isDragging = !!draggedBatchId;
+        const isDayBlocked = dayBlockedMap?.has(date) ?? false;
+        const dayBlockReason = dayBlockedMap?.get(date) ?? null;
         const groupDrop = getGroupDropState(date);
 
         let dragCellClass = "";
-        if (isDragging && groupDrop) {
+        if (isDragging && groupDrop && !isDayBlocked) {
           if (groupDrop.valid && groupDrop.warning) {
             dragCellClass =
               "border border-dashed border-amber-400/60 bg-amber-50/20 dark:bg-amber-950/10";
@@ -168,6 +172,7 @@ export function GroupedPotLane({
             className={cn(
               "relative flex min-h-[80px] flex-col border-b border-r p-1.5 transition-colors",
               isBookend && "bg-muted/40 opacity-70",
+              isDayBlocked && "bg-muted/60",
               dragCellClass,
             )}
             onDragOver={(e) => {
@@ -188,8 +193,19 @@ export function GroupedPotLane({
               }
             }}
           >
+            {/* Day block overlay — grey out entire cell */}
+            {isDayBlocked && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-muted/70">
+                {dayBlockReason && (
+                  <span className="text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wide text-center px-1 select-none">
+                    {dayBlockReason}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Batch count indicator */}
-            {dayBatches.length > 0 && (
+            {dayBatches.length > 0 && !isDayBlocked && (
               <div className="mb-1 flex justify-end">
                 <span className="text-[10px] text-muted-foreground tabular-nums">
                   {dayBatches.length} batch
@@ -199,39 +215,41 @@ export function GroupedPotLane({
             )}
 
             {/* Warning for drops with caveats */}
-            {isDragging && groupDrop?.valid && groupDrop.warning && (
+            {isDragging && groupDrop?.valid && groupDrop.warning && !isDayBlocked && (
               <div className="mb-1 text-[10px] font-medium text-amber-700 dark:text-amber-300 text-center">
                 {groupDrop.warning}
               </div>
             )}
 
             {/* Batch cards stacked */}
-            <div className="flex flex-col gap-1">
-              {dayBatches.map((batch) => {
-                const batchResource = resources.find(
-                  (r) => r.id === batch.planResourceId,
-                );
-                return (
-                  <BatchCard
-                    key={batch.id}
-                    batch={batch}
-                    resource={batchResource ?? resources[0]}
-                    isHighlighted={highlightedBatchIds?.has(batch.id)}
-                    isDragging={draggedBatchId === batch.id}
-                    draggable={canDrag}
-                    canSchedule={canSchedule}
-                    onClick={onBatchClick}
-                    onDragStart={onDragStart}
-                    onDragEnd={onDragEnd}
-                    onMoveStart={onMoveStart}
-                    onReschedule={onReschedule}
-                  />
-                );
-              })}
-            </div>
+            {!isDayBlocked && (
+              <div className="flex flex-col gap-1">
+                {dayBatches.map((batch) => {
+                  const batchResource = resources.find(
+                    (r) => r.id === batch.planResourceId,
+                  );
+                  return (
+                    <BatchCard
+                      key={batch.id}
+                      batch={batch}
+                      resource={batchResource ?? resources[0]}
+                      isHighlighted={highlightedBatchIds?.has(batch.id)}
+                      isDragging={draggedBatchId === batch.id}
+                      draggable={canDrag}
+                      canSchedule={canSchedule}
+                      onClick={onBatchClick}
+                      onDragStart={onDragStart}
+                      onDragEnd={onDragEnd}
+                      onMoveStart={onMoveStart}
+                      onReschedule={onReschedule}
+                    />
+                  );
+                })}
+              </div>
+            )}
 
             {/* Empty state */}
-            {dayBatches.length === 0 && (
+            {dayBatches.length === 0 && !isDayBlocked && (
               <div
                 className={cn(
                   "flex flex-1 items-center justify-center text-[10px]",

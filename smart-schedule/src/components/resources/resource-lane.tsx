@@ -23,6 +23,7 @@ interface ResourceLaneProps {
   dates: string[];
   batches: Batch[];
   blocks: ResourceBlock[];
+  dayBlockedMap?: Map<string, string | null>;
   bookendDates?: Set<string>;
   highlightedBatchIds?: Set<string>;
   spotlightBatchId?: string | null;
@@ -100,6 +101,7 @@ export function ResourceLane({
   dates,
   batches,
   blocks,
+  dayBlockedMap,
   bookendDates,
   highlightedBatchIds,
   spotlightBatchId,
@@ -171,6 +173,8 @@ export function ResourceLane({
       {dates.map((date) => {
         const dayBatches = batchesByDate.get(date) ?? [];
         const block = blockedDates.get(date);
+        const isDayBlocked = dayBlockedMap?.has(date) ?? false;
+        const dayBlockReason = dayBlockedMap?.get(date) ?? null;
         const totalVolume = dayBatches.reduce(
           (sum, b) => sum + (b.batchVolume ?? 0),
           0,
@@ -183,9 +187,8 @@ export function ResourceLane({
 
         // Determine cell highlighting classes when dragging
         let dragCellClass = "";
-        if (isDragging && target) {
+        if (isDragging && target && !isDayBlocked) {
           if (target.valid && target.warning) {
-            // Warning state (e.g. over capacity when allowed, washout required)
             dragCellClass =
               "border border-dashed border-amber-400/60 bg-amber-50/20 dark:bg-amber-950/10";
           } else if (target.valid) {
@@ -204,6 +207,7 @@ export function ResourceLane({
             className={cn(
               "relative flex min-h-[80px] flex-col border-b border-r p-1.5 transition-colors",
               isBookend && "bg-muted/40 opacity-70",
+              isDayBlocked && "bg-muted/60",
               dragCellClass,
             )}
             onDragOver={(e) => {
@@ -223,10 +227,21 @@ export function ResourceLane({
               onDrop?.(resource.id, date);
             }}
           >
-            {block && <BlockedOverlay reason={block.reason} />}
+            {block && !isDayBlocked && <BlockedOverlay reason={block.reason} />}
+
+            {/* Day block overlay — grey out entire cell */}
+            {isDayBlocked && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-muted/70">
+                {dayBlockReason && (
+                  <span className="text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wide text-center px-1 select-none">
+                    {dayBlockReason}
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Capacity indicator */}
-            {dayBatches.length > 0 && !block && (
+            {dayBatches.length > 0 && !block && !isDayBlocked && (
               <div className="mb-1 flex justify-end">
                 <CapacityBar
                   totalVolume={totalVolume}
@@ -237,39 +252,41 @@ export function ResourceLane({
             )}
 
             {/* Warning for drops with caveats */}
-            {isDragging && target?.valid && target.warning && (
+            {isDragging && target?.valid && target.warning && !isDayBlocked && (
               <div className="mb-1 text-[10px] font-medium text-amber-700 dark:text-amber-300 text-center">
                 {target.warning}
               </div>
             )}
 
             {/* Batch cards */}
-            <div className="flex flex-col gap-1">
-              {dayBatches.map((batch) => (
-                <BatchCard
-                  key={batch.id}
-                  batch={batch}
-                  resource={resource}
-                  isHighlighted={highlightedBatchIds?.has(batch.id)}
-                  isSpotlighted={spotlightBatchId === batch.id}
-                  isDimmed={
-                    !!spotlightBatchId && spotlightBatchId !== batch.id
-                  }
-                  isDragging={draggedBatchId === batch.id}
-                  draggable={canDrag}
-                  canSchedule={canSchedule}
-                  movementDirection={movementDirections?.get(batch.id)}
-                  onClick={onBatchClick}
-                  onDragStart={onDragStart}
-                  onDragEnd={onDragEnd}
-                  onMoveStart={onMoveStart}
-                  onReschedule={onReschedule}
-                />
-              ))}
-            </div>
+            {!isDayBlocked && (
+              <div className="flex flex-col gap-1">
+                {dayBatches.map((batch) => (
+                  <BatchCard
+                    key={batch.id}
+                    batch={batch}
+                    resource={resource}
+                    isHighlighted={highlightedBatchIds?.has(batch.id)}
+                    isSpotlighted={spotlightBatchId === batch.id}
+                    isDimmed={
+                      !!spotlightBatchId && spotlightBatchId !== batch.id
+                    }
+                    isDragging={draggedBatchId === batch.id}
+                    draggable={canDrag}
+                    canSchedule={canSchedule}
+                    movementDirection={movementDirections?.get(batch.id)}
+                    onClick={onBatchClick}
+                    onDragStart={onDragStart}
+                    onDragEnd={onDragEnd}
+                    onMoveStart={onMoveStart}
+                    onReschedule={onReschedule}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Empty state */}
-            {dayBatches.length === 0 && !block && (
+            {dayBatches.length === 0 && !block && !isDayBlocked && (
               <div className={cn(
                 "flex flex-1 items-center justify-center text-[10px]",
                 isDragging && target?.valid

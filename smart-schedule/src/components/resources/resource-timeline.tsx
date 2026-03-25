@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { ResourceLane, type DropTarget } from "./resource-lane";
 import { GroupedPotLane } from "./grouped-pot-lane";
 import { PlacementOverlay } from "./placement-overlay";
+import { DisperserCapacityHeatmap } from "./disperser-capacity-heatmap";
 import { RescheduleDialog } from "./reschedule-dialog";
 import { MoveReasonModal } from "@/components/shared/move-reason-modal";
 import { useUpdateBatch, useAddAuditEntry } from "@/hooks/use-batch-mutations";
@@ -303,10 +304,15 @@ export function ResourceTimeline({
     return set;
   }, [blocks]);
 
-  // Day-level blocks (entire day blocked for the site)
-  const dayBlockedSet = useMemo(
-    () => new Set(dayBlocks.map((db) => db.blockDate)),
+  // Day-level blocks (entire day blocked for the site) — map date → reason
+  const dayBlockedMap = useMemo(
+    () => new Map(dayBlocks.map((db) => [db.blockDate, db.reason])),
     [dayBlocks],
+  );
+  // Set for quick membership checks (drop validation etc.)
+  const dayBlockedSet = useMemo(
+    () => new Set(dayBlockedMap.keys()),
+    [dayBlockedMap],
   );
 
   // Compute drop targets for all cells when a batch is being dragged
@@ -671,6 +677,16 @@ export function ResourceTimeline({
         </div>
       </div>
 
+      {/* Disperser capacity heatmap — shown on dispersers tab */}
+      {tab === "dispersers" && (
+        <DisperserCapacityHeatmap
+          batches={batches}
+          resources={resources}
+          dates={dates}
+          bookendDates={bookendDates}
+        />
+      )}
+
       {/* Timeline grid */}
       <div className="rounded-lg border bg-card" ref={timelineRef}>
         <div
@@ -691,6 +707,7 @@ export function ResourceTimeline({
             const weekend = isWeekend(date);
             const isBookend = !coreDateSet.has(dateStr);
             const isDayBlocked = dayBlockedSet.has(dateStr);
+            const dayBlockReason = dayBlockedMap.get(dateStr) ?? null;
             const { total, completed } = completionByDate.get(dateStr) ?? { total: 0, completed: 0 };
             const pct = total > 0 ? (completed / total) * 100 : 0;
             return (
@@ -701,7 +718,7 @@ export function ResourceTimeline({
                   today && "bg-primary/5 ring-1 ring-inset ring-primary/15",
                   weekend && "bg-muted",
                   isBookend && "bg-muted/60 opacity-70",
-                  isDayBlocked && "bg-destructive/10 line-through",
+                  isDayBlocked && "bg-muted/80 line-through text-muted-foreground",
                 )}
               >
                 <div className={cn("text-xs font-semibold", isBookend && "text-muted-foreground")}>
@@ -723,10 +740,10 @@ export function ResourceTimeline({
                 </div>
                 {isDayBlocked && (
                   <div className="mt-0.5 text-[9px] font-semibold uppercase text-destructive">
-                    Blocked
+                    {dayBlockReason || "Blocked"}
                   </div>
                 )}
-                {total > 0 && (
+                {total > 0 && !isDayBlocked && (
                   <div className="mt-1.5 space-y-0.5">
                     <div className="h-1 w-full rounded-full bg-muted-foreground/20 overflow-hidden">
                       <div
@@ -776,6 +793,7 @@ export function ResourceTimeline({
                 dates={dates}
                 batches={batchesByResource.get(lane.resource.id) ?? []}
                 blocks={blocks}
+                dayBlockedMap={dayBlockedMap}
                 bookendDates={bookendDates}
                 highlightedBatchIds={
                   search ? highlightedBatchIds : undefined
@@ -800,6 +818,7 @@ export function ResourceTimeline({
                 resources={lane.group.resources}
                 dates={dates}
                 batches={batchesByPotGroup.get(lane.group.name) ?? []}
+                dayBlockedMap={dayBlockedMap}
                 bookendDates={bookendDates}
                 highlightedBatchIds={
                   search ? highlightedBatchIds : undefined
