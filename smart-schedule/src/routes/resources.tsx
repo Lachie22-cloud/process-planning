@@ -138,6 +138,8 @@ export function ResourcesPage() {
         sapIpt: null,
         sapFillOrder: null,
         sapFillQuantity: null,
+        sapFillMaterial: null,
+        sapFillPackSize: null,
         matGrping: false,
         recipient: false,
       };
