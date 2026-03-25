@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -36,9 +36,15 @@ export function ResourcesPage() {
   const { data: resources = [], isLoading: resourcesLoading } = useResources();
   const deepLinkBatchId = searchParams.get("batchId");
 
-  // Use extended range (prev Friday – next Monday) for data fetching
+  // Use extended range (prev Friday – next Monday) for data fetching.
+  // Add a 7-day buffer past extendedEnd so that when day-blocked columns
+  // (e.g. public holidays) are replaced with the next working days, we
+  // already have batch and day-block data for those replacement dates.
   const fetchStartStr = week.extendedStartStr;
-  const fetchEndStr = week.extendedEndStr;
+  const fetchEndStr = useMemo(
+    () => format(addDays(week.extendedEnd, 7), "yyyy-MM-dd"),
+    [week.extendedEnd],
+  );
 
   const { data: batches = [], isLoading: batchesLoading } = useBatches({
     weekStart: fetchStartStr,
