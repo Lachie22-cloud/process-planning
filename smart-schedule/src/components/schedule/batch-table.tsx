@@ -160,16 +160,6 @@ export function BatchTable({
         size: 260,
       },
       {
-        accessorKey: "packSize",
-        header: "Pack Size",
-        cell: ({ row }) => (
-          <span className="font-mono text-xs">
-            {row.original.packSize ?? "—"}
-          </span>
-        ),
-        size: 90,
-      },
-      {
         accessorKey: "sapColorGroup",
         header: "Colour",
         cell: ({ row }) => {
