@@ -38,9 +38,10 @@ import { COMMENT_REQUIRED_STATUSES } from "@/types/batch";
 import type { BatchStatus, Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
-import { useBatchShortages, useOverrideBatchShortage } from "@/hooks/use-material-shortages";
+import { useBatchShortages, useOverrideBatchShortage, useUpdateShortageEta } from "@/hooks/use-material-shortages";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -171,57 +172,15 @@ function PhysicalLocationChips({
   );
 }
 
-function MaterialAvailabilitySection({ batch }: { batch: Batch }) {
-  return (
-    <div className="space-y-2">
-      <h3 className="text-sm font-semibold">Material Availability</h3>
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-          <div className="flex items-center gap-2">
-            {batch.rmAvailable ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            ) : (
-              <CircleAlert className="h-4 w-4 text-red-500" />
-            )}
-            <span className="font-medium">Raw Materials</span>
-          </div>
-          <span className="text-xs text-muted-foreground">
-            {batch.rmAvailable ? "Available" : "Shortage"}
-          </span>
-        </div>
-        <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-          <div className="flex items-center gap-2">
-            {batch.packagingAvailable ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            ) : (
-              <Package className="h-4 w-4 text-amber-500" />
-            )}
-            <span className="font-medium">Packaging</span>
-          </div>
-          <span className="text-xs text-muted-foreground">
-            {batch.packagingAvailable ? "Available" : "Pending"}
-          </span>
-        </div>
-      </div>
-      {batch.materialShortage && (
-        <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
-          <span className="text-xs text-muted-foreground">Material shortage flagged</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BatchShortagesSection({ batch, canOverride }: { batch: Batch; canOverride: boolean }) {
+function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; canOverride: boolean }) {
   const { data: batchShortages = [] } = useBatchShortages(batch.id);
   const overrideMutation = useOverrideBatchShortage();
+  const etaMutation = useUpdateShortageEta();
   const [overrideTarget, setOverrideTarget] = useState<{ id: string; materialCode: string; shortQty: number; uom: string } | null>(null);
   const [overrideComment, setOverrideComment] = useState("");
   const [sohConfirmed, setSohConfirmed] = useState(false);
 
   const activeShortages = batchShortages.filter((bs) => bs.shortQty < 0 || bs.shortage.shortQty < 0);
-  if (activeShortages.length === 0) return null;
 
   const closeDialog = () => {
     setOverrideTarget(null);
@@ -242,72 +201,187 @@ function BatchShortagesSection({ batch, canOverride }: { batch: Batch; canOverri
     );
   };
 
+  const handleEtaChange = (shortageId: string, value: string) => {
+    etaMutation.mutate({ shortageId, eta: value || null });
+  };
+
   return (
-    <div className="space-y-2">
-      <h3 className="text-sm font-semibold flex items-center gap-2">
-        <AlertTriangle className="h-4 w-4 text-red-500" />
-        Material Shortages ({activeShortages.length})
-      </h3>
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold">Material Availability</h3>
+
+      {/* RM / PKG summary rows */}
       <div className="space-y-1.5">
-        {activeShortages.map((bs) => (
-          <div
-            key={bs.id}
-            className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${
-              bs.plannerOverride ? "bg-green-50/50 border-green-200" : "bg-red-50/50 border-red-200"
-            }`}
-          >
-            <div className="flex-1 min-w-0">
-              <p className="font-mono text-xs font-semibold truncate">
-                {bs.shortage.materialCode}
-              </p>
-              {bs.shortage.materialDesc && (
-                <p className="text-[10px] text-muted-foreground truncate">
-                  {bs.shortage.materialDesc}
-                </p>
-              )}
-              <p className="text-[10px] mt-0.5">
-                <span className="text-muted-foreground">Short: </span>
-                <span className="font-semibold text-red-600">
-                  {bs.shortage.shortQty.toLocaleString()} {bs.shortage.uom}
-                </span>
-                {bs.shortage.eta && (
-                  <span className="ml-2 text-muted-foreground">
-                    ETA: {bs.shortage.eta}
-                  </span>
-                )}
-              </p>
-            </div>
-            <div className="ml-2 shrink-0">
-              {bs.plannerOverride ? (
-                <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">
-                  Overridden
-                </Badge>
-              ) : canOverride ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() =>
-                    setOverrideTarget({
-                      id: bs.id,
-                      materialCode: bs.shortage.materialCode,
-                      shortQty: bs.shortage.shortQty,
-                      uom: bs.shortage.uom,
-                    })
-                  }
-                >
-                  Override
-                </Button>
-              ) : (
-                <Badge variant="destructive" className="text-[10px]">
-                  Short
-                </Badge>
-              )}
-            </div>
+        <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+          <div className="flex items-center gap-2">
+            {batch.rmAvailable ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            ) : (
+              <CircleAlert className="h-4 w-4 text-red-500" />
+            )}
+            <span className="font-medium">Raw Materials</span>
           </div>
-        ))}
+          <span className={`text-xs font-medium ${batch.rmAvailable ? "text-emerald-600" : "text-red-500"}`}>
+            {batch.rmAvailable ? "Available" : "Not Available"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+          <div className="flex items-center gap-2">
+            {batch.packagingAvailable ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            ) : (
+              <Package className="h-4 w-4 text-amber-500" />
+            )}
+            <span className="font-medium">Packaging</span>
+          </div>
+          <span className={`text-xs font-medium ${batch.packagingAvailable ? "text-emerald-600" : "text-amber-500"}`}>
+            {batch.packagingAvailable ? "Available" : "Pending"}
+          </span>
+        </div>
       </div>
 
+      {/* Shortages table */}
+      {activeShortages.length > 0 && (
+        <div className="space-y-2">
+          {/* Header with count and planner override label */}
+          <div className="flex items-center justify-between rounded-md border border-red-200 bg-red-50/50 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Badge variant="destructive" className="text-[10px] font-bold px-2 py-0.5">
+                {activeShortages.length} SHORTAGES
+              </Badge>
+              <span className="text-xs text-muted-foreground">SOH insufficient for requirements</span>
+            </div>
+            {canOverride && (
+              <span className="text-xs text-muted-foreground font-medium">Planner Override</span>
+            )}
+          </div>
+
+          {/* Shortage table */}
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="px-3 py-1.5 text-left text-xs font-medium text-muted-foreground">Material</th>
+                  <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">Type</th>
+                  <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">Required</th>
+                  <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">SOH</th>
+                  <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">Short</th>
+                  <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">UOM</th>
+                  <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">ETA</th>
+                  <th className="px-2 py-1.5 text-center text-xs font-medium text-muted-foreground" />
+                </tr>
+              </thead>
+              <tbody>
+                {activeShortages.map((bs) => (
+                  <tr key={bs.id} className={`border-b last:border-0 ${bs.plannerOverride ? "bg-green-50/30" : ""}`}>
+                    <td className="px-3 py-2">
+                      <p className="text-xs font-semibold truncate max-w-[140px]">{bs.shortage.materialCode}</p>
+                      {bs.shortage.materialDesc && (
+                        <p className="text-[10px] text-muted-foreground truncate max-w-[140px]">{bs.shortage.materialDesc}</p>
+                      )}
+                    </td>
+                    <td className="px-2 py-2">
+                      <Badge
+                        variant="secondary"
+                        className={`text-[10px] font-bold px-1.5 py-0 ${
+                          bs.shortage.materialType === "RM"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        {bs.shortage.materialType}
+                      </Badge>
+                    </td>
+                    <td className="px-2 py-2 text-right text-xs tabular-nums">
+                      {bs.shortage.requiredQty.toLocaleString()}
+                    </td>
+                    <td className="px-2 py-2 text-right text-xs tabular-nums">
+                      {bs.shortage.sohQty.toLocaleString()}
+                    </td>
+                    <td className="px-2 py-2 text-right text-xs tabular-nums font-semibold text-red-600">
+                      {bs.shortage.shortQty.toLocaleString()}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-muted-foreground">
+                      {bs.shortage.uom}
+                    </td>
+                    <td className="px-2 py-2">
+                      {canOverride ? (
+                        <Input
+                          type="date"
+                          className="h-7 w-[120px] text-xs px-1.5"
+                          defaultValue={bs.shortage.eta ?? ""}
+                          onBlur={(e) => handleEtaChange(bs.shortage.id, e.target.value)}
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          {bs.shortage.eta ?? "—"}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 text-center">
+                      {bs.plannerOverride ? (
+                        <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">
+                          Overridden
+                        </Badge>
+                      ) : canOverride ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-[10px]"
+                          onClick={() =>
+                            setOverrideTarget({
+                              id: bs.id,
+                              materialCode: bs.shortage.materialCode,
+                              shortQty: bs.shortage.shortQty,
+                              uom: bs.shortage.uom,
+                            })
+                          }
+                        >
+                          Override
+                        </Button>
+                      ) : (
+                        <Badge variant="destructive" className="text-[10px]">Short</Badge>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Totals row */}
+          <div className="flex items-center justify-end gap-4 px-3 text-xs">
+            <span className="text-muted-foreground font-medium">
+              Total Required:{" "}
+              <span className="text-foreground tabular-nums">
+                {activeShortages.reduce((sum, bs) => sum + bs.shortage.requiredQty, 0).toLocaleString()}
+              </span>
+            </span>
+            <span className="text-muted-foreground font-medium">
+              Total Short:{" "}
+              <span className="text-red-600 font-semibold tabular-nums">
+                {activeShortages.reduce((sum, bs) => sum + bs.shortage.shortQty, 0).toLocaleString()}
+              </span>
+            </span>
+          </div>
+
+          {/* Purchasing Comments (override comments) */}
+          {activeShortages.some((bs) => bs.overrideComment) && (
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-muted-foreground">Purchasing Comments</p>
+              {activeShortages
+                .filter((bs) => bs.overrideComment)
+                .map((bs) => (
+                  <div key={bs.id} className="rounded-md bg-muted p-2 text-xs">
+                    <span className="font-medium">{bs.shortage.materialCode}:</span>{" "}
+                    {bs.overrideComment}
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Override dialog */}
       <Dialog open={overrideTarget !== null} onOpenChange={(open) => { if (!open) closeDialog(); }}>
         <DialogContent>
           <DialogHeader>
@@ -857,11 +931,8 @@ export function BatchDetailSheet({
 
               <Separator />
 
-              {/* Material Availability */}
-              <MaterialAvailabilitySection batch={batch} />
-
-              {/* Batch-Level Shortages (with override) */}
-              <BatchShortagesSection batch={batch} canOverride={hasPermission("planning.vet")} />
+              {/* Material Availability & Shortages */}
+              <MaterialAvailabilitySection batch={batch} canOverride={hasPermission("planning.vet")} />
 
               {/* Coverage Profile */}
               <CoverageSection batch={batch} />

@@ -32,7 +32,11 @@ export function assignBatchToResource(
 /**
  * Assigns resources to a list of batches, distributing load across resources.
  * Tracks how many batches are assigned to each resource per day to respect
- * max_batches_per_day limits.
+ * capacity limits.
+ *
+ * When a resource has a `groupCapacity` set, the group-level daily limit
+ * overrules the individual `maxBatchesPerDay` for all resources sharing
+ * the same `groupName`.
  */
 export function assignBatchesToResources(
   batches: ImportBatch[],
@@ -44,6 +48,37 @@ export function assignBatchesToResources(
 
   const activeResources = resources.filter((r) => r.active);
 
+  // Build group membership: groupName -> resourceIds[]
+  const groupMembers = new Map<string, string[]>();
+  for (const r of activeResources) {
+    if (r.groupName) {
+      const members = groupMembers.get(r.groupName) ?? [];
+      members.push(r.id);
+      groupMembers.set(r.groupName, members);
+    }
+  }
+
+  // Resolve the effective group capacity for a group (take the first non-null value)
+  const groupCapacityCache = new Map<string, number | null>();
+  function getGroupCapacity(groupName: string): number | null {
+    if (groupCapacityCache.has(groupName)) return groupCapacityCache.get(groupName)!;
+    const cap = activeResources
+      .find((r) => r.groupName === groupName && r.groupCapacity != null)
+      ?.groupCapacity ?? null;
+    groupCapacityCache.set(groupName, cap);
+    return cap;
+  }
+
+  // Sum daily counts across all resources in a group for a given date
+  function getGroupDayCount(groupName: string, date: string): number {
+    const members = groupMembers.get(groupName) ?? [];
+    let total = 0;
+    for (const memberId of members) {
+      total += dailyCounts.get(memberId)?.get(date) ?? 0;
+    }
+    return total;
+  }
+
   for (const batch of batches) {
     const resourceType = deriveResourceType(batch.packSize, batch.batchVolume);
 
@@ -52,15 +87,26 @@ export function assignBatchesToResources(
         let score = scoreResource(r, batch, resourceType);
         if (score <= 0) return { resource: r, score: 0 };
 
-        // Penalise resources that are already loaded for this day
         if (batch.planDate) {
-          const dayMap = dailyCounts.get(r.id);
-          const dayCount = dayMap?.get(batch.planDate) ?? 0;
-          if (dayCount >= r.maxBatchesPerDay) {
-            score = 0; // Full for this day
+          const dayCount = dailyCounts.get(r.id)?.get(batch.planDate) ?? 0;
+
+          // If this resource belongs to a group with a group_capacity set,
+          // the group capacity overrules individual maxBatchesPerDay.
+          if (r.groupName && getGroupCapacity(r.groupName) != null) {
+            const groupCap = getGroupCapacity(r.groupName)!;
+            const groupCount = getGroupDayCount(r.groupName, batch.planDate);
+            if (groupCount >= groupCap) {
+              score = 0; // Group is full for this day
+            } else {
+              score -= groupCount * 2;
+            }
           } else {
-            // Prefer less loaded resources
-            score -= dayCount * 2;
+            // No group capacity — fall back to per-resource limit
+            if (dayCount >= r.maxBatchesPerDay) {
+              score = 0; // Full for this day
+            } else {
+              score -= dayCount * 2;
+            }
           }
         }
 
