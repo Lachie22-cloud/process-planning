@@ -138,7 +138,7 @@ export function DisperserCapacityHeatmap({
     return data;
   }, [dispersers, dates, batches, groupPmcByDate]);
 
-  const firstCoreDate = coreDates?.[0] ?? dates[0];
+  const firstCoreDate = coreDates?.[0] ?? dates[0] ?? "";
   const colCount = dates.length;
 
   if (dispersers.length === 0) return null;
