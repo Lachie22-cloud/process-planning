@@ -96,10 +96,14 @@ export function WeeklyFillingBreakdown({
     [weekStart, weekEnding],
   );
 
-  // Build lookup: batchId → fill orders
+  // Build lookup: batchId → fill orders (deduplicated by fill order number)
   const fillOrdersByBatch = useMemo(() => {
     const m = new Map<string, LinkedFillOrder[]>();
+    const seen = new Set<string>();
     for (const fo of fillOrders) {
+      // Skip duplicate fill order numbers
+      if (fo.fillOrder && seen.has(fo.fillOrder)) continue;
+      if (fo.fillOrder) seen.add(fo.fillOrder);
       const existing = m.get(fo.batchId) ?? [];
       existing.push(fo);
       m.set(fo.batchId, existing);

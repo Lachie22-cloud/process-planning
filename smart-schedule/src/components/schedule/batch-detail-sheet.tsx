@@ -507,7 +507,7 @@ export function BatchDetailSheet({
         .select("*")
         .eq("batch_id", batchId);
       if (error) throw error;
-      return (data ?? []).map((r: Record<string, unknown>) => ({
+      const mapped = (data ?? []).map((r: Record<string, unknown>) => ({
         id: r.id as string,
         batchId: r.batch_id as string,
         siteId: r.site_id as string,
@@ -519,6 +519,14 @@ export function BatchDetailSheet({
         unit: r.unit as string | null,
         lidType: r.lid_type as string | null,
       }));
+      // Deduplicate by fill order number — keep first occurrence
+      const seen = new Set<string>();
+      return mapped.filter((fo) => {
+        if (!fo.fillOrder) return true;
+        if (seen.has(fo.fillOrder)) return false;
+        seen.add(fo.fillOrder);
+        return true;
+      });
     },
     enabled: !!batchId,
   });
@@ -764,8 +772,17 @@ export function BatchDetailSheet({
                       </div>
                     )}
                     <InfoRow label="Material Code" value={batch.materialCode} />
-                    {fillOrders[0]?.fillOrder && (
+                    {fillOrders.length === 1 && fillOrders[0]?.fillOrder && (
                       <InfoRow label="SAP Fill Order" value={fillOrders[0].fillOrder} />
+                    )}
+                    {fillOrders.length > 1 && (
+                      <InfoRow
+                        label={`SAP Fill Orders (${fillOrders.length})`}
+                        value={fillOrders
+                          .map((fo) => fo.fillOrder)
+                          .filter(Boolean)
+                          .join(", ")}
+                      />
                     )}
                     <InfoRow label="Pack Size" value={batch.packSize} />
                     {fillOrders.length > 0 && (
@@ -774,9 +791,12 @@ export function BatchDetailSheet({
                         value={`${fillOrders.reduce((s, fo) => s + (fo.quantity ?? 0), 0).toLocaleString()} units`}
                       />
                     )}
-                    {fillOrders[0]?.lidType && (
-                      <InfoRow label="Lid Type" value={fillOrders[0].lidType} />
-                    )}
+                    {(() => {
+                      const lidTypes = [...new Set(fillOrders.map((fo) => fo.lidType).filter(Boolean))];
+                      return lidTypes.length > 0 ? (
+                        <InfoRow label="Lid Type" value={lidTypes.join(", ")} />
+                      ) : null;
+                    })()}
                     <InfoRow label="Fill Requirement" value={batch.fillRequirement ?? "Standard"} />
                   </div>
                 </div>

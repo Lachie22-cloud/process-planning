@@ -55,6 +55,8 @@ export interface ImportBatch {
   sapFillQuantity: number | null;
   sapFillMaterial: string | null;
   sapFillPackSize: string | null;
+  /** All fill orders linked to this bulk batch (used for DB insert) */
+  sapFillOrders: FillRecord[];
   /** "X" in Mat.Grping column — material requires vetting */
   matGrping: boolean;
   /** "X" in Recipient column — material has been vetted */
@@ -311,8 +313,8 @@ function extractMb52Data(files: ParsedFile[]): Map<string, Mb52Record> {
 /*  Fill Data extraction — links fill orders to bulk orders             */
 /* ------------------------------------------------------------------ */
 
-function extractFillData(files: ParsedFile[]): Map<string, FillRecord> {
-  const map = new Map<string, FillRecord>();
+function extractFillData(files: ParsedFile[]): Map<string, FillRecord[]> {
+  const map = new Map<string, FillRecord[]>();
   const fillFile = files.find((f) => f.type === "fill_data");
   if (!fillFile) return map;
 
@@ -327,10 +329,12 @@ function extractFillData(files: ParsedFile[]): Map<string, FillRecord> {
     const packSize = rowValue(row, headers, "pck size", "pack size") ?? null;
     const fillQuantity = rowNumeric(row, headers, "total order quantity", "order quantity") ?? null;
 
-    // Keep first fill order per bulk batch (or could accumulate, but typically 1:1)
-    if (!map.has(batchOrder)) {
-      map.set(batchOrder, { fillOrder, fillMaterial, packSize, fillQuantity });
+    // Accumulate all fill orders per bulk batch, dedup by fill order number
+    const existing = map.get(batchOrder) ?? [];
+    if (!fillOrder || !existing.some((e) => e.fillOrder === fillOrder)) {
+      existing.push({ fillOrder, fillMaterial, packSize, fillQuantity });
     }
+    map.set(batchOrder, existing);
   }
   return map;
 }
@@ -562,10 +566,11 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
       rowValue(row, headers, "colgrp", "colour group", "color group", "color") ?? null;
 
     // Pack size: try bulk data columns, then fill data link, then extract from material code
-    const fill = fillData.get(sapOrder);
+    const fills = fillData.get(sapOrder) ?? [];
+    const firstFill = fills[0] ?? null;
     const packSize =
       rowValue(row, headers, "pack size", "pck size") ??
-      fill?.packSize ??
+      firstFill?.packSize ??
       extractPackSize(materialCode);
 
     // Cross-reference with ZP40 coverage data
@@ -593,7 +598,7 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
       if (shortageMap.has(key)) {
         // Heuristic: packaging materials are typically in EA or units, RM in KG/L
         // Also fill-linked requirements are packaging
-        const isFillLinked = fill && fill.fillOrder && req.order === fill.fillOrder;
+        const isFillLinked = fills.some((f) => f.fillOrder && req.order === f.fillOrder);
         if (isFillLinked) {
           hasPkgShortage = true;
         } else {
@@ -615,11 +620,11 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     const sapDisperser2 = rowValue(row, headers, "dispersion 2 resource", "disperser 2") ?? null;
     const sapPreMixCount = rowNumeric(row, headers, "pre mix count", "pre mix", "premix") ?? null;
     const sapIpt = rowNumeric(row, headers, "ipt") ?? null;
-    // Fill order linking from Fill Data file
-    const sapFillOrder = fill?.fillOrder ?? rowValue(row, headers, "fill order") ?? null;
-    const sapFillQuantity = fill?.fillQuantity ?? rowNumeric(row, headers, "fill quantity", "fill qty") ?? null;
-    const sapFillMaterial = fill?.fillMaterial ?? null;
-    const sapFillPackSize = fill?.packSize ?? null;
+    // Fill order linking from Fill Data file (first fill used for legacy single-value fields)
+    const sapFillOrder = firstFill?.fillOrder ?? rowValue(row, headers, "fill order") ?? null;
+    const sapFillQuantity = firstFill?.fillQuantity ?? rowNumeric(row, headers, "fill quantity", "fill qty") ?? null;
+    const sapFillMaterial = firstFill?.fillMaterial ?? null;
+    const sapFillPackSize = firstFill?.packSize ?? null;
 
     // Vetting columns: Mat.Grping = needs vetting, Recipient = has been vetted
     const matGrpRaw = rowValue(row, headers, "mat.grping", "matgrping", "mat grping", "mat. grping");
@@ -653,6 +658,7 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
       sapFillQuantity,
       sapFillMaterial,
       sapFillPackSize,
+      sapFillOrders: fills,
       matGrping,
       recipient,
     });
@@ -691,8 +697,8 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
         : "KG";
       // Heuristic: fill-linked materials are PKG, others are RM
       const isFillLinked = batches.some((b) => {
-        const fill = fillData.get(b.sapOrder);
-        return fill?.fillOrder && reqEntries.some((r) => r.order === fill.fillOrder);
+        const batchFills = fillData.get(b.sapOrder) ?? [];
+        return batchFills.some((f) => f.fillOrder && reqEntries.some((r) => r.order === f.fillOrder));
       });
 
       shortagesAgg.set(material, {
@@ -1071,7 +1077,7 @@ export function useImport() {
     onSuccess: async (_result, { data }) => {
       // After batches are written, create linked fill orders for batches that have fill data
       if (site) {
-        const fillBatches = data.filter((b) => b.sapFillOrder);
+        const fillBatches = data.filter((b) => b.sapFillOrders.length > 0 || b.sapFillOrder);
         if (fillBatches.length > 0) {
           // Look up batch IDs by SAP order
           const sapOrders = fillBatches.map((b) => b.sapOrder);
@@ -1093,21 +1099,51 @@ export function useImport() {
               .delete()
               .in("batch_id", batchIds);
 
-            // Insert new fill orders
-            const fillRows = fillBatches
-              .filter((b) => orderToId.has(b.sapOrder))
-              .map((b) => ({
-                batch_id: orderToId.get(b.sapOrder)!,
-                site_id: site.id,
-                fill_order: b.sapFillOrder,
-                fill_material: b.sapFillMaterial,
-                fill_description: b.materialDescription,
-                pack_size: b.sapFillPackSize ?? b.packSize,
-                quantity: b.sapFillQuantity,
-              }));
+            // Insert all fill orders (multiple per batch when applicable)
+            const fillRows: Record<string, unknown>[] = [];
+            for (const b of fillBatches) {
+              const batchId = orderToId.get(b.sapOrder);
+              if (!batchId) continue;
 
-            if (fillRows.length > 0) {
-              await supabase.from("linked_fill_orders").insert(fillRows as never);
+              if (b.sapFillOrders.length > 0) {
+                // Insert each fill order from the fill data file
+                for (const fo of b.sapFillOrders) {
+                  fillRows.push({
+                    batch_id: batchId,
+                    site_id: site.id,
+                    fill_order: fo.fillOrder || null,
+                    fill_material: fo.fillMaterial,
+                    fill_description: b.materialDescription,
+                    pack_size: fo.packSize ?? b.packSize,
+                    quantity: fo.fillQuantity,
+                  });
+                }
+              } else if (b.sapFillOrder) {
+                // Fallback: single fill order from inline bulk data columns
+                fillRows.push({
+                  batch_id: batchId,
+                  site_id: site.id,
+                  fill_order: b.sapFillOrder,
+                  fill_material: b.sapFillMaterial,
+                  fill_description: b.materialDescription,
+                  pack_size: b.sapFillPackSize ?? b.packSize,
+                  quantity: b.sapFillQuantity,
+                });
+              }
+            }
+
+            // Deduplicate by fill_order before inserting
+            const seenFillOrders = new Set<string>();
+            const dedupedRows = fillRows.filter((r) => {
+              const fo = r.fill_order as string | null;
+              if (!fo) return true;
+              if (seenFillOrders.has(fo)) return false;
+              seenFillOrders.add(fo);
+              return true;
+            });
+
+            if (dedupedRows.length > 0) {
+              await supabase.from("linked_fill_orders").insert(dedupedRows as never);
             }
           }
         }

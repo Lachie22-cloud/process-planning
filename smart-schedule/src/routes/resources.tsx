@@ -146,6 +146,7 @@ export function ResourcesPage() {
         sapFillQuantity: null,
         sapFillMaterial: null,
         sapFillPackSize: null,
+        sapFillOrders: [],
         matGrping: false,
         recipient: false,
       };
