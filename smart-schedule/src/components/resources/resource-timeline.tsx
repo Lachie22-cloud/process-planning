@@ -60,7 +60,6 @@ interface ResourceTimelineProps {
   extendedStart?: Date;
   extendedEnd?: Date;
   isLoading: boolean;
-  /** When true, movement direction arrows are shown on batch cards */
   isThisWeek?: boolean;
   onBatchClick?: (batch: Batch) => void;
 }
@@ -107,7 +106,7 @@ export function ResourceTimeline({
   extendedStart,
   extendedEnd,
   isLoading,
-  isThisWeek = false,
+  isThisWeek: _isThisWeek,
   onBatchClick,
 }: ResourceTimelineProps) {
   const [tab, setTab] = useState<ResourceTab>("mixers");
@@ -145,14 +144,24 @@ export function ResourceTimeline({
 
   const canSchedule = hasPermission("batches.schedule");
 
-  // Movement directions — only fetched for the current production week
+  // Movement directions — fetched for every viewed week
   const weekStartStr = useMemo(() => format(weekStart, "yyyy-MM-dd"), [weekStart]);
   const weekEndingStr = useMemo(() => format(weekEnding, "yyyy-MM-dd"), [weekEnding]);
   const { data: movementDirections } = useMovementDirections({
     weekStart: weekStartStr,
     weekEnding: weekEndingStr,
-    enabled: isThisWeek,
   });
+
+  /** True when both from and to dates fall within the displayed working week */
+  const isWithinCurrentWeek = useCallback(
+    (fromDate: string | null, toDate: string) =>
+      !!fromDate &&
+      fromDate >= weekStartStr &&
+      fromDate <= weekEndingStr &&
+      toDate >= weekStartStr &&
+      toDate <= weekEndingStr,
+    [weekStartStr, weekEndingStr],
+  );
 
   // Spotlight context (for navigating to a specific batch from health issues)
   const { spotlight, clearSpotlight } = useSpotlight();
@@ -215,7 +224,7 @@ export function ResourceTimeline({
         result.push(dateStr);
       } else {
         // Blocked bookend: replace with next available working day
-        const isBeforeCore = dateStr < coreDates[0];
+        const isBeforeCore = dateStr < (coreDates[0] ?? dateStr);
         let candidate = addDays(new Date(dateStr + "T12:00:00"), isBeforeCore ? -1 : 1);
         for (let i = 0; i < 21; i++) {
           const candidateStr = format(candidate, "yyyy-MM-dd");
@@ -477,12 +486,6 @@ export function ResourceTimeline({
     setDraggedBatch(null);
   }, []);
 
-  // Production role users must always provide a reason for any move
-  const requiresReasonForAllMoves =
-    hasPermission("batches.schedule") &&
-    !hasPermission("planning.vet") &&
-    !hasPermission("planning.import");
-
   const handleDrop = useCallback(
     (targetResourceId: string, targetDate: string) => {
       if (!draggedBatch) return;
@@ -495,8 +498,9 @@ export function ResourceTimeline({
         return;
       }
 
-      // If date changed or Production role, require a reason
-      if (dateChanged || requiresReasonForAllMoves) {
+      // Require a reason only when the date changes within the current working week
+      const withinWeek = isWithinCurrentWeek(draggedBatch.planDate, targetDate);
+      if (dateChanged && withinWeek) {
         setMoveModal({
           batch: draggedBatch,
           targetResourceId,
@@ -506,12 +510,12 @@ export function ResourceTimeline({
         return;
       }
 
-      // Resource-only move — execute directly
+      // Move outside the week or resource-only move — execute directly (no comment needed)
       executeBatchMove(draggedBatch, targetResourceId, targetDate);
       setDraggedBatch(null);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [draggedBatch, requiresReasonForAllMoves],
+    [draggedBatch, isWithinCurrentWeek],
   );
 
   const executeBatchMove = useCallback(
@@ -621,8 +625,9 @@ export function ResourceTimeline({
         return;
       }
 
-      // If date changed or Production role, require a reason via modal
-      if (dateChanged || requiresReasonForAllMoves) {
+      // Require a reason only when the date changes within the current working week
+      const withinWeek = isWithinCurrentWeek(movingBatch.planDate, date);
+      if (dateChanged && withinWeek) {
         setMoveModal({
           batch: movingBatch,
           targetResourceId: resourceId,
@@ -632,11 +637,11 @@ export function ResourceTimeline({
         return;
       }
 
-      // Resource-only move — execute directly
+      // Move outside the week or resource-only move — execute directly
       executeBatchMove(movingBatch, resourceId, date);
       setMovingBatch(null);
     },
-    [movingBatch, executeBatchMove, requiresReasonForAllMoves],
+    [movingBatch, executeBatchMove, isWithinCurrentWeek],
   );
 
   const handleOverlayCancel = useCallback(() => {
@@ -781,7 +786,7 @@ export function ResourceTimeline({
                   {format(date, "EEE")}
                   {isBookend && (
                     <span className="ml-1 text-[9px] font-normal text-muted-foreground/70">
-                      {dateStr < coreDates[0] ? "(prev)" : "(next)"}
+                      {dateStr < (coreDates[0] ?? dateStr) ? "(prev)" : "(next)"}
                     </span>
                   )}
                 </div>
@@ -856,7 +861,7 @@ export function ResourceTimeline({
                 }
                 spotlightBatchId={spotlightBatchId}
                 spotlightTargetResourceId={spotlightTargetResourceId}
-                movementDirections={isThisWeek ? movementDirections : undefined}
+                movementDirections={movementDirections}
                 draggedBatchId={draggedBatch?.id ?? null}
                 dropTargets={dropTargets}
                 canDrag={canSchedule}

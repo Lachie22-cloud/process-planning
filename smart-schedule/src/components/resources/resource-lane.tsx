@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/ui/cn";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
+import { ArrowLeftFromLine, ArrowRightFromLine } from "lucide-react";
 import { BatchCard } from "./batch-card";
 import { BlockedOverlay } from "./blocked-overlay";
 import type { Batch } from "@/types/batch";
@@ -242,12 +243,56 @@ export function ResourceLane({
               </div>
             )}
 
-            {/* Status summary indicator */}
-            {dayBatches.length > 0 && !block && !isDayBlocked && (
-              <div className="mb-1 flex justify-end">
-                <CellStatusSummary batches={dayBatches} />
-              </div>
-            )}
+            {/* Cell indicator: movement arrow (if any batch moved) or status summary */}
+            {dayBatches.length > 0 && !block && !isDayBlocked && (() => {
+              // Check if any batch in this cell has a movement direction
+              const cellMovements = dayBatches
+                .map((b) => movementDirections?.get(b.id))
+                .filter((m): m is MovementInfo => !!m && (m.direction === "pulled" || m.direction === "pushed"));
+
+              if (cellMovements.length > 0) {
+                // Show the first movement indicator (pulled takes priority over pushed)
+                const pulled = cellMovements.find((m) => m.direction === "pulled");
+                const movement = pulled ?? cellMovements[0]!;
+                const isPulled = movement.direction === "pulled";
+
+                return (
+                  <div className="mb-1 flex justify-end">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-0.5 rounded-sm px-1.5 py-0.5 text-[9px] font-bold leading-none",
+                            isPulled
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300"
+                              : "bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-300",
+                          )}
+                        >
+                          {isPulled ? (
+                            <ArrowLeftFromLine className="h-3 w-3 shrink-0" />
+                          ) : (
+                            <ArrowRightFromLine className="h-3 w-3 shrink-0" />
+                          )}
+                          {isPulled ? "Pulled Forward" : "Pushed Out"}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        <div className="font-semibold">{isPulled ? "Pulled Forward" : "Pushed Out"}</div>
+                        {movement.reason && (
+                          <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{movement.reason}</div>
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="mb-1 flex justify-end">
+                  <CellStatusSummary batches={dayBatches} />
+                </div>
+              );
+            })()}
 
             {/* Warning for drops with caveats */}
             {isDragging && target?.valid && target.warning && !isDayBlocked && (
@@ -272,7 +317,6 @@ export function ResourceLane({
                     isDragging={draggedBatchId === batch.id}
                     draggable={canDrag}
                     canSchedule={canSchedule}
-                    movementInfo={movementDirections?.get(batch.id)}
                     onClick={onBatchClick}
                     onDragStart={onDragStart}
                     onDragEnd={onDragEnd}

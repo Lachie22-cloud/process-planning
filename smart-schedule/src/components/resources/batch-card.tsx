@@ -5,11 +5,9 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/ui/cn";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
-import { Eye, Move, CalendarClock, ArrowLeftFromLine, ArrowRightFromLine } from "lucide-react";
+import { Eye, Move, CalendarClock } from "lucide-react";
 import type { Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
-import type { MovementInfo } from "@/hooks/use-schedule-movements";
-
 interface BatchCardProps {
   batch: Batch;
   resource: Resource | undefined;
@@ -19,8 +17,6 @@ interface BatchCardProps {
   isDragging?: boolean;
   draggable?: boolean;
   canSchedule?: boolean;
-  /** Movement info from schedule_movements for current production week */
-  movementInfo?: MovementInfo | null;
   onClick?: (batch: Batch) => void;
   onDragStart?: (batch: Batch, e: React.DragEvent) => void;
   onDragEnd?: () => void;
@@ -57,7 +53,6 @@ export function BatchCard({
   isDragging = false,
   draggable = false,
   canSchedule = false,
-  movementInfo,
   onClick,
   onDragStart,
   onDragEnd,
@@ -111,40 +106,6 @@ export function BatchCard({
         onClick?.(batch);
       }}
     >
-      {/* Movement direction indicator — replaces status pill for current production week */}
-      {movementInfo?.direction === "pulled" && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="absolute top-0 right-0 flex items-center gap-1 rounded-bl-md rounded-tr-md bg-green-100 px-1.5 py-0.5 text-[9px] font-bold text-green-700 dark:bg-green-900/60 dark:text-green-300">
-              <ArrowLeftFromLine className="h-3 w-3" />
-              Pulled Forward
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-xs">
-            <div className="font-semibold">Pulled Forward</div>
-            {movementInfo.reason && (
-              <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{movementInfo.reason}</div>
-            )}
-          </TooltipContent>
-        </Tooltip>
-      )}
-      {movementInfo?.direction === "pushed" && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="absolute top-0 right-0 flex items-center gap-1 rounded-bl-md rounded-tr-md bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-700 dark:bg-red-900/60 dark:text-red-300">
-              <ArrowRightFromLine className="h-3 w-3" />
-              Pushed Out
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-xs">
-            <div className="font-semibold">Pushed Out</div>
-            {movementInfo.reason && (
-              <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{movementInfo.reason}</div>
-            )}
-          </TooltipContent>
-        </Tooltip>
-      )}
-
       {/* Top row: SAP order + material code + move buttons */}
       <div className="flex items-center justify-between gap-1">
         <span className="font-semibold truncate">{batch.sapOrder}</span>
@@ -229,52 +190,20 @@ export function BatchCard({
           </span>
         )}
 
-        {/* Status badge — replaced by movement arrow when batch has been pulled/pushed in current week */}
-        {movementInfo?.direction === "pulled" ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-0.5 rounded-sm bg-green-100 px-1 py-0.5 text-[9px] font-bold leading-none text-green-700 dark:bg-green-900/60 dark:text-green-300">
-                <ArrowLeftFromLine className="h-3 w-3 shrink-0" />
-                Pulled Forward
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-xs">
-              <div className="font-semibold">Pulled Forward</div>
-              {movementInfo.reason && (
-                <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{movementInfo.reason}</div>
-              )}
-            </TooltipContent>
-          </Tooltip>
-        ) : movementInfo?.direction === "pushed" ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-0.5 rounded-sm bg-red-100 px-1 py-0.5 text-[9px] font-bold leading-none text-red-700 dark:bg-red-900/60 dark:text-red-300">
-                <ArrowRightFromLine className="h-3 w-3 shrink-0" />
-                Pushed Out
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-xs">
-              <div className="font-semibold">Pushed Out</div>
-              {movementInfo.reason && (
-                <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{movementInfo.reason}</div>
-              )}
-            </TooltipContent>
-          </Tooltip>
-        ) : (
+        {/* Status badge — always shown */}
+        <span
+          className={cn(
+            "inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-[9px] font-semibold leading-none",
+            statusCfg?.bgClass ?? "bg-muted",
+            statusCfg?.textClass ?? "text-muted-foreground",
+          )}
+        >
           <span
-            className={cn(
-              "inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-[9px] font-semibold leading-none",
-              statusCfg?.bgClass ?? "bg-muted",
-              statusCfg?.textClass ?? "text-muted-foreground",
-            )}
-          >
-            <span
-              className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
-              style={{ backgroundColor: statusCfg?.color }}
-            />
-            {statusCfg?.label ?? batch.status}
-          </span>
-        )}
+            className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
+            style={{ backgroundColor: statusCfg?.color }}
+          />
+          {statusCfg?.label ?? batch.status}
+        </span>
 
         {isOverCapacity && (
           <Tooltip>
