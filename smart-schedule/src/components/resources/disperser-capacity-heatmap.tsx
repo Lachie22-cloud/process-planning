@@ -21,26 +21,18 @@ interface CellData {
 
 function getHeatClass(pct: number): string {
   if (pct === 0) return "";
-  if (pct <= 50) return "bg-emerald-50 dark:bg-emerald-950/30";
-  if (pct <= 80) return "bg-yellow-50 dark:bg-yellow-950/30";
-  if (pct <= 100) return "bg-orange-50 dark:bg-orange-950/30";
-  return "bg-red-100 dark:bg-red-950/40";
+  if (pct <= 50) return "bg-green-100 dark:bg-green-900/40";
+  if (pct <= 80) return "bg-yellow-100 dark:bg-yellow-900/40";
+  if (pct <= 100) return "bg-orange-100 dark:bg-orange-900/40";
+  return "bg-red-200 dark:bg-red-900/50";
 }
 
 function getPctClass(pct: number): string {
-  if (pct === 0) return "text-muted-foreground/50";
-  if (pct <= 50) return "text-emerald-700 dark:text-emerald-400";
-  if (pct <= 80) return "text-yellow-700 dark:text-yellow-400";
-  if (pct <= 100) return "text-orange-700 dark:text-orange-400";
-  return "text-red-700 dark:text-red-300 font-semibold";
-}
-
-function getPctBarColor(pct: number): string {
-  if (pct === 0) return "bg-muted-foreground/20";
-  if (pct <= 50) return "bg-emerald-500";
-  if (pct <= 80) return "bg-yellow-500";
-  if (pct <= 100) return "bg-orange-500";
-  return "bg-red-500";
+  if (pct === 0) return "text-muted-foreground";
+  if (pct <= 50) return "text-green-800 dark:text-green-300 font-medium";
+  if (pct <= 80) return "text-yellow-800 dark:text-yellow-300 font-medium";
+  if (pct <= 100) return "text-orange-800 dark:text-orange-300 font-semibold";
+  return "text-red-800 dark:text-red-200 font-semibold";
 }
 
 export function DisperserCapacityHeatmap({
@@ -139,89 +131,105 @@ export function DisperserCapacityHeatmap({
   }, [dispersers, dates, batches, groupPmcByDate]);
 
   const firstCoreDate = coreDates?.[0] ?? dates[0] ?? "";
-  const colCount = dates.length;
 
   if (dispersers.length === 0) return null;
 
   return (
     <div className="rounded-lg border bg-card">
-      <div className="border-b px-4 py-2.5">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="border-b px-4 py-3">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground">
           Disperser Capacity Heat Map
         </h3>
       </div>
 
       <div className="overflow-x-auto">
-        <div
-          className="grid min-w-[800px]"
-          style={{
-            gridTemplateColumns: `180px repeat(${colCount}, minmax(120px, 1fr))`,
-          }}
-        >
-          {/* Header row */}
-          <div className="border-b border-r bg-muted px-3 py-2">
-            <span className="text-xs font-semibold text-muted-foreground uppercase">
-              Disperser
-            </span>
-          </div>
-          {dates.map((dateStr) => {
-            const date = new Date(dateStr + "T12:00:00");
-            const isBookend = bookendDates.has(dateStr);
-            return (
-              <div
-                key={dateStr}
-                className={cn(
-                  "border-b border-r px-2 py-2 text-center",
-                  isBookend && "bg-muted/60 opacity-70",
-                )}
-              >
-                <div className={cn("text-xs font-semibold", isBookend && "text-muted-foreground")}>
-                  {format(date, "EEE")}
-                  {isBookend && (
-                    <span className="ml-1 text-[9px] font-normal text-muted-foreground/70">
-                      {dateStr < firstCoreDate ? "(prev)" : "(next)"}
-                    </span>
-                  )}
-                </div>
-                <div className={cn("text-sm tabular-nums", isBookend && "text-muted-foreground")}>
-                  {format(date, "d MMM")}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Disperser rows */}
-          {dispersers.map((disperser) => {
-            const dateMap = heatData.get(disperser.id);
-            return (
-              <RowContents
-                key={disperser.id}
-                label={disperser.displayName ?? disperser.resourceCode}
-                dates={dates}
-                dateMap={dateMap}
-                bookendDates={bookendDates}
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            {/* Day header row */}
+            <tr className="bg-muted/50">
+              <th
+                rowSpan={2}
+                className="sticky left-0 z-10 w-[180px] min-w-[180px] border-r bg-muted px-3 py-2 text-left text-xs font-semibold uppercase text-muted-foreground"
               />
-            );
-          })}
-        </div>
+              {dates.map((dateStr) => {
+                const date = new Date(dateStr + "T12:00:00");
+                const isBookend = bookendDates.has(dateStr);
+                const dayLabel = format(date, "EEE d MMM");
+                const suffix = isBookend
+                  ? dateStr < firstCoreDate
+                    ? " (prev)"
+                    : " (next)"
+                  : "";
+
+                return (
+                  <th
+                    key={dateStr}
+                    colSpan={4}
+                    className={cn(
+                      "border-x border-b px-1 py-2 text-center text-xs font-semibold",
+                      isBookend
+                        ? "text-muted-foreground/70"
+                        : "text-foreground",
+                    )}
+                  >
+                    {dayLabel}
+                    {suffix && (
+                      <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                        {suffix}
+                      </span>
+                    )}
+                  </th>
+                );
+              })}
+            </tr>
+            {/* Sub-column header row */}
+            <tr className="bg-muted/30">
+              {dates.map((dateStr) => (
+                <SubColumnHeaders key={dateStr} />
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {dispersers.map((disperser) => {
+              const dateMap = heatData.get(disperser.id);
+              return (
+                <tr
+                  key={disperser.id}
+                  className="border-t hover:bg-muted/20 transition-colors"
+                >
+                  <td className="sticky left-0 z-10 w-[180px] min-w-[180px] border-r bg-card px-3 py-1.5 font-medium whitespace-nowrap">
+                    {disperser.displayName ?? disperser.resourceCode}
+                  </td>
+                  {dates.map((dateStr) => {
+                    const cell = dateMap?.get(dateStr);
+                    if (!cell) {
+                      return <EmptyCells key={dateStr} />;
+                    }
+                    return <DayCells key={dateStr} cell={cell} />;
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       {/* Legend */}
       <div className="flex items-center gap-4 border-t px-4 py-2 text-[10px] text-muted-foreground">
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-5 rounded-sm bg-emerald-500" />
+          <div className="h-3 w-5 rounded border bg-green-100 dark:bg-green-900/40" />
           <span>0–50%</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-5 rounded-sm bg-yellow-500" />
+          <div className="h-3 w-5 rounded border bg-yellow-100 dark:bg-yellow-900/40" />
           <span>51–80%</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-5 rounded-sm bg-orange-500" />
+          <div className="h-3 w-5 rounded border bg-orange-100 dark:bg-orange-900/40" />
           <span>81–100%</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-5 rounded-sm bg-red-500" />
+          <div className="h-3 w-5 rounded border bg-red-200 dark:bg-red-900/50" />
           <span>Over 100%</span>
         </div>
       </div>
@@ -229,76 +237,75 @@ export function DisperserCapacityHeatmap({
   );
 }
 
-function RowContents({
-  label,
-  dates,
-  dateMap,
-  bookendDates,
-}: {
-  label: string;
-  dates: string[];
-  dateMap: Map<string, CellData> | undefined;
-  bookendDates: Set<string>;
-}) {
+function SubColumnHeaders() {
   return (
     <>
-      <div className="border-b border-r bg-card px-3 py-2 text-xs font-medium whitespace-nowrap flex items-center">
-        {label}
-      </div>
-      {dates.map((dateStr) => {
-        const cell = dateMap?.get(dateStr);
-        const isBookend = bookendDates.has(dateStr);
-        if (!cell || (cell.pmc === 0 && cell.batch === 0)) {
-          return (
-            <div
-              key={dateStr}
-              className={cn(
-                "border-b border-r px-2 py-2 text-center",
-                isBookend && "bg-muted/30",
-              )}
-            >
-              <div className="text-[10px] text-muted-foreground/40 tabular-nums">
-                0 / {cell?.cap ?? "—"}
-              </div>
-            </div>
-          );
-        }
-        return (
-          <div
-            key={dateStr}
-            className={cn(
-              "border-b border-r px-2 py-1.5",
-              getHeatClass(cell.pct),
-              isBookend && "opacity-70",
-            )}
-          >
-            {/* PMC / Cap */}
-            <div className="flex items-baseline justify-center gap-0.5 tabular-nums">
-              <span className={cn("text-xs font-semibold", getPctClass(cell.pct))}>
-                {cell.pmc}
-              </span>
-              <span className="text-[10px] text-muted-foreground">/</span>
-              <span className="text-[10px] text-muted-foreground">{cell.cap}</span>
-            </div>
-            {/* Utilisation bar */}
-            <div className="mt-1 h-1 w-full rounded-full bg-muted-foreground/15 overflow-hidden">
-              <div
-                className={cn("h-full rounded-full transition-all", getPctBarColor(cell.pct))}
-                style={{ width: `${Math.min(cell.pct, 100)}%` }}
-              />
-            </div>
-            {/* Percentage */}
-            <div className={cn("mt-0.5 text-center text-[9px] tabular-nums", getPctClass(cell.pct))}>
-              {cell.pct}%
-              {cell.batch > 0 && (
-                <span className="ml-1 text-muted-foreground">
-                  ({cell.batch}b)
-                </span>
-              )}
-            </div>
-          </div>
-        );
-      })}
+      <th className="border-x px-1.5 py-1 text-center text-[10px] font-medium uppercase text-muted-foreground w-10">
+        PMC
+      </th>
+      <th className="border-r px-1.5 py-1 text-center text-[10px] font-medium uppercase text-muted-foreground w-10">
+        Batch
+      </th>
+      <th className="border-r px-1.5 py-1 text-center text-[10px] font-medium uppercase text-muted-foreground w-10">
+        Cap
+      </th>
+      <th className="border-r px-1.5 py-1 text-center text-[10px] font-medium uppercase text-muted-foreground w-10">
+        %
+      </th>
+    </>
+  );
+}
+
+function EmptyCells() {
+  return (
+    <>
+      <td className="border-x px-1.5 py-1.5 text-center tabular-nums text-muted-foreground" />
+      <td className="border-r px-1.5 py-1.5 text-center tabular-nums text-muted-foreground" />
+      <td className="border-r px-1.5 py-1.5 text-center tabular-nums text-muted-foreground" />
+      <td className="border-r px-1.5 py-1.5 text-center tabular-nums text-muted-foreground" />
+    </>
+  );
+}
+
+function DayCells({ cell }: { cell: CellData }) {
+  const heatBg = getHeatClass(cell.pct);
+  const pctColor = getPctClass(cell.pct);
+
+  return (
+    <>
+      <td
+        className={cn(
+          "border-x px-1.5 py-1.5 text-center tabular-nums",
+          heatBg,
+        )}
+      >
+        {cell.pmc > 0 ? cell.pmc : ""}
+      </td>
+      <td
+        className={cn(
+          "border-r px-1.5 py-1.5 text-center tabular-nums",
+          heatBg,
+        )}
+      >
+        {cell.batch > 0 ? cell.batch : ""}
+      </td>
+      <td
+        className={cn(
+          "border-r px-1.5 py-1.5 text-center tabular-nums",
+          heatBg,
+        )}
+      >
+        {cell.cap}
+      </td>
+      <td
+        className={cn(
+          "border-r px-1.5 py-1.5 text-center tabular-nums",
+          pctColor,
+          heatBg,
+        )}
+      >
+        {cell.pct > 0 ? `${cell.pct}%` : ""}
+      </td>
     </>
   );
 }
