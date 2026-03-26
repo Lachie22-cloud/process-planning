@@ -45,7 +45,7 @@ vi.mock("@/lib/supabase/client", () => ({
 /*  Helper to build ParsedFile objects matching SAP export format       */
 /* ------------------------------------------------------------------ */
 
-function bulkData(rows: Record<string, unknown>[]) {
+function bulkData(rows: Record<string, string | number | null>[]) {
   const headers = [
     "Order", "Basic Start Date", "Material", "Material Description",
     "Total Order Quantity", "Colour Group",
@@ -59,7 +59,7 @@ function bulkData(rows: Record<string, unknown>[]) {
   };
 }
 
-function fillData(rows: Record<string, unknown>[]) {
+function fillData(rows: Record<string, string | number | null>[]) {
   const headers = [
     "Batch", "Order", "Material", "Pck Size", "Total Order Quantity",
   ];
@@ -80,7 +80,7 @@ function fillData(rows: Record<string, unknown>[]) {
   };
 }
 
-function bomFile(type: "bulk_components" | "fill_components", rows: Record<string, unknown>[]) {
+function bomFile(type: "bulk_components" | "fill_components", rows: Record<string, string | number | null>[]) {
   const headers = [
     "Order", "Material", "Material Description", "Requirement Quantity",
     "Quantity Withdrawn", "Requirement Date", "Base Unit of Measure",
@@ -94,7 +94,7 @@ function bomFile(type: "bulk_components" | "fill_components", rows: Record<strin
   };
 }
 
-function sohReport(rows: Record<string, unknown>[]) {
+function sohReport(rows: Record<string, string | number | null>[]) {
   const headers = ["Material", "Material Description", "Unrestricted", "Base Unit of Measure"];
   return {
     fileName: "soh_report.xlsx",
