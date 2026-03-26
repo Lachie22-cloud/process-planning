@@ -523,7 +523,7 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
   const bulkFile =
     files.find((f) => f.type === "bulk_data") ??
     files.find((f) => f.type === "coois");
-  if (!bulkFile) return { batches: [], missingDates: 0, shortages: [], orderShortages: new Map() };
+  if (!bulkFile) return { batches: [], missingDates: 0, shortages: [], orderShortages: new Map(), requirementsByFillOrder: new Map() };
   const todayISO = new Date().toISOString().split("T")[0]!;
 
   // Extract supplementary data from other file types

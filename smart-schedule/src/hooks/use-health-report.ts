@@ -42,6 +42,7 @@ function toResourceScoring(r: Resource): ScoringResource {
     chemicalBase: r.chemicalBase ?? null,
     trunkLine: r.trunkLine ?? null,
     groupName: r.groupName ?? null,
+    groupCapacity: r.groupCapacity ?? null,
     active: r.active,
   };
 }
