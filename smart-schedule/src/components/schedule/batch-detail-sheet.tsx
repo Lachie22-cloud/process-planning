@@ -180,7 +180,7 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
   const [overrideComment, setOverrideComment] = useState("");
   const [sohConfirmed, setSohConfirmed] = useState(false);
 
-  const activeShortages = batchShortages.filter((bs) => bs.shortQty < 0);
+  const activeShortages = batchShortages.filter((bs) => bs.shortQty < 0 || bs.shortage.shortQty < 0);
 
   const closeDialog = () => {
     setOverrideTarget(null);
@@ -263,6 +263,7 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
                   <th className="px-3 py-1.5 text-left text-xs font-medium text-muted-foreground">Material</th>
                   <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">Type</th>
                   <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">Required</th>
+                  <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">SOH</th>
                   <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">Short</th>
                   <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">UOM</th>
                   <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">ETA</th>
@@ -291,10 +292,13 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
                       </Badge>
                     </td>
                     <td className="px-2 py-2 text-right text-xs tabular-nums">
-                      {bs.requiredQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      {(bs.requiredQty || bs.shortage.requiredQty).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-2 py-2 text-right text-xs tabular-nums">
+                      {bs.shortage.sohQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-2 py-2 text-right text-xs tabular-nums font-semibold text-red-600">
-                      {bs.shortQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      {(bs.shortQty || bs.shortage.shortQty).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-2 py-2 text-xs text-muted-foreground">
                       {bs.shortage.uom}
@@ -327,7 +331,7 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
                             setOverrideTarget({
                               id: bs.id,
                               materialCode: bs.shortage.materialCode,
-                              shortQty: bs.shortQty,
+                              shortQty: bs.shortQty || bs.shortage.shortQty,
                               uom: bs.shortage.uom,
                             })
                           }
@@ -349,13 +353,13 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
             <span className="text-muted-foreground font-medium">
               Total Required:{" "}
               <span className="text-foreground tabular-nums">
-                {activeShortages.reduce((sum, bs) => sum + bs.requiredQty, 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                {activeShortages.reduce((sum, bs) => sum + (bs.requiredQty || bs.shortage.requiredQty), 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </span>
             </span>
             <span className="text-muted-foreground font-medium">
               Total Short:{" "}
               <span className="text-red-600 font-semibold tabular-nums">
-                {activeShortages.reduce((sum, bs) => sum + bs.shortQty, 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                {activeShortages.reduce((sum, bs) => sum + (bs.shortQty || bs.shortage.shortQty), 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </span>
             </span>
           </div>
