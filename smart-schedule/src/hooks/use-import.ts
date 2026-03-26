@@ -219,6 +219,8 @@ interface FillRecord {
   fillMaterial: string | null;
   packSize: string | null;
   fillQuantity: number | null;
+  /** BOM component material codes (e.g. ANOPR15X, LOPBOCAPF) */
+  components: string[];
 }
 
 /** Requirements record for per-order shortage calculation */
@@ -332,7 +334,7 @@ function extractFillData(files: ParsedFile[]): Map<string, FillRecord[]> {
     // Accumulate all fill orders per bulk batch, dedup by fill order number
     const existing = map.get(batchOrder) ?? [];
     if (!fillOrder || !existing.some((e) => e.fillOrder === fillOrder)) {
-      existing.push({ fillOrder, fillMaterial, packSize, fillQuantity });
+      existing.push({ fillOrder, fillMaterial, packSize, fillQuantity, components: [] });
     }
     map.set(batchOrder, existing);
   }
@@ -524,6 +526,17 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
   const sohData = extractSohData(files);
   const fillData = extractFillData(files);
   const requirements = extractRequirements(files);
+
+  // Enrich fill records with BOM component material codes from requirements
+  for (const fills of fillData.values()) {
+    for (const fo of fills) {
+      if (!fo.fillOrder) continue;
+      const reqs = requirements.byOrder.get(fo.fillOrder);
+      if (reqs) {
+        fo.components = [...new Set(reqs.map((r) => r.material))];
+      }
+    }
+  }
 
   // Calculate per-order material shortages using cumulative SOH drawdown
   const shortageMap = calculateShortages(sohData, requirements.byMaterial);
@@ -1116,6 +1129,7 @@ export function useImport() {
                     fill_description: b.materialDescription,
                     pack_size: fo.packSize ?? b.packSize,
                     quantity: fo.fillQuantity,
+                    components: fo.components.length > 0 ? fo.components : null,
                   });
                 }
               } else if (b.sapFillOrder) {
@@ -1128,6 +1142,7 @@ export function useImport() {
                   fill_description: b.materialDescription,
                   pack_size: b.sapFillPackSize ?? b.packSize,
                   quantity: b.sapFillQuantity,
+                  components: null,
                 });
               }
             }

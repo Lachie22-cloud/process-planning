@@ -117,6 +117,7 @@ export function mapLinkedFillOrder(row: DatabaseRow["linked_fill_orders"]): Link
     quantity: row.quantity,
     unit: row.unit,
     lidType: row.lid_type,
+    components: row.components ?? [],
   };
 }
 

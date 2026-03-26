@@ -97,6 +97,7 @@ export interface DatabaseRow {
     quantity: number | null;
     unit: string | null;
     lid_type: string | null;
+    components: string[] | null;
   };
   audit_log: {
     id: string;

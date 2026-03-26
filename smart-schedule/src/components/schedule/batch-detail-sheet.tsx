@@ -518,6 +518,7 @@ export function BatchDetailSheet({
         quantity: r.quantity as number | null,
         unit: r.unit as string | null,
         lidType: r.lid_type as string | null,
+        components: (r.components as string[] | null) ?? [],
       }));
       // Deduplicate by fill order number — keep first occurrence
       const seen = new Set<string>();

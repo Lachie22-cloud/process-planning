@@ -72,6 +72,7 @@ export interface LinkedFillOrder {
   quantity: number | null;
   unit: string | null;
   lidType: string | null;
+  components: string[];
 }
 
 /** Batch with eagerly loaded fill orders */

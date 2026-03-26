@@ -82,6 +82,7 @@ export function WeeklyFillingBreakdown({
               quantity: r.quantity as number | null,
               unit: r.unit as string | null,
               lidType: r.lid_type as string | null,
+              components: (r.components as string[] | null) ?? [],
             })),
           );
         }
@@ -165,18 +166,24 @@ export function WeeklyFillingBreakdown({
         })
         .reduce((sum, fo) => sum + (fo.quantity ?? 0), 0);
 
-      // Blue lids: fill orders where fill_material contains LOPBOCAPF
+      // Check if a fill order has a specific component in its BOM
+      const hasComponent = (fo: LinkedFillOrder, component: string): boolean => {
+        // Primary: check stored BOM components array
+        if (fo.components.length > 0) {
+          return fo.components.some((c) => c.toUpperCase().includes(component));
+        }
+        // Fallback: check fill_material field
+        return resolveFillMaterial(fo)?.toUpperCase().includes(component) ?? false;
+      };
+
+      // Blue lids: fill orders with component containing LOPBOCAPF
       const blueLids = dayFillOrders
-        .filter((fo) =>
-          resolveFillMaterial(fo)?.toUpperCase().includes(BLUE_LID_COMPONENT),
-        )
+        .filter((fo) => hasComponent(fo, BLUE_LID_COMPONENT))
         .reduce((sum, fo) => sum + (fo.quantity ?? 0), 0);
 
-      // Red lids: fill orders where fill_material contains ANOPR15X
+      // Red lids: fill orders with component containing ANOPR15X
       const redLids = dayFillOrders
-        .filter((fo) =>
-          resolveFillMaterial(fo)?.toUpperCase().includes(RED_LID_COMPONENT),
-        )
+        .filter((fo) => hasComponent(fo, RED_LID_COMPONENT))
         .reduce((sum, fo) => sum + (fo.quantity ?? 0), 0);
 
       // 500ml items
