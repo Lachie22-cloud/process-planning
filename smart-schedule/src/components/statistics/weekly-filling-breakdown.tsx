@@ -51,7 +51,7 @@ export function WeeklyFillingBreakdown({
   const batchIds = useMemo(() => batches.map((b) => b.id), [batches]);
 
   // Fetch all linked fill orders for this week's batches
-  const { data: fillOrders = [], isLoading: fillOrdersLoading } = useQuery<
+  const { data: fillOrders = [], isLoading: fillOrdersLoading, isError: fillOrdersError } = useQuery<
     LinkedFillOrder[]
   >({
     queryKey: ["fill_orders_week", site?.id, batchIds],
@@ -68,7 +68,10 @@ export function WeeklyFillingBreakdown({
           .select("*")
           .eq("site_id", site.id)
           .in("batch_id", chunk);
-        if (error) throw error;
+        if (error) {
+          console.error("Failed to fetch linked_fill_orders:", error);
+          throw error;
+        }
         if (data) {
           results.push(
             ...data.map((r: Record<string, unknown>) => ({
@@ -90,6 +93,7 @@ export function WeeklyFillingBreakdown({
       return results;
     },
     enabled: !!site && batchIds.length > 0,
+    retry: 2,
   });
 
   const weekdays = useMemo(
@@ -97,15 +101,13 @@ export function WeeklyFillingBreakdown({
     [weekStart, weekEnding],
   );
 
-  // Build lookup: batchId → fill orders (deduplicated by fill order number)
+  // Build lookup: batchId → fill orders (deduplicated per batch by fill order number)
   const fillOrdersByBatch = useMemo(() => {
     const m = new Map<string, LinkedFillOrder[]>();
-    const seen = new Set<string>();
     for (const fo of fillOrders) {
-      // Skip duplicate fill order numbers
-      if (fo.fillOrder && seen.has(fo.fillOrder)) continue;
-      if (fo.fillOrder) seen.add(fo.fillOrder);
       const existing = m.get(fo.batchId) ?? [];
+      // Deduplicate within each batch, not globally — same fill order can link to multiple batches
+      if (fo.fillOrder && existing.some((e) => e.fillOrder === fo.fillOrder)) continue;
       existing.push(fo);
       m.set(fo.batchId, existing);
     }
@@ -284,6 +286,10 @@ export function WeeklyFillingBreakdown({
 
   if (fillOrdersLoading) {
     return <Skeleton className="h-96 w-full" />;
+  }
+
+  if (fillOrdersError) {
+    console.error("Fill orders query failed for batch IDs:", batchIds.slice(0, 5), "...");
   }
 
   const metricRows: {

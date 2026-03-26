@@ -1102,120 +1102,125 @@ export function useImport() {
           if (error) throw error;
         }
       }
-    },
-    onSuccess: async (_result, { data }) => {
-      // After batches are written, create linked fill orders for batches that have fill data
-      if (site) {
-        const fillBatches = data.filter((b) => b.sapFillOrders.length > 0 || b.sapFillOrder);
-        if (fillBatches.length > 0) {
-          // Look up batch IDs by SAP order
-          const sapOrders = fillBatches.map((b) => b.sapOrder);
-          const { data: batchRows } = await supabase
-            .from("batches")
-            .select("id, sap_order")
-            .eq("site_id", site.id)
-            .in("sap_order", sapOrders);
 
-          if (batchRows && batchRows.length > 0) {
-            const orderToId = new Map(
-              batchRows.map((r: Record<string, unknown>) => [r.sap_order as string, r.id as string]),
-            );
+      // ---- Fill orders, requirements, and shortages (inside mutationFn so they
+      //      complete reliably — onSuccess with .mutate() can be interrupted) ----
 
-            // Delete existing fill orders for these batches first
-            const batchIds = batchRows.map((r: Record<string, unknown>) => r.id as string);
-            await supabase
-              .from("linked_fill_orders")
-              .delete()
-              .in("batch_id", batchIds);
+      // Create linked fill orders for batches that have fill data
+      const fillBatches = data.filter((b) => b.sapFillOrders.length > 0 || b.sapFillOrder);
+      if (fillBatches.length > 0) {
+        // Look up batch IDs by SAP order
+        const sapOrders = fillBatches.map((b) => b.sapOrder);
+        const { data: batchRows } = await supabase
+          .from("batches")
+          .select("id, sap_order")
+          .eq("site_id", site.id)
+          .in("sap_order", sapOrders);
 
-            // Insert all fill orders (multiple per batch when applicable)
-            const fillRows: Record<string, unknown>[] = [];
-            for (const b of fillBatches) {
-              const batchId = orderToId.get(b.sapOrder);
-              if (!batchId) continue;
+        if (batchRows && batchRows.length > 0) {
+          const orderToId = new Map(
+            batchRows.map((r: Record<string, unknown>) => [r.sap_order as string, r.id as string]),
+          );
 
-              if (b.sapFillOrders.length > 0) {
-                // Insert each fill order from the fill data file
-                for (const fo of b.sapFillOrders) {
-                  fillRows.push({
-                    batch_id: batchId,
-                    site_id: site.id,
-                    fill_order: fo.fillOrder || null,
-                    fill_material: fo.fillMaterial,
-                    fill_description: b.materialDescription,
-                    pack_size: fo.packSize ?? b.packSize,
-                    quantity: fo.fillQuantity,
-                    components: fo.components.length > 0 ? fo.components : null,
-                  });
-                }
-              } else if (b.sapFillOrder) {
-                // Fallback: single fill order from inline bulk data columns
+          // Delete existing fill orders for these batches first
+          const batchIds = batchRows.map((r: Record<string, unknown>) => r.id as string);
+          await supabase
+            .from("linked_fill_orders")
+            .delete()
+            .in("batch_id", batchIds);
+
+          // Insert all fill orders (multiple per batch when applicable)
+          const fillRows: Record<string, unknown>[] = [];
+          for (const b of fillBatches) {
+            const batchId = orderToId.get(b.sapOrder);
+            if (!batchId) continue;
+
+            if (b.sapFillOrders.length > 0) {
+              // Insert each fill order from the fill data file
+              for (const fo of b.sapFillOrders) {
                 fillRows.push({
                   batch_id: batchId,
                   site_id: site.id,
-                  fill_order: b.sapFillOrder,
-                  fill_material: b.sapFillMaterial,
+                  fill_order: fo.fillOrder || null,
+                  fill_material: fo.fillMaterial,
                   fill_description: b.materialDescription,
-                  pack_size: b.sapFillPackSize ?? b.packSize,
-                  quantity: b.sapFillQuantity,
-                  components: null,
+                  pack_size: fo.packSize ?? b.packSize,
+                  quantity: fo.fillQuantity,
+                  components: fo.components.length > 0 ? fo.components : null,
                 });
               }
+            } else if (b.sapFillOrder) {
+              // Fallback: single fill order from inline bulk data columns
+              fillRows.push({
+                batch_id: batchId,
+                site_id: site.id,
+                fill_order: b.sapFillOrder,
+                fill_material: b.sapFillMaterial,
+                fill_description: b.materialDescription,
+                pack_size: b.sapFillPackSize ?? b.packSize,
+                quantity: b.sapFillQuantity,
+                components: null,
+              });
             }
+          }
 
-            // Deduplicate by fill_order before inserting
-            const seenFillOrders = new Set<string>();
-            const dedupedRows = fillRows.filter((r) => {
-              const fo = r.fill_order as string | null;
-              if (!fo) return true;
-              if (seenFillOrders.has(fo)) return false;
-              seenFillOrders.add(fo);
-              return true;
-            });
+          // Deduplicate by fill_order within each batch (not globally —
+          // the same fill order can legitimately link to multiple batches)
+          const dedupedRows = fillRows.filter((r, idx) => {
+            const fo = r.fill_order as string | null;
+            if (!fo) return true;
+            const bId = r.batch_id as string;
+            // Keep if this is the first occurrence of this fill_order for this batch
+            return !fillRows.slice(0, idx).some(
+              (prev) => prev.fill_order === fo && prev.batch_id === bId,
+            );
+          });
 
-            if (dedupedRows.length > 0) {
-              await supabase.from("linked_fill_orders").insert(dedupedRows as never);
+          if (dedupedRows.length > 0) {
+            const { error: fillInsertErr } = await supabase.from("linked_fill_orders").insert(dedupedRows as never);
+            if (fillInsertErr) {
+              console.error("Failed to insert linked_fill_orders:", fillInsertErr);
             }
           }
         }
+      }
 
-        // Cross-reference requirements back to existing fill orders to populate components
-        // This handles: requirements file imported separately after fill data,
-        // or requirements file imported with fill data but components weren't set
-        if (requirementsByFillOrder.size > 0) {
-          const fillOrderNumbers = [...requirementsByFillOrder.keys()];
-          // Chunk to stay within Supabase .in() limits
-          const chunkSize = 200;
-          for (let i = 0; i < fillOrderNumbers.length; i += chunkSize) {
-            const chunk = fillOrderNumbers.slice(i, i + chunkSize);
-            // Find existing fill orders in DB that match requirement order numbers
-            const { data: existingFills } = await supabase
-              .from("linked_fill_orders")
-              .select("id, fill_order, components")
-              .eq("site_id", site.id)
-              .in("fill_order", chunk);
+      // Cross-reference requirements back to existing fill orders to populate components
+      // This handles: requirements file imported separately after fill data,
+      // or requirements file imported with fill data but components weren't set
+      if (requirementsByFillOrder.size > 0) {
+        const fillOrderNumbers = [...requirementsByFillOrder.keys()];
+        // Chunk to stay within Supabase .in() limits
+        const chunkSize = 200;
+        for (let i = 0; i < fillOrderNumbers.length; i += chunkSize) {
+          const chunk = fillOrderNumbers.slice(i, i + chunkSize);
+          // Find existing fill orders in DB that match requirement order numbers
+          const { data: existingFills } = await supabase
+            .from("linked_fill_orders")
+            .select("id, fill_order, components")
+            .eq("site_id", site.id)
+            .in("fill_order", chunk);
 
-            if (existingFills && existingFills.length > 0) {
-              for (const row of existingFills) {
-                const fo = row.fill_order as string;
-                const currentComponents = (row.components as string[] | null) ?? [];
-                const reqComponents = requirementsByFillOrder.get(fo);
-                if (!reqComponents || reqComponents.length === 0) continue;
-                // Merge: keep existing + add new from requirements
-                const merged = [...new Set([...currentComponents, ...reqComponents])];
-                if (merged.length === currentComponents.length) continue; // No change
-                await supabase
-                  .from("linked_fill_orders")
-                  .update({ components: merged } as never)
-                  .eq("id", row.id as string);
-              }
+          if (existingFills && existingFills.length > 0) {
+            for (const row of existingFills) {
+              const fo = row.fill_order as string;
+              const currentComponents = (row.components as string[] | null) ?? [];
+              const reqComponents = requirementsByFillOrder.get(fo);
+              if (!reqComponents || reqComponents.length === 0) continue;
+              // Merge: keep existing + add new from requirements
+              const merged = [...new Set([...currentComponents, ...reqComponents])];
+              if (merged.length === currentComponents.length) continue; // No change
+              await supabase
+                .from("linked_fill_orders")
+                .update({ components: merged } as never)
+                .eq("id", row.id as string);
             }
           }
         }
       }
 
       // Upsert material shortages from BOM/SOH analysis
-      if (site && shortageRecords.length > 0) {
+      if (shortageRecords.length > 0) {
         const shortageRows = shortageRecords.map((s) => ({
           site_id: site.id,
           material_code: s.materialCode,
@@ -1249,14 +1254,14 @@ export function useImport() {
         );
 
         // Get batch IDs for linking
-        const sapOrders = data.map((b) => b.sapOrder);
+        const allSapOrders = data.map((b) => b.sapOrder);
         const { data: batchIdRows } = await supabase
           .from("batches")
           .select("id, sap_order")
           .eq("site_id", site.id)
-          .in("sap_order", sapOrders);
+          .in("sap_order", allSapOrders);
 
-        const orderToId = new Map(
+        const orderToBatchId = new Map(
           (batchIdRows ?? []).map((r: Record<string, unknown>) => [
             r.sap_order as string,
             r.id as string,
@@ -1271,15 +1276,15 @@ export function useImport() {
         }> = [];
 
         for (const [sapOrder, materials] of orderShortageLinks) {
-          const batchId = orderToId.get(sapOrder);
-          if (!batchId) continue;
+          const bId = orderToBatchId.get(sapOrder);
+          if (!bId) continue;
           for (const material of materials) {
             const shortageId = materialToShortageId.get(material);
             if (!shortageId) continue;
             const shortageRec = shortageRecords.find((s) => s.materialCode === material);
             batchShortageRows.push({
               site_id: site.id,
-              batch_id: batchId,
+              batch_id: bId,
               shortage_id: shortageId,
               short_qty: shortageRec?.shortQty ?? 0,
             });
@@ -1294,7 +1299,10 @@ export function useImport() {
               ignoreDuplicates: false,
             });
         }
-
+      }
+    },
+    onSuccess: (_result, { data }) => {
+      if (site && shortageRecords.length > 0) {
         const shortCount = shortageRecords.length;
         toast.info(
           `${shortCount} material shortage${shortCount !== 1 ? "s" : ""} identified`,
@@ -1304,6 +1312,7 @@ export function useImport() {
       queryClient.invalidateQueries({ queryKey: ["batches"] });
       queryClient.invalidateQueries({ queryKey: ["material_shortages"] });
       queryClient.invalidateQueries({ queryKey: ["batch_material_shortages"] });
+      queryClient.invalidateQueries({ queryKey: ["fill_orders_week"] });
       clearFiles();
       toast.success("Import completed successfully");
     },
