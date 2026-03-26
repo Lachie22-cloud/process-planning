@@ -152,15 +152,39 @@ export function ResourceTimeline({
     weekEnding: weekEndingStr,
   });
 
-  /** True when both from and to dates fall within the displayed working week */
-  const isWithinCurrentWeek = useCallback(
-    (fromDate: string | null, toDate: string) =>
-      !!fromDate &&
-      fromDate >= weekStartStr &&
-      fromDate <= weekEndingStr &&
-      toDate >= weekStartStr &&
-      toDate <= weekEndingStr,
-    [weekStartStr, weekEndingStr],
+  // Production role users must always provide a reason for any move
+  const requiresReasonForAllMoves =
+    hasPermission("batches.schedule") &&
+    !hasPermission("planning.vet") &&
+    !hasPermission("planning.import");
+
+  /**
+   * Determines if a date-change move requires a comment.
+   * Comments are required when:
+   *  1. The move is within the current production week (isThisWeek), OR
+   *  2. The move crosses a week boundary on fringe days
+   *     (e.g. Monday pulled into previous Friday, or Friday pushed into next Monday)
+   * Moves entirely outside the current production week do NOT require a comment.
+   */
+  const isMoveCommentRequired = useCallback(
+    (oldDate: string, newDate: string): boolean => {
+      // Production role always requires a reason
+      if (requiresReasonForAllMoves) return true;
+
+      const oldInWeek = oldDate >= weekStartStr && oldDate <= weekEndingStr;
+      const newInWeek = newDate >= weekStartStr && newDate <= weekEndingStr;
+
+      // If the move is entirely within the current week, require comment
+      if (isThisWeek && oldInWeek && newInWeek) return true;
+
+      // Fringe day detection: one date inside core week, the other outside
+      // e.g. Monday → previous Friday, or Friday → next Monday
+      if (oldInWeek !== newInWeek) return true;
+
+      // Move is entirely outside the current production week — no comment needed
+      return false;
+    },
+    [requiresReasonForAllMoves, isThisWeek, weekStartStr, weekEndingStr],
   );
 
   // Spotlight context (for navigating to a specific batch from health issues)
@@ -498,9 +522,13 @@ export function ResourceTimeline({
         return;
       }
 
-      // Require a reason only when the date changes within the current working week
-      const withinWeek = isWithinCurrentWeek(draggedBatch.planDate, targetDate);
-      if (dateChanged && withinWeek) {
+      // Require a reason if: Production role (all moves), or date changed and
+      // the move is within the current week / crosses a week boundary (fringe days)
+      const needsComment = dateChanged
+        ? isMoveCommentRequired(draggedBatch.planDate!, targetDate)
+        : requiresReasonForAllMoves;
+
+      if (needsComment) {
         setMoveModal({
           batch: draggedBatch,
           targetResourceId,
@@ -510,12 +538,12 @@ export function ResourceTimeline({
         return;
       }
 
-      // Move outside the week or resource-only move — execute directly (no comment needed)
+      // No comment needed — execute directly
       executeBatchMove(draggedBatch, targetResourceId, targetDate);
       setDraggedBatch(null);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [draggedBatch, isWithinCurrentWeek],
+    [draggedBatch, requiresReasonForAllMoves, isMoveCommentRequired],
   );
 
   const executeBatchMove = useCallback(
@@ -625,9 +653,13 @@ export function ResourceTimeline({
         return;
       }
 
-      // Require a reason only when the date changes within the current working week
-      const withinWeek = isWithinCurrentWeek(movingBatch.planDate, date);
-      if (dateChanged && withinWeek) {
+      // Require a reason if: Production role (all moves), or date changed and
+      // the move is within the current week / crosses a week boundary (fringe days)
+      const needsComment = dateChanged
+        ? isMoveCommentRequired(movingBatch.planDate!, date)
+        : requiresReasonForAllMoves;
+
+      if (needsComment) {
         setMoveModal({
           batch: movingBatch,
           targetResourceId: resourceId,
@@ -637,11 +669,11 @@ export function ResourceTimeline({
         return;
       }
 
-      // Move outside the week or resource-only move — execute directly
+      // No comment needed — execute directly
       executeBatchMove(movingBatch, resourceId, date);
       setMovingBatch(null);
     },
-    [movingBatch, executeBatchMove, isWithinCurrentWeek],
+    [movingBatch, executeBatchMove, requiresReasonForAllMoves, isMoveCommentRequired],
   );
 
   const handleOverlayCancel = useCallback(() => {
@@ -780,7 +812,7 @@ export function ResourceTimeline({
                   today && "bg-primary/5 ring-1 ring-inset ring-primary/15",
                   weekend && "bg-muted",
                   isBookend && "bg-muted/60 opacity-70",
-                  isDayBlocked && "bg-muted/80 line-through text-muted-foreground",
+                  isDayBlocked && "bg-muted/80 text-muted-foreground",
                 )}
               >
                 <div className={cn("text-xs font-semibold", isBookend && "text-muted-foreground")}>
