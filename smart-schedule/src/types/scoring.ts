@@ -115,6 +115,9 @@ export interface ScoringContext {
   activeResourceCount: number;
   /** Map from resourceId → trunk line identifier, used for trunk-line matching */
   resourceTrunkLines?: Record<string, string | null>;
+  /** Total batch count across all resources in the same group on the target date.
+   *  When set and the resource has groupCapacity, this overrules maxBatchesPerDay. */
+  groupDailyBatchCount?: number;
 }
 
 /** Minimal batch data needed for scoring (avoids importing full Batch type) */
@@ -161,6 +164,7 @@ export interface ScoringResource {
   minCapacity: number | null;
   maxCapacity: number | null;
   maxBatchesPerDay: number;
+  groupCapacity: number | null;
   chemicalBase: string | null;
   trunkLine: string | null;
   groupName: string | null;

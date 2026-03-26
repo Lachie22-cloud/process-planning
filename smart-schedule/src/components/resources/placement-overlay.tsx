@@ -69,6 +69,7 @@ function toScoringResource(resource: Resource): ScoringResource {
     minCapacity: resource.minCapacity,
     maxCapacity: resource.maxCapacity,
     maxBatchesPerDay: resource.maxBatchesPerDay,
+    groupCapacity: resource.groupCapacity,
     chemicalBase: resource.chemicalBase,
     trunkLine: resource.trunkLine,
     groupName: resource.groupName,
@@ -280,6 +281,18 @@ export function PlacementOverlay({
         const dailyBatches = batchesByCell.get(key) ?? [];
         const allDailyBatches = batchesByDate.get(date) ?? [];
 
+        // Compute group daily batch count if resource has group capacity
+        let groupDailyBatchCount: number | undefined;
+        if (resource.groupName != null && resource.groupCapacity != null) {
+          groupDailyBatchCount = 0;
+          for (const r of resources) {
+            if (r.groupName === resource.groupName && r.active) {
+              const gKey = `${r.id}:${date}`;
+              groupDailyBatchCount += (batchesByCell.get(gKey) ?? []).length;
+            }
+          }
+        }
+
         const ctx: ScoringContext = {
           dailyBatches,
           allDailyBatches,
@@ -289,6 +302,7 @@ export function PlacementOverlay({
           substitutionRules: scoringSubRules,
           activeResourceCount,
           resourceTrunkLines,
+          groupDailyBatchCount,
         };
 
         scores.set(key, scorer.score(scoringBatch, scoringResource, date, ctx));

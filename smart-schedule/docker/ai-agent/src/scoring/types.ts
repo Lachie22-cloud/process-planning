@@ -89,6 +89,7 @@ export interface ScoringContext {
   weights?: Partial<ScoringWeights>;
   activeResourceCount: number;
   resourceTrunkLines?: Record<string, string | null>;
+  groupDailyBatchCount?: number;
 }
 
 /** Minimal batch data needed for scoring */
@@ -132,6 +133,7 @@ export interface ScoringResource {
   minCapacity: number | null;
   maxCapacity: number | null;
   maxBatchesPerDay: number;
+  groupCapacity: number | null;
   chemicalBase: string | null;
   trunkLine: string | null;
   groupName: string | null;

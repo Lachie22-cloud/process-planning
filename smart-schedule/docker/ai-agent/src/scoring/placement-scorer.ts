@@ -141,7 +141,16 @@ export class PlacementScorer {
       violations.push('resource_blocked');
     }
 
-    if (ctx.dailyBatches.length >= resource.maxBatchesPerDay) {
+    // Group capacity overrules individual maxBatchesPerDay
+    if (
+      resource.groupName != null &&
+      resource.groupCapacity != null &&
+      ctx.groupDailyBatchCount != null
+    ) {
+      if (ctx.groupDailyBatchCount >= resource.groupCapacity) {
+        violations.push('max_batches_exceeded');
+      }
+    } else if (ctx.dailyBatches.length >= resource.maxBatchesPerDay) {
       violations.push('max_batches_exceeded');
     }
 

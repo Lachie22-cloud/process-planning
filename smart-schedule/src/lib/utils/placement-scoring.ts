@@ -183,8 +183,16 @@ export class PlacementScorer {
       violations.push("resource_blocked");
     }
 
-    // 5. Max batches per day
-    if (ctx.dailyBatches.length >= resource.maxBatchesPerDay) {
+    // 5. Max batches per day – group capacity overrules individual limit
+    if (
+      resource.groupName != null &&
+      resource.groupCapacity != null &&
+      ctx.groupDailyBatchCount != null
+    ) {
+      if (ctx.groupDailyBatchCount >= resource.groupCapacity) {
+        violations.push("max_batches_exceeded");
+      }
+    } else if (ctx.dailyBatches.length >= resource.maxBatchesPerDay) {
       violations.push("max_batches_exceeded");
     }
 

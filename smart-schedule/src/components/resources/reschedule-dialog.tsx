@@ -73,6 +73,7 @@ function toScoringResource(resource: Resource): ScoringResource {
     minCapacity: resource.minCapacity,
     maxCapacity: resource.maxCapacity,
     maxBatchesPerDay: resource.maxBatchesPerDay,
+    groupCapacity: resource.groupCapacity,
     chemicalBase: resource.chemicalBase,
     trunkLine: resource.trunkLine,
     groupName: resource.groupName,
@@ -297,6 +298,18 @@ export function RescheduleDialog({
         const dailyBatches = batchesByCell.get(key) ?? [];
         const allDailyBatches = batchesByDate.get(date) ?? [];
 
+        // Compute group daily batch count if resource has group capacity
+        let groupDailyBatchCount: number | undefined;
+        if (resource.groupName != null && resource.groupCapacity != null) {
+          groupDailyBatchCount = 0;
+          for (const r of activeResources) {
+            if (r.groupName === resource.groupName) {
+              const gKey = `${r.id}:${date}`;
+              groupDailyBatchCount += (batchesByCell.get(gKey) ?? []).length;
+            }
+          }
+        }
+
         const ctx: ScoringContext = {
           dailyBatches,
           allDailyBatches,
@@ -306,6 +319,7 @@ export function RescheduleDialog({
           substitutionRules: scoringSubRules,
           activeResourceCount,
           resourceTrunkLines,
+          groupDailyBatchCount,
         };
 
         const score = scorer.score(scoringBatch, scoringResource, date, ctx);

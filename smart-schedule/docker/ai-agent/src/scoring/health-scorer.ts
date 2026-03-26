@@ -76,9 +76,31 @@ export class HealthScorer {
       const resource = resourceMap.get(resourceId);
       if (!resource) continue;
 
-      // Capacity overload: daily limit
-      if (batches.length > resource.maxBatchesPerDay) {
-        for (const batch of batches.slice(resource.maxBatchesPerDay)) {
+      // Capacity overload: daily limit – group capacity overrules individual
+      const effectiveLimit =
+        resource.groupName != null && resource.groupCapacity != null
+          ? resource.groupCapacity
+          : resource.maxBatchesPerDay;
+
+      let effectiveCount = batches.length;
+      if (resource.groupName != null && resource.groupCapacity != null) {
+        effectiveCount = 0;
+        for (const [otherKey, otherBatches] of byResourceDate) {
+          const [otherResId] = otherKey.split('|') as [string, string];
+          const otherRes = resourceMap.get(otherResId);
+          if (
+            otherRes?.groupName === resource.groupName &&
+            otherKey.endsWith(`|${date}`)
+          ) {
+            effectiveCount += otherBatches.length;
+          }
+        }
+      }
+
+      if (effectiveCount > effectiveLimit) {
+        const excessCount = effectiveCount - effectiveLimit;
+        const thisExcess = Math.min(excessCount, batches.length);
+        for (const batch of batches.slice(batches.length - thisExcess)) {
           issues.push(this.createCapacityOverloadIssue(batch, resource, date, ctx));
         }
       }

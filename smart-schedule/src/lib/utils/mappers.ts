@@ -50,7 +50,7 @@ export function mapResource(row: DatabaseRow["resources"]): Resource {
     minCapacity: row.min_capacity,
     maxCapacity: row.max_capacity,
     maxBatchesPerDay: row.max_batches_per_day,
-    groupCapacity: row.group_capacity,
+    groupCapacity: row.group_capacity ?? ((row.config as Record<string, unknown> | null)?.groupCapacity as number | null) ?? null,
     chemicalBase: row.chemical_base,
     sortOrder: row.sort_order,
     active: row.active,

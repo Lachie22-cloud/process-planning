@@ -47,6 +47,7 @@ function makeResource(
     minCapacity: 100,
     maxCapacity: 500,
     maxBatchesPerDay: 4,
+    groupCapacity: null,
     chemicalBase: "water",
     trunkLine: "TL-A",
     groupName: "Group A",

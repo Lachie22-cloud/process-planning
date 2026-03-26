@@ -44,6 +44,7 @@ function makeResource(overrides?: Partial<ScoringResource>): ScoringResource {
     minCapacity: 100,
     maxCapacity: 1000,
     maxBatchesPerDay: 5,
+    groupCapacity: null,
     chemicalBase: "water",
     trunkLine: "TL-A",
     groupName: "Group-1",

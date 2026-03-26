@@ -241,7 +241,7 @@ async function fetchResources(
   const { data } = await supabase
     .from('resources')
     .select(
-      'id, min_capacity, max_capacity, max_batches_per_day, ' +
+      'id, min_capacity, max_capacity, max_batches_per_day, group_capacity, ' +
       'chemical_base, trunk_line, group_name, active',
     )
     .eq('site_id', siteId)
@@ -253,6 +253,7 @@ async function fetchResources(
     minCapacity: r.min_capacity as number | null,
     maxCapacity: r.max_capacity as number | null,
     maxBatchesPerDay: (r.max_batches_per_day as number) ?? 1,
+    groupCapacity: (r.group_capacity as number | null) ?? null,
     chemicalBase: r.chemical_base as string | null,
     trunkLine: r.trunk_line as string | null,
     groupName: r.group_name as string | null,

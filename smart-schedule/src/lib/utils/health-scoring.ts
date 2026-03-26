@@ -90,9 +90,33 @@ export class HealthScorer {
       const resource = resourceMap.get(resourceId);
       if (!resource) continue;
 
-      // 2a. Capacity overload
-      if (batches.length > resource.maxBatchesPerDay) {
-        for (const batch of batches.slice(resource.maxBatchesPerDay)) {
+      // 2a. Capacity overload – group capacity overrules individual limit
+      const effectiveLimit =
+        resource.groupName != null && resource.groupCapacity != null
+          ? resource.groupCapacity
+          : resource.maxBatchesPerDay;
+
+      // For group capacity, count batches across all group members on this date
+      let effectiveCount = batches.length;
+      if (resource.groupName != null && resource.groupCapacity != null) {
+        effectiveCount = 0;
+        for (const [otherKey, otherBatches] of byResourceDate) {
+          const [otherResId] = otherKey.split("|") as [string, string];
+          const otherRes = resourceMap.get(otherResId);
+          if (
+            otherRes?.groupName === resource.groupName &&
+            otherKey.endsWith(`|${date}`)
+          ) {
+            effectiveCount += otherBatches.length;
+          }
+        }
+      }
+
+      if (effectiveCount > effectiveLimit) {
+        const excessCount = effectiveCount - effectiveLimit;
+        // Only flag batches from THIS resource's slice as excess
+        const thisExcess = Math.min(excessCount, batches.length);
+        for (const batch of batches.slice(batches.length - thisExcess)) {
           issues.push(
             this.createCapacityOverloadIssue(batch, resource, date, ctx),
           );
@@ -424,6 +448,19 @@ export class HealthScorer {
       const dailyKey = `${resource.id}|${targetDate}`;
       const dailyBatches = batchesByResource.get(dailyKey) ?? [];
 
+      // Compute group daily batch count if resource has group capacity
+      let groupDailyBatchCount: number | undefined;
+      if (resource.groupName != null && resource.groupCapacity != null) {
+        groupDailyBatchCount = 0;
+        for (const [key, groupBatches] of batchesByResource) {
+          const [resId] = key.split("|") as [string, string];
+          const res = ctx.resources.find((r) => r.id === resId);
+          if (res?.groupName === resource.groupName && key.endsWith(`|${targetDate}`)) {
+            groupDailyBatchCount += groupBatches.length;
+          }
+        }
+      }
+
       const scoringCtx: ScoringContext = {
         dailyBatches,
         allDailyBatches,
@@ -433,6 +470,7 @@ export class HealthScorer {
         substitutionRules: ctx.substitutionRules,
         activeResourceCount: activeResources.length + (excludeResourceId ? 1 : 0),
         resourceTrunkLines: ctx.resourceTrunkLines,
+        groupDailyBatchCount,
       };
 
       const result = this.placementScorer.score(batch, resource, targetDate, scoringCtx);
@@ -484,6 +522,18 @@ export class HealthScorer {
       const dailyKey = `${resource.id}|${targetDate}`;
       const dailyBatches = batchesByResource.get(dailyKey) ?? [];
 
+      let groupDailyBatchCount: number | undefined;
+      if (resource.groupName != null && resource.groupCapacity != null) {
+        groupDailyBatchCount = 0;
+        for (const [key, groupBatches] of batchesByResource) {
+          const [resId] = key.split("|") as [string, string];
+          const res = ctx.resources.find((r) => r.id === resId);
+          if (res?.groupName === resource.groupName && key.endsWith(`|${targetDate}`)) {
+            groupDailyBatchCount += groupBatches.length;
+          }
+        }
+      }
+
       const scoringCtx: ScoringContext = {
         dailyBatches,
         allDailyBatches,
@@ -493,6 +543,7 @@ export class HealthScorer {
         substitutionRules: ctx.substitutionRules,
         activeResourceCount: activeResources.length,
         resourceTrunkLines: ctx.resourceTrunkLines,
+        groupDailyBatchCount,
       };
 
       const result = this.placementScorer.score(batch, resource, targetDate, scoringCtx);
