@@ -60,7 +60,7 @@ export function useCreateResource() {
           chemical_base: input.chemicalBase?.trim() || null,
           sort_order: input.sortOrder,
           active: input.active,
-          config: { groupCapacity: input.groupCapacity ?? undefined },
+          group_capacity: input.groupCapacity ?? null,
         } as never)
         .select()
         .single();
@@ -102,14 +102,6 @@ export function useUpdateResource() {
         throw new Error("Only site admins can manage resources");
       }
 
-      // Merge groupCapacity into existing config to avoid needing the group_capacity column
-      const existingRes = await supabase
-        .from("resources")
-        .select("config")
-        .eq("id", id)
-        .single();
-      const prevConfig = (existingRes.data?.config ?? {}) as Record<string, unknown>;
-
       const { data, error } = await supabase
         .from("resources")
         .update({
@@ -124,7 +116,7 @@ export function useUpdateResource() {
           chemical_base: input.chemicalBase?.trim() || null,
           sort_order: input.sortOrder,
           active: input.active,
-          config: { ...prevConfig, groupCapacity: input.groupCapacity ?? undefined },
+          group_capacity: input.groupCapacity ?? null,
         } as never)
         .eq("id", id)
         .select()

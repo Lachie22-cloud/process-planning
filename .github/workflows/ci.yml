@@ -93,4 +93,41 @@ jobs:
             cd smart-schedule/docker
             docker compose build --no-cache frontend ai-agent
             docker compose up -d
+            # Run pending migrations (idempotent — safe to re-run)
+            docker compose exec -T postgres bash -c '
+              DB_USER="${POSTGRES_USER:-supabase}"
+              DB_NAME="${POSTGRES_DB:-smart_schedule}"
+              PSQL="psql -v ON_ERROR_STOP=1 -U $DB_USER -d $DB_NAME"
+              $PSQL -c "CREATE TABLE IF NOT EXISTS _migrations (
+                name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now()
+              );"
+              # Bootstrap: if tracker is empty but DB already exists, seed migrations
+              # that were applied at init time (up to 040). Migrations 041+ are
+              # idempotent and will be applied by the loop below.
+              COUNT=$($PSQL -tAc "SELECT count(*) FROM _migrations")
+              HAS_DB=$($PSQL -tAc "SELECT 1 FROM information_schema.tables WHERE table_name='"'"'resources'"'"'" || echo 0)
+              if [ "$COUNT" = "0" ] && [ "$HAS_DB" = "1" ]; then
+                echo "Bootstrap: seeding _migrations tracker with init-time migrations"
+                for f in $(ls /migrations/*.sql 2>/dev/null | sort); do
+                  NAME=$(basename "$f")
+                  NUM=${NAME%%_*}
+                  if [ "$NUM" -lt 41 ] 2>/dev/null; then
+                    $PSQL -c "INSERT INTO _migrations(name) VALUES('"'"'$NAME'"'"') ON CONFLICT DO NOTHING;"
+                  fi
+                done
+              fi
+              APPLIED=0
+              for f in $(ls /migrations/*.sql 2>/dev/null | sort); do
+                NAME=$(basename "$f")
+                if ! $PSQL -tAc "SELECT 1 FROM _migrations WHERE name='"'"'$NAME'"'"'" | grep -q 1; then
+                  echo "Applying: $NAME"
+                  $PSQL -f "$f"
+                  $PSQL -c "INSERT INTO _migrations(name) VALUES('"'"'$NAME'"'"');"
+                  APPLIED=$((APPLIED+1))
+                fi
+              done
+              echo "Done — $APPLIED migration(s) applied."
+            '
+            # Reload PostgREST schema cache so new columns are available
+            docker compose kill -s SIGUSR1 postgrest
             docker image prune -f
