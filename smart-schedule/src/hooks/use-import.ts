@@ -713,7 +713,7 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
   const shortagesAgg = new Map<string, ShortageRecord>();
   const orderShortages = new Map<string, string[]>();
 
-  for (const [key, info] of shortageMap) {
+  for (const [key, _info] of shortageMap) {
     const [order, material] = key.split("|");
     if (!order || !material) continue;
 
@@ -814,7 +814,7 @@ export function useImport() {
   const [files, setFiles] = useState<ParsedFile[]>([]);
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [shortageRecords, setShortageRecords] = useState<ShortageRecord[]>([]);
-  const [orderShortageLinks, setOrderShortageLinks] = useState<Map<string, string[]>>(new Map());
+  const [_orderShortageLinks, setOrderShortageLinks] = useState<Map<string, string[]>>(new Map());
   const [batchShortageDetailsState, setBatchShortageDetailsState] = useState<Map<string, BatchShortageDetail[]>>(new Map());
   const [resourceAssignments, setResourceAssignments] = useState<Map<string, string>>(new Map());
   const [disperserAssignmentsState, setDisperserAssignmentsState] = useState<Map<string, string>>(new Map());
