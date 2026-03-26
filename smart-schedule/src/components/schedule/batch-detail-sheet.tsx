@@ -19,8 +19,6 @@ import {
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
-  ChevronDown,
-  ChevronRight,
   History,
   MapPin,
   CircleAlert,
@@ -176,7 +174,7 @@ function PhysicalLocationChips({
 function ShortageTable({
   shortages,
   canOverride,
-  onOverride,
+  onOverride: _onOverride,
   onEtaChange,
 }: {
   shortages: (import("@/types/material-shortage").BatchMaterialShortage & { shortage: import("@/types/material-shortage").MaterialShortage })[];
