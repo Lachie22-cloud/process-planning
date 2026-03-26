@@ -636,9 +636,17 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
       }
     }
     // Check fill order requirements (packaging shortages)
-    for (const fill of fills) {
-      if (!fill.fillOrder) continue;
-      const fillReqs = requirements.byOrder.get(fill.fillOrder) ?? [];
+    // Collect all fill order numbers: from Fill Data file, then fallback to inline bulk data column
+    const fillOrderNumbers = fills
+      .map((f) => f.fillOrder)
+      .filter((fo): fo is string => !!fo);
+    // Fallback: if no Fill Data file was uploaded, check if bulk data has an inline "fill order" column
+    if (fillOrderNumbers.length === 0) {
+      const inlineFillOrder = rowValue(row, headers, "fill order", "fill_order");
+      if (inlineFillOrder) fillOrderNumbers.push(inlineFillOrder);
+    }
+    for (const fillOrder of fillOrderNumbers) {
+      const fillReqs = requirements.byOrder.get(fillOrder) ?? [];
       for (const req of fillReqs) {
         const key = `${req.order}|${req.material}`;
         if (shortageMap.has(key)) {
@@ -734,9 +742,12 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
       // UOM: prefer SOH report, fall back to requirements file, then default
       const uom = sohEntry?.uom ?? (reqEntries[0]?.uom || "KG");
       // Heuristic: fill-linked materials are PKG, others are RM
+      // Check Fill Data file linkage AND inline fill order columns from bulk data
       const isFillLinked = batches.some((b) => {
         const batchFills = fillData.get(b.sapOrder) ?? [];
-        return batchFills.some((f) => f.fillOrder && reqEntries.some((r) => r.order === f.fillOrder));
+        if (batchFills.some((f) => f.fillOrder && reqEntries.some((r) => r.order === f.fillOrder))) return true;
+        // Fallback: check inline fill order from the batch
+        return b.sapFillOrder != null && reqEntries.some((r) => r.order === b.sapFillOrder);
       });
 
       // Sum shortage across ALL orders for this material
@@ -766,9 +777,13 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     const details: BatchShortageDetail[] = [];
     // Collect all relevant orders for this batch: bulk order + fill orders
     const relevantOrders = [batch.sapOrder];
-    const fills = fillData.get(batch.sapOrder) ?? [];
-    for (const f of fills) {
+    const batchFills = fillData.get(batch.sapOrder) ?? [];
+    for (const f of batchFills) {
       if (f.fillOrder) relevantOrders.push(f.fillOrder);
+    }
+    // Fallback: include inline fill order from bulk data if no Fill Data file
+    if (batchFills.length === 0 && batch.sapFillOrder) {
+      relevantOrders.push(batch.sapFillOrder);
     }
     // Check each order's materials against the shortage map
     for (const order of relevantOrders) {

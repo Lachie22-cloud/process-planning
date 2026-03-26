@@ -718,4 +718,67 @@ describe("Shortage calculation — Excel vs App comparison", () => {
     expect(result.shortages).toHaveLength(1);
     expect(result.shortages[0]!.uom).toBe("L"); // NOT "EA" from old heuristic
   });
+
+  /*
+   * SCENARIO 11: Packaging shortage via inline fill order (no Fill Data file)
+   *
+   * User uploads bulk data with a "Fill Order" column but does NOT upload
+   * a separate Fill Data file. BOM components file includes fill order lines.
+   *
+   * Excel calculation:
+   *   LABJARR20L | Required: 200 EA | SOH: 50 EA | Short: -150
+   */
+  it("Scenario 11: Packaging shortage detected from inline fill order column in bulk data", () => {
+    // Bulk data with an inline "Fill Order" column
+    const bulkWithFillOrder = {
+      fileName: "bulk_data.xlsx",
+      type: "bulk_data" as const,
+      headers: [
+        "Order", "Basic Start Date", "Material", "Material Description",
+        "Total Order Quantity", "Colour Group", "Fill Order",
+      ],
+      rows: [{
+        Order: "60100020",
+        "Basic Start Date": "2026-03-26",
+        Material: "11088263-20L",
+        "Material Description": "WALP FENCE JARRAH 20L",
+        "Total Order Quantity": "4750",
+        "Colour Group": null,
+        "Fill Order": "60200020",
+      }],
+      rowCount: 1,
+    };
+
+    const result = processFilesToBatches([
+      bulkWithFillOrder,
+      // No fillData() file — only inline fill order in bulk data
+      bomFile("fill_components", [{
+        Order: "60200020",
+        Material: "LABJARR20L",
+        "Material Description": "LABEL JARRAH 20L",
+        "Requirement Quantity": "200",
+        "Quantity Withdrawn": "0",
+        "Requirement Date": "2026-03-26",
+        "Base Unit of Measure": "EA",
+      }]),
+      sohReport([{
+        Material: "LABJARR20L",
+        "Material Description": "LABEL JARRAH 20L",
+        Unrestricted: "50",
+        "Base Unit of Measure": "EA",
+      }]),
+    ]);
+
+    // Should detect the packaging shortage via inline fill order
+    expect(result.shortages).toHaveLength(1);
+    const shortage = result.shortages[0]!;
+    expect(shortage.materialCode).toBe("LABJARR20L");
+    expect(shortage.materialType).toBe("PKG");
+    expect(shortage.shortQty).toBe(-150);
+
+    // Batch should flag packaging shortage and show WOP
+    const batch = result.batches[0]!;
+    expect(batch.packagingAvailable).toBe(false);
+    expect(batch.materialShortage).toBe(true);
+  });
 });
