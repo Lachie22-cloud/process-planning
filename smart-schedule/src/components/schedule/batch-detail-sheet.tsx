@@ -23,7 +23,6 @@ import {
   ChevronRight,
   History,
   MapPin,
-  Package,
   CircleAlert,
   Loader2,
 } from "lucide-react";
