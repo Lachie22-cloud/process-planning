@@ -37,10 +37,13 @@ export function ResourcesPage() {
   const deepLinkBatchId = searchParams.get("batchId");
 
   // Use extended range (prev Friday – next Monday) for data fetching.
-  // Add a 7-day buffer past extendedEnd so that when day-blocked columns
-  // (e.g. public holidays) are replaced with the next working days, we
-  // already have batch and day-block data for those replacement dates.
-  const fetchStartStr = week.extendedStartStr;
+  // Add a 7-day buffer on each side so that when day-blocked bookend columns
+  // (e.g. public holidays) are replaced with the next available working day,
+  // we already have batch and day-block data for those replacement dates.
+  const fetchStartStr = useMemo(
+    () => format(addDays(week.extendedStart, -7), "yyyy-MM-dd"),
+    [week.extendedStart],
+  );
   const fetchEndStr = useMemo(
     () => format(addDays(week.extendedEnd, 7), "yyyy-MM-dd"),
     [week.extendedEnd],

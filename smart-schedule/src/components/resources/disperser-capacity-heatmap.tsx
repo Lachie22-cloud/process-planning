@@ -78,7 +78,7 @@ export function DisperserCapacityHeatmap({
               memberIds.has(b.planDisperserId) &&
               b.planDate === date,
           )
-          .reduce((sum, b) => sum + (b.premixCount ?? 0), 0);
+          .reduce((sum, b) => sum + Math.max(b.premixCount ?? 0, 1), 0);
         dateMap.set(date, total);
       }
       map.set(groupName, dateMap);
@@ -104,7 +104,7 @@ export function DisperserCapacityHeatmap({
 
         const batchCount = dayBatches.length;
         const pmcTotal = dayBatches.reduce(
-          (sum, b) => sum + (b.premixCount ?? 0),
+          (sum, b) => sum + Math.max(b.premixCount ?? 0, 1),
           0,
         );
 

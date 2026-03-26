@@ -186,8 +186,10 @@ export function ResourceTimeline({
   );
   const coreDateSet = useMemo(() => new Set(coreDates), [coreDates]);
 
-  // Build visible dates, replacing any day-blocked dates (public holidays etc.)
-  // with the next available working day so we always show 7 productive columns.
+  // Build visible dates.
+  // Core-week blocked days (public holidays) are kept visible so users can see
+  // them on the schedule. Bookend days (prev Friday / next Monday) that are
+  // blocked are replaced with the next available working day.
   const dates = useMemo(() => {
     const initialDates =
       extendedStart && extendedEnd
@@ -200,43 +202,41 @@ export function ResourceTimeline({
     const hasBlockedDates = initialDates.some((d) => blockedDateSet.has(d));
     if (!hasBlockedDates) return initialDates;
 
-    // Keep all non-blocked dates
     const result: string[] = [];
-    const usedDates = new Set<string>();
-    for (const dateStr of initialDates) {
-      if (!blockedDateSet.has(dateStr)) {
-        result.push(dateStr);
-        usedDates.add(dateStr);
-      } else {
-        usedDates.add(dateStr); // mark blocked date as used so it's not picked as replacement
-      }
-    }
+    const usedDates = new Set<string>(initialDates);
 
-    // For each blocked date, find the next working day after the last initial date
-    const blockedCount = initialDates.length - result.length;
-    if (blockedCount > 0) {
-      const lastDate = initialDates[initialDates.length - 1];
-      let candidate = addDays(new Date(lastDate + "T12:00:00"), 1);
-      let found = 0;
-      for (let i = 0; i < 21 && found < blockedCount; i++) {
-        const candidateStr = format(candidate, "yyyy-MM-dd");
-        if (
-          !isWeekend(candidate) &&
-          !blockedDateSet.has(candidateStr) &&
-          !usedDates.has(candidateStr)
-        ) {
-          result.push(candidateStr);
-          usedDates.add(candidateStr);
-          found++;
+    for (const dateStr of initialDates) {
+      const isCore = coreDateSet.has(dateStr);
+      if (isCore) {
+        // Core dates: always keep, even if blocked (shown as non-working)
+        result.push(dateStr);
+      } else if (!blockedDateSet.has(dateStr)) {
+        // Bookend date that is not blocked: keep it
+        result.push(dateStr);
+      } else {
+        // Blocked bookend: replace with next available working day
+        const isBeforeCore = dateStr < coreDates[0];
+        let candidate = addDays(new Date(dateStr + "T12:00:00"), isBeforeCore ? -1 : 1);
+        for (let i = 0; i < 21; i++) {
+          const candidateStr = format(candidate, "yyyy-MM-dd");
+          if (
+            !isWeekend(candidate) &&
+            !blockedDateSet.has(candidateStr) &&
+            !usedDates.has(candidateStr)
+          ) {
+            result.push(candidateStr);
+            usedDates.add(candidateStr);
+            break;
+          }
+          candidate = addDays(candidate, isBeforeCore ? -1 : 1);
         }
-        candidate = addDays(candidate, 1);
       }
     }
 
     // Keep chronological order
     result.sort();
     return result;
-  }, [extendedStart, extendedEnd, coreDates, dayBlocks]);
+  }, [extendedStart, extendedEnd, coreDates, coreDateSet, dayBlocks]);
 
   // Bookend dates = dates outside the core Mon-Fri range (prev Friday, next Monday)
   const bookendDates = useMemo(
@@ -781,7 +781,7 @@ export function ResourceTimeline({
                   {format(date, "EEE")}
                   {isBookend && (
                     <span className="ml-1 text-[9px] font-normal text-muted-foreground/70">
-                      {format(date, "EEE") === "Fri" ? "(prev)" : "(next)"}
+                      {dateStr < coreDates[0] ? "(prev)" : "(next)"}
                     </span>
                   )}
                 </div>
