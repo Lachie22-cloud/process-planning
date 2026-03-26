@@ -8,7 +8,7 @@ import type { Batch } from "@/types/batch";
  */
 export function getEffectiveLimit(
   resource: Resource,
-  allResources?: Resource[],
+  _allResources?: Resource[],
 ): number {
   if (resource.groupName != null && resource.groupCapacity != null) {
     return resource.groupCapacity;
