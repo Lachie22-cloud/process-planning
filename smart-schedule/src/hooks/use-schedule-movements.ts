@@ -44,9 +44,14 @@ export function useRecordMovement() {
   });
 }
 
+export interface MovementInfo {
+  direction: "pulled" | "pushed" | "moved";
+  reason: string | null;
+}
+
 /**
  * Fetch the most recent movement direction per batch for the given date range.
- * Returns a Map<batchId, "pulled" | "pushed" | "moved">.
+ * Returns a Map<batchId, MovementInfo>.
  */
 export function useMovementDirections({
   weekStart,
@@ -65,7 +70,7 @@ export function useMovementDirections({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("schedule_movements")
-        .select("batch_id, direction, moved_at")
+        .select("batch_id, direction, reason, moved_at")
         .eq("site_id", site!.id)
         .gte("to_date", weekStart)
         .lte("to_date", weekEnding)
@@ -74,10 +79,13 @@ export function useMovementDirections({
       if (error) throw error;
 
       // Keep only the most recent movement per batch
-      const map = new Map<string, "pulled" | "pushed" | "moved">();
+      const map = new Map<string, MovementInfo>();
       for (const row of data ?? []) {
         if (row.batch_id && !map.has(row.batch_id)) {
-          map.set(row.batch_id, row.direction as "pulled" | "pushed" | "moved");
+          map.set(row.batch_id, {
+            direction: row.direction as "pulled" | "pushed" | "moved",
+            reason: (row.reason as string) ?? null,
+          });
         }
       }
       return map;

@@ -12,6 +12,7 @@ import type { Batch } from "@/types/batch";
 import type { BatchStatus } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import type { ResourceBlock } from "@/types/site";
+import type { MovementInfo } from "@/hooks/use-schedule-movements";
 
 export interface DropTarget {
   resourceId: string;
@@ -30,7 +31,7 @@ interface ResourceLaneProps {
   highlightedBatchIds?: Set<string>;
   spotlightBatchId?: string | null;
   spotlightTargetResourceId?: string | null;
-  movementDirections?: Map<string, "pulled" | "pushed" | "moved">;
+  movementDirections?: Map<string, MovementInfo>;
   draggedBatchId?: string | null;
   dragOver?: DropTarget | null;
   dropTargets?: Map<string, DropTarget>;
@@ -271,7 +272,7 @@ export function ResourceLane({
                     isDragging={draggedBatchId === batch.id}
                     draggable={canDrag}
                     canSchedule={canSchedule}
-                    movementDirection={movementDirections?.get(batch.id)}
+                    movementInfo={movementDirections?.get(batch.id)}
                     onClick={onBatchClick}
                     onDragStart={onDragStart}
                     onDragEnd={onDragEnd}
