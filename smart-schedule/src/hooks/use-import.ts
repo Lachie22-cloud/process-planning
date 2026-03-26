@@ -1301,7 +1301,7 @@ export function useImport() {
         }
       }
     },
-    onSuccess: (_result, { data }) => {
+    onSuccess: () => {
       if (site && shortageRecords.length > 0) {
         const shortCount = shortageRecords.length;
         toast.info(
