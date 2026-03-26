@@ -65,7 +65,7 @@ function fillData(rows: Record<string, string | number | null>[]) {
     "Batch", "Order", "Material", "Pck Size", "Total Order Quantity",
   ];
   // Remap keys to match extractFillData expected column names
-  const remapped = rows.map((r) => ({
+  const remapped: ParsedRow[] = rows.map((r) => ({
     Batch: r["Bulk Order"] ?? null,
     Order: r["Fill Order"] ?? null,
     Material: r["Fill Material"] ?? null,
