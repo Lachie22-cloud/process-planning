@@ -15,6 +15,7 @@
  *   then Order A consumes 80 (remaining 20), Order B short by 40.
  */
 import { describe, expect, it, vi } from "vitest";
+import type { ParsedRow } from "@/lib/utils/excel-parser";
 import { processFilesToBatches } from "./use-import";
 
 vi.mock("@/lib/utils/excel-parser", () => ({
@@ -65,11 +66,11 @@ function fillData(rows: Record<string, string | number | null>[]) {
   ];
   // Remap keys to match extractFillData expected column names
   const remapped = rows.map((r) => ({
-    Batch: r["Bulk Order"],
-    Order: r["Fill Order"],
-    Material: r["Fill Material"],
-    "Pck Size": r["Pack Size"],
-    "Total Order Quantity": r["Fill Quantity"],
+    Batch: r["Bulk Order"] ?? null,
+    Order: r["Fill Order"] ?? null,
+    Material: r["Fill Material"] ?? null,
+    "Pck Size": r["Pack Size"] ?? null,
+    "Total Order Quantity": r["Fill Quantity"] ?? null,
   }));
   return {
     fileName: "fill_data.xlsx",
