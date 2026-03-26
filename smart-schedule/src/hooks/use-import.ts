@@ -351,31 +351,36 @@ function extractRequirements(files: ParsedFile[]): {
 } {
   const byOrder = new Map<string, RequirementEntry[]>();
   const byMaterial = new Map<string, RequirementEntry[]>();
-  const reqFile = files.find((f) => f.type === "fill_components");
-  if (!reqFile) return { byOrder, byMaterial };
 
-  const { headers, rows } = reqFile;
-  for (const row of rows) {
-    const order = rowValue(row, headers, "order");
-    const material = rowValue(row, headers, "material");
-    if (!order || !material) continue;
+  // Check both fill_components and bulk_components file types
+  const reqFiles = files.filter(
+    (f) => f.type === "fill_components" || f.type === "bulk_components",
+  );
+  if (reqFiles.length === 0) return { byOrder, byMaterial };
 
-    const reqQty = rowNumeric(row, headers, "requirement quantity") ?? 0;
-    const qtyWithdrawn = rowNumeric(row, headers, "quantity withdrawn") ?? 0;
-    const netQty = Math.max(0, reqQty - qtyWithdrawn);
-    if (netQty <= 0) continue; // Already fulfilled
+  for (const reqFile of reqFiles) {
+    const { headers, rows } = reqFile;
+    for (const row of rows) {
+      const order = rowValue(row, headers, "order");
+      const material = rowValue(row, headers, "material");
+      if (!order || !material) continue;
 
-    const dateRaw = rowRawValue(row, headers, "requirement date");
-    const reqDate = excelDateToISO(dateRaw) ?? "";
-    const description = rowValue(row, headers, "material description", "description") ?? "";
+      const reqQty = rowNumeric(row, headers, "requirement quantity") ?? 0;
+      const qtyWithdrawn = rowNumeric(row, headers, "quantity withdrawn") ?? 0;
+      const netQty = Math.max(0, reqQty - qtyWithdrawn);
 
-    const entry: RequirementEntry = { order, material, description, reqQty, qtyWithdrawn, netQty, reqDate };
+      const dateRaw = rowRawValue(row, headers, "requirement date");
+      const reqDate = excelDateToISO(dateRaw) ?? "";
+      const description = rowValue(row, headers, "material description", "description") ?? "";
 
-    if (!byOrder.has(order)) byOrder.set(order, []);
-    byOrder.get(order)!.push(entry);
+      const entry: RequirementEntry = { order, material, description, reqQty, qtyWithdrawn, netQty, reqDate };
 
-    if (!byMaterial.has(material)) byMaterial.set(material, []);
-    byMaterial.get(material)!.push(entry);
+      if (!byOrder.has(order)) byOrder.set(order, []);
+      byOrder.get(order)!.push(entry);
+
+      if (!byMaterial.has(material)) byMaterial.set(material, []);
+      byMaterial.get(material)!.push(entry);
+    }
   }
   return { byOrder, byMaterial };
 }
