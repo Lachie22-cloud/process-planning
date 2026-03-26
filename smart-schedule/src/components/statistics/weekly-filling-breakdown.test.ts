@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parsePackSizeLitres } from "@/lib/utils/pack-size";
+import { fillOrderHasComponent } from "@/components/statistics/weekly-filling-breakdown";
 
 describe("parsePackSizeLitres", () => {
   it("parses millilitre strings", () => {
@@ -51,5 +52,65 @@ describe("parsePackSizeLitres", () => {
     expect(parsePackSizeLitres("500ml")).toBe(0.5);
     expect(parsePackSizeLitres("0.5L")).toBe(0.5);
     expect(parsePackSizeLitres("0.5l")).toBe(0.5);
+  });
+
+  it("parses LTR/LTRS litre strings", () => {
+    expect(parsePackSizeLitres("2.5 LTR")).toBe(2.5);
+    expect(parsePackSizeLitres("10LTR")).toBe(10);
+    expect(parsePackSizeLitres("200 ltr")).toBe(200);
+    expect(parsePackSizeLitres("1LTRS")).toBe(1);
+    expect(parsePackSizeLitres("20 ltrs")).toBe(20);
+  });
+});
+
+describe("fillOrderHasComponent", () => {
+  it("matches BOM components first", () => {
+    expect(
+      fillOrderHasComponent(
+        {
+          components: ["abc", "ANOPR15X", "def"],
+          fillMaterial: null,
+          lidType: null,
+        },
+        "ANOPR15X",
+      ),
+    ).toBe(true);
+  });
+
+  it("falls back to legacy lid_type when BOM components are missing", () => {
+    expect(
+      fillOrderHasComponent(
+        {
+          components: [],
+          fillMaterial: null,
+          lidType: "blue",
+        },
+        "LOPBOCAPF",
+      ),
+    ).toBe(true);
+
+    expect(
+      fillOrderHasComponent(
+        {
+          components: [],
+          fillMaterial: null,
+          lidType: "red",
+        },
+        "ANOPR15X",
+      ),
+    ).toBe(true);
+  });
+
+  it("falls back to fill material matching when needed", () => {
+    expect(
+      fillOrderHasComponent(
+        {
+          components: [],
+          fillMaterial: "X-LOPBOCAPF-Y",
+          lidType: null,
+        },
+        "LOPBOCAPF",
+      ),
+    ).toBe(true);
   });
 });

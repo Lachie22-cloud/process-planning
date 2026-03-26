@@ -16,6 +16,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Batch } from "@/types/batch";
 import type { LinkedFillOrder } from "@/types/batch";
 import type { Resource } from "@/types/resource";
+import type { DatabaseRow } from "@/types/database";
+import { mapLinkedFillOrder } from "@/lib/utils/mappers";
 import { parsePackSizeLitres } from "@/lib/utils/pack-size";
 
 interface WeeklyFillingBreakdownProps {
@@ -39,6 +41,21 @@ function getWeekdays(weekStart: Date, weekEnding: Date): Date[] {
 
 const BLUE_LID_COMPONENT = "LOPBOCAPF";
 const RED_LID_COMPONENT = "ANOPR15X";
+
+export function fillOrderHasComponent(
+  fillOrder: Pick<LinkedFillOrder, "components" | "fillMaterial" | "lidType">,
+  component: string,
+): boolean {
+  if (fillOrder.components.length > 0) {
+    return fillOrder.components.some((c) => c.toUpperCase().includes(component));
+  }
+
+  const lidType = fillOrder.lidType?.trim().toLowerCase();
+  if (component === BLUE_LID_COMPONENT && lidType === "blue") return true;
+  if (component === RED_LID_COMPONENT && lidType === "red") return true;
+
+  return fillOrder.fillMaterial?.toUpperCase().includes(component) ?? false;
+}
 
 export function WeeklyFillingBreakdown({
   batches,
@@ -74,19 +91,9 @@ export function WeeklyFillingBreakdown({
         }
         if (data) {
           results.push(
-            ...data.map((r: Record<string, unknown>) => ({
-              id: r.id as string,
-              batchId: r.batch_id as string,
-              siteId: r.site_id as string,
-              fillOrder: r.fill_order as string | null,
-              fillMaterial: r.fill_material as string | null,
-              fillDescription: r.fill_description as string | null,
-              packSize: r.pack_size as string | null,
-              quantity: r.quantity as number | null,
-              unit: r.unit as string | null,
-              lidType: r.lid_type as string | null,
-              components: (r.components as string[] | null) ?? [],
-            })),
+            ...data.map((r: Record<string, unknown>) =>
+              mapLinkedFillOrder(r as DatabaseRow["linked_fill_orders"]),
+            ),
           );
         }
       }
@@ -169,23 +176,32 @@ export function WeeklyFillingBreakdown({
         .reduce((sum, fo) => sum + (fo.quantity ?? 0), 0);
 
       // Check if a fill order has a specific component in its BOM
-      const hasComponent = (fo: LinkedFillOrder, component: string): boolean => {
-        // Primary: check stored BOM components array
-        if (fo.components.length > 0) {
-          return fo.components.some((c) => c.toUpperCase().includes(component));
-        }
-        // Fallback: check fill_material field
-        return resolveFillMaterial(fo)?.toUpperCase().includes(component) ?? false;
-      };
-
       // Blue lids: fill orders with component containing LOPBOCAPF
       const blueLids = dayFillOrders
-        .filter((fo) => hasComponent(fo, BLUE_LID_COMPONENT))
+        .filter((fo) =>
+          fillOrderHasComponent(
+            {
+              components: fo.components,
+              fillMaterial: resolveFillMaterial(fo),
+              lidType: fo.lidType,
+            },
+            BLUE_LID_COMPONENT,
+          ),
+        )
         .reduce((sum, fo) => sum + (fo.quantity ?? 0), 0);
 
       // Red lids: fill orders with component containing ANOPR15X
       const redLids = dayFillOrders
-        .filter((fo) => hasComponent(fo, RED_LID_COMPONENT))
+        .filter((fo) =>
+          fillOrderHasComponent(
+            {
+              components: fo.components,
+              fillMaterial: resolveFillMaterial(fo),
+              lidType: fo.lidType,
+            },
+            RED_LID_COMPONENT,
+          ),
+        )
         .reduce((sum, fo) => sum + (fo.quantity ?? 0), 0);
 
       // 500ml items
@@ -196,15 +212,13 @@ export function WeeklyFillingBreakdown({
         })
         .reduce((sum, fo) => sum + (fo.quantity ?? 0), 0);
 
-      // Manual fills: count fill order lines from batches > 40L
-      const manualFillBatchIds = new Set(
-        dayBatches
-          .filter((b) => (b.batchVolume ?? 0) > 40)
-          .map((b) => b.id),
-      );
-      const manualFills = dayFillOrders.filter((fo) =>
-        manualFillBatchIds.has(fo.batchId),
-      ).length;
+      // Manual fills: fill orders where pack size > 40L (large containers requiring manual filling)
+      const manualFills = dayFillOrders
+        .filter((fo) => {
+          const litres = resolvePackSize(fo);
+          return litres !== null && litres > 40;
+        })
+        .reduce((sum, fo) => sum + (fo.quantity ?? 0), 0);
 
       return {
         date: day,

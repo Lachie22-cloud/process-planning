@@ -114,7 +114,7 @@ export function mapLinkedFillOrder(row: DatabaseRow["linked_fill_orders"]): Link
     fillMaterial: row.fill_material,
     fillDescription: row.fill_description,
     packSize: row.pack_size,
-    quantity: row.quantity,
+    quantity: row.quantity != null ? Number(row.quantity) : null,
     unit: row.unit,
     lidType: row.lid_type,
     components: row.components ?? [],

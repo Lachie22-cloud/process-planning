@@ -5,7 +5,7 @@ export function parsePackSizeLitres(packSize: string | null): number | null {
   // Match patterns like "500ml", "0.5l", "1l", "2.5l", "10l", "20l"
   const mlMatch = s.match(/^([\d.]+)\s*ml$/);
   if (mlMatch?.[1]) return parseFloat(mlMatch[1]) / 1000;
-  const lMatch = s.match(/^([\d.]+)\s*l$/);
+  const lMatch = s.match(/^([\d.]+)\s*(?:l|ltr|ltrs)$/);
   if (lMatch?.[1]) return parseFloat(lMatch[1]);
   return null;
 }
