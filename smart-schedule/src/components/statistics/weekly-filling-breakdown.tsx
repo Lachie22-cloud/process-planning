@@ -18,7 +18,7 @@ import type { LinkedFillOrder } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import type { DatabaseRow } from "@/types/database";
 import { mapLinkedFillOrder } from "@/lib/utils/mappers";
-import { parsePackSizeLitres } from "@/lib/utils/pack-size";
+import { parsePackSizeLitres, fillOrderHasComponent, BLUE_LID_COMPONENT, RED_LID_COMPONENT } from "@/lib/utils/pack-size";
 
 interface WeeklyFillingBreakdownProps {
   batches: Batch[];
@@ -37,24 +37,6 @@ function getWeekdays(weekStart: Date, weekEnding: Date): Date[] {
     d = addDays(d, 1);
   }
   return days;
-}
-
-const BLUE_LID_COMPONENT = "LOPBOCAPF";
-const RED_LID_COMPONENT = "ANOPR15X";
-
-export function fillOrderHasComponent(
-  fillOrder: Pick<LinkedFillOrder, "components" | "fillMaterial" | "lidType">,
-  component: string,
-): boolean {
-  if (fillOrder.components.length > 0) {
-    return fillOrder.components.some((c) => c.toUpperCase().includes(component));
-  }
-
-  const lidType = fillOrder.lidType?.trim().toLowerCase();
-  if (component === BLUE_LID_COMPONENT && lidType === "blue") return true;
-  if (component === RED_LID_COMPONENT && lidType === "red") return true;
-
-  return fillOrder.fillMaterial?.toUpperCase().includes(component) ?? false;
 }
 
 export function WeeklyFillingBreakdown({

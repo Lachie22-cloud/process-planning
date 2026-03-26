@@ -9,3 +9,25 @@ export function parsePackSizeLitres(packSize: string | null): number | null {
   if (lMatch?.[1]) return parseFloat(lMatch[1]);
   return null;
 }
+
+export const BLUE_LID_COMPONENT = "LOPBOCAPF";
+export const RED_LID_COMPONENT = "ANOPR15X";
+
+/**
+ * Check whether a fill order contains a specific BOM component code.
+ * Fallback chain: BOM components array → legacy lidType field → fillMaterial substring.
+ */
+export function fillOrderHasComponent(
+  fillOrder: { components: string[]; fillMaterial: string | null; lidType: string | null },
+  component: string,
+): boolean {
+  if (fillOrder.components.length > 0) {
+    return fillOrder.components.some((c) => c.toUpperCase().includes(component));
+  }
+
+  const lidType = fillOrder.lidType?.trim().toLowerCase();
+  if (component === BLUE_LID_COMPONENT && lidType === "blue") return true;
+  if (component === RED_LID_COMPONENT && lidType === "red") return true;
+
+  return fillOrder.fillMaterial?.toUpperCase().includes(component) ?? false;
+}

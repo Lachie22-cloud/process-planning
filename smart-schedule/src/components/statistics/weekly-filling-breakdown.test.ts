@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePackSizeLitres } from "@/lib/utils/pack-size";
-import { fillOrderHasComponent } from "@/components/statistics/weekly-filling-breakdown";
+import { parsePackSizeLitres, fillOrderHasComponent } from "@/lib/utils/pack-size";
 
 describe("parsePackSizeLitres", () => {
   it("parses millilitre strings", () => {
