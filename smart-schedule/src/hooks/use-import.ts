@@ -232,6 +232,7 @@ interface RequirementEntry {
   qtyWithdrawn: number;
   netQty: number;
   reqDate: string;
+  uom: string;
 }
 
 function extractZp40Data(files: ParsedFile[]): Map<string, Zp40Record> {
@@ -367,13 +368,16 @@ function extractRequirements(files: ParsedFile[]): {
 
       const reqQty = rowNumeric(row, headers, "requirement quantity") ?? 0;
       const qtyWithdrawn = rowNumeric(row, headers, "quantity withdrawn") ?? 0;
-      const netQty = Math.max(0, reqQty - qtyWithdrawn);
+      // Use reqQty directly — SOH already reflects withdrawals, so subtracting
+      // qtyWithdrawn would double-count. netQty kept for reference only.
+      const netQty = reqQty;
 
       const dateRaw = rowRawValue(row, headers, "requirement date");
       const reqDate = excelDateToISO(dateRaw) ?? "";
       const description = rowValue(row, headers, "material description", "description") ?? "";
+      const uom = rowValue(row, headers, "base unit of measure", "base unit", "buom", "uom", "unit") ?? "";
 
-      const entry: RequirementEntry = { order, material, description, reqQty, qtyWithdrawn, netQty, reqDate };
+      const entry: RequirementEntry = { order, material, description, reqQty, qtyWithdrawn, netQty, reqDate, uom };
 
       if (!byOrder.has(order)) byOrder.set(order, []);
       byOrder.get(order)!.push(entry);
@@ -425,8 +429,8 @@ function calculateShortages(
       a[1].reqDate.localeCompare(b[1].reqDate),
     );
 
-    for (const [order, info] of sortedOrders) {
-      const needed = info.netQty;
+    for (const [order, { netQty }] of sortedOrders) {
+      const needed = netQty;
       const shortageQty = Math.max(0, needed - remainingSOH);
       remainingSOH = Math.max(0, remainingSOH - needed);
 
@@ -713,7 +717,7 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
   const shortagesAgg = new Map<string, ShortageRecord>();
   const orderShortages = new Map<string, string[]>();
 
-  for (const [key, _info] of shortageMap) {
+  for (const [key] of shortageMap) {
     const [order, material] = key.split("|");
     if (!order || !material) continue;
 
@@ -727,8 +731,8 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
       const reqEntries = requirements.byMaterial.get(material) ?? [];
       const totalReq = reqEntries.reduce((sum, r) => sum + r.netQty, 0);
       const description = sohEntry?.description ?? reqEntries[0]?.description ?? null;
-      // UOM from SOH report "tag based unit of measure" column
-      const uom = sohEntry?.uom ?? "KG";
+      // UOM: prefer SOH report, fall back to requirements file, then default
+      const uom = sohEntry?.uom ?? (reqEntries[0]?.uom || "KG");
       // Heuristic: fill-linked materials are PKG, others are RM
       const isFillLinked = batches.some((b) => {
         const batchFills = fillData.get(b.sapOrder) ?? [];
@@ -814,7 +818,6 @@ export function useImport() {
   const [files, setFiles] = useState<ParsedFile[]>([]);
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [shortageRecords, setShortageRecords] = useState<ShortageRecord[]>([]);
-  const [_orderShortageLinks, setOrderShortageLinks] = useState<Map<string, string[]>>(new Map());
   const [batchShortageDetailsState, setBatchShortageDetailsState] = useState<Map<string, BatchShortageDetail[]>>(new Map());
   const [resourceAssignments, setResourceAssignments] = useState<Map<string, string>>(new Map());
   const [disperserAssignmentsState, setDisperserAssignmentsState] = useState<Map<string, string>>(new Map());
@@ -858,7 +861,6 @@ export function useImport() {
           const result = processFilesToBatches(allFiles);
           setBatches(result.batches);
           setShortageRecords(result.shortages);
-          setOrderShortageLinks(result.orderShortages);
           setBatchShortageDetailsState(result.batchShortageDetails);
           setRequirementsByFillOrder(result.requirementsByFillOrder);
 
@@ -1018,7 +1020,6 @@ export function useImport() {
     setFiles([]);
     setBatches([]);
     setShortageRecords([]);
-    setOrderShortageLinks(new Map());
     setResourceAssignments(new Map());
     setDisperserAssignmentsState(new Map());
   }, []);
