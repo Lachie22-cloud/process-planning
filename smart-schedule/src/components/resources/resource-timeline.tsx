@@ -106,7 +106,7 @@ export function ResourceTimeline({
   extendedStart,
   extendedEnd,
   isLoading,
-  isThisWeek: _isThisWeek,
+  isThisWeek = false,
   onBatchClick,
 }: ResourceTimelineProps) {
   const [tab, setTab] = useState<ResourceTab>("mixers");
