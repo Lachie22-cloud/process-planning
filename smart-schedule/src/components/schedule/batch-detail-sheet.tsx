@@ -31,8 +31,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
 import { useBatch } from "@/hooks/use-batches";
 import type { LinkedFillOrder } from "@/types/batch";
-import type { DatabaseRow } from "@/types/database";
-import { mapLinkedFillOrder } from "@/lib/utils/mappers";
 import { useUpdateBatch, useAddAuditEntry } from "@/hooks/use-batch-mutations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useCurrentSite } from "@/hooks/use-current-site";
@@ -182,7 +180,7 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
   const [overrideComment, setOverrideComment] = useState("");
   const [sohConfirmed, setSohConfirmed] = useState(false);
 
-  const activeShortages = batchShortages.filter((bs) => bs.shortQty < 0 || bs.shortage.shortQty < 0);
+  const activeShortages = batchShortages.filter((bs) => bs.shortQty < 0);
 
   const closeDialog = () => {
     setOverrideTarget(null);
@@ -265,7 +263,6 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
                   <th className="px-3 py-1.5 text-left text-xs font-medium text-muted-foreground">Material</th>
                   <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">Type</th>
                   <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">Required</th>
-                  <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">SOH</th>
                   <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">Short</th>
                   <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">UOM</th>
                   <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">ETA</th>
@@ -294,13 +291,10 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
                       </Badge>
                     </td>
                     <td className="px-2 py-2 text-right text-xs tabular-nums">
-                      {bs.shortage.requiredQty.toLocaleString()}
-                    </td>
-                    <td className="px-2 py-2 text-right text-xs tabular-nums">
-                      {bs.shortage.sohQty.toLocaleString()}
+                      {bs.requiredQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-2 py-2 text-right text-xs tabular-nums font-semibold text-red-600">
-                      {bs.shortage.shortQty.toLocaleString()}
+                      {bs.shortQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-2 py-2 text-xs text-muted-foreground">
                       {bs.shortage.uom}
@@ -333,7 +327,7 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
                             setOverrideTarget({
                               id: bs.id,
                               materialCode: bs.shortage.materialCode,
-                              shortQty: bs.shortage.shortQty,
+                              shortQty: bs.shortQty,
                               uom: bs.shortage.uom,
                             })
                           }
@@ -355,13 +349,13 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
             <span className="text-muted-foreground font-medium">
               Total Required:{" "}
               <span className="text-foreground tabular-nums">
-                {activeShortages.reduce((sum, bs) => sum + bs.shortage.requiredQty, 0).toLocaleString()}
+                {activeShortages.reduce((sum, bs) => sum + bs.requiredQty, 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </span>
             </span>
             <span className="text-muted-foreground font-medium">
               Total Short:{" "}
               <span className="text-red-600 font-semibold tabular-nums">
-                {activeShortages.reduce((sum, bs) => sum + bs.shortage.shortQty, 0).toLocaleString()}
+                {activeShortages.reduce((sum, bs) => sum + bs.shortQty, 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </span>
             </span>
           </div>
@@ -583,9 +577,19 @@ export function BatchDetailSheet({
         .select("*")
         .eq("batch_id", batchId);
       if (error) throw error;
-      const mapped = (data ?? []).map((r: Record<string, unknown>) =>
-        mapLinkedFillOrder(r as DatabaseRow["linked_fill_orders"]),
-      );
+      const mapped = (data ?? []).map((r: Record<string, unknown>) => ({
+        id: r.id as string,
+        batchId: r.batch_id as string,
+        siteId: r.site_id as string,
+        fillOrder: r.fill_order as string | null,
+        fillMaterial: r.fill_material as string | null,
+        fillDescription: r.fill_description as string | null,
+        packSize: r.pack_size as string | null,
+        quantity: r.quantity as number | null,
+        unit: r.unit as string | null,
+        lidType: r.lid_type as string | null,
+        components: (r.components as string[] | null) ?? [],
+      }));
       // Deduplicate by fill order number — keep first occurrence
       const seen = new Set<string>();
       return mapped.filter((fo) => {

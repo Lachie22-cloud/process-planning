@@ -24,6 +24,7 @@ export interface BatchMaterialShortage {
   siteId: string;
   batchId: string;
   shortageId: string;
+  requiredQty: number;
   shortQty: number;
   plannerOverride: boolean;
   overrideBy: string | null;

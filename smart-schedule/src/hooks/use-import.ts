@@ -450,6 +450,7 @@ function calculateShortages(
 interface SohRecord {
   stock: number;
   description: string;
+  uom: string;
 }
 
 function extractSohData(files: ParsedFile[]): Map<string, SohRecord> {
@@ -464,13 +465,14 @@ function extractSohData(files: ParsedFile[]): Map<string, SohRecord> {
 
     const stock = rowNumeric(row, headers, "unrestricted") ?? 0;
     const description = rowValue(row, headers, "material description", "description") ?? "";
+    const uom = rowValue(row, headers, "tag based unit of measure", "base unit of measure", "base unit", "buom", "uom") ?? "KG";
 
     // Accumulate stock across rows for the same material
     const existing = map.get(material);
     if (existing) {
       existing.stock += stock;
     } else {
-      map.set(material, { stock, description });
+      map.set(material, { stock, description, uom });
     }
   }
   return map;
@@ -507,6 +509,13 @@ export interface ShortageRecord {
   uom: string;
 }
 
+/** Per-batch shortage detail for a single material */
+export interface BatchShortageDetail {
+  materialCode: string;
+  requiredQty: number;
+  shortQty: number;
+}
+
 export interface ProcessResult {
   batches: ImportBatch[];
   missingDates: number;
@@ -514,6 +523,8 @@ export interface ProcessResult {
   shortages: ShortageRecord[];
   /** Per-order material shortage links: Map<sapOrder, materialCode[]> */
   orderShortages: Map<string, string[]>;
+  /** Per-batch shortage details: Map<sapOrder, BatchShortageDetail[]> */
+  batchShortageDetails: Map<string, BatchShortageDetail[]>;
   /** BOM components keyed by fill order number — used to update existing fill orders */
   requirementsByFillOrder: Map<string, string[]>;
 }
@@ -523,7 +534,7 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
   const bulkFile =
     files.find((f) => f.type === "bulk_data") ??
     files.find((f) => f.type === "coois");
-  if (!bulkFile) return { batches: [], missingDates: 0, shortages: [], orderShortages: new Map(), requirementsByFillOrder: new Map() };
+  if (!bulkFile) return { batches: [], missingDates: 0, shortages: [], orderShortages: new Map(), batchShortageDetails: new Map(), requirementsByFillOrder: new Map() };
   const todayISO = new Date().toISOString().split("T")[0]!;
 
   // Extract supplementary data from other file types
@@ -610,19 +621,24 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
 
     // Determine RM shortages from cumulative SOH drawdown
     // Check if any BOM component for this order has a shortage
-    const orderReqs = requirements.byOrder.get(sapOrder) ?? [];
+    // Check bulk order requirements (RM shortages)
+    const bulkReqs = requirements.byOrder.get(sapOrder) ?? [];
     let hasRmShortage = false;
     let hasPkgShortage = false;
-    for (const req of orderReqs) {
-      const key = `${sapOrder}|${req.material}`;
+    for (const req of bulkReqs) {
+      const key = `${req.order}|${req.material}`;
       if (shortageMap.has(key)) {
-        // Heuristic: packaging materials are typically in EA or units, RM in KG/L
-        // Also fill-linked requirements are packaging
-        const isFillLinked = fills.some((f) => f.fillOrder && req.order === f.fillOrder);
-        if (isFillLinked) {
+        hasRmShortage = true;
+      }
+    }
+    // Check fill order requirements (packaging shortages)
+    for (const fill of fills) {
+      if (!fill.fillOrder) continue;
+      const fillReqs = requirements.byOrder.get(fill.fillOrder) ?? [];
+      for (const req of fillReqs) {
+        const key = `${req.order}|${req.material}`;
+        if (shortageMap.has(key)) {
           hasPkgShortage = true;
-        } else {
-          hasRmShortage = true;
         }
       }
     }
@@ -705,21 +721,27 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     if (!orderShortages.has(order)) orderShortages.set(order, []);
     orderShortages.get(order)!.push(material);
 
-    // Aggregate at material level
+    // Aggregate at material level — accumulate shortages across all orders
     if (!shortagesAgg.has(material)) {
       const sohEntry = sohData.get(material);
       const reqEntries = requirements.byMaterial.get(material) ?? [];
       const totalReq = reqEntries.reduce((sum, r) => sum + r.netQty, 0);
       const description = sohEntry?.description ?? reqEntries[0]?.description ?? null;
-      // Heuristic: RM materials typically use KG/L, PKG uses EA
-      const uom = reqEntries[0]
-        ? (reqEntries[0].reqQty > 100 ? "KG" : "EA")
-        : "KG";
+      // UOM from SOH report "tag based unit of measure" column
+      const uom = sohEntry?.uom ?? "KG";
       // Heuristic: fill-linked materials are PKG, others are RM
       const isFillLinked = batches.some((b) => {
         const batchFills = fillData.get(b.sapOrder) ?? [];
         return batchFills.some((f) => f.fillOrder && reqEntries.some((r) => r.order === f.fillOrder));
       });
+
+      // Sum shortage across ALL orders for this material
+      let totalShortage = 0;
+      for (const [k, v] of shortageMap) {
+        if (k.endsWith(`|${material}`)) {
+          totalShortage += v.shortageQty;
+        }
+      }
 
       shortagesAgg.set(material, {
         materialCode: material,
@@ -727,9 +749,45 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
         materialType: isFillLinked ? "PKG" : "RM",
         requiredQty: Math.round(totalReq * 100) / 100,
         sohQty: Math.round((sohEntry?.stock ?? 0) * 100) / 100,
-        shortQty: -Math.round(info.shortageQty * 100) / 100, // Store as negative
+        shortQty: -Math.round(totalShortage * 100) / 100, // Store as negative
         uom,
       });
+    }
+  }
+
+  // Build per-batch shortage details: for each batch (bulk order), collect
+  // the per-order requirement and shortage from its bulk order + linked fill orders
+  const batchShortageDetails = new Map<string, BatchShortageDetail[]>();
+  for (const batch of batches) {
+    const details: BatchShortageDetail[] = [];
+    // Collect all relevant orders for this batch: bulk order + fill orders
+    const relevantOrders = [batch.sapOrder];
+    const fills = fillData.get(batch.sapOrder) ?? [];
+    for (const f of fills) {
+      if (f.fillOrder) relevantOrders.push(f.fillOrder);
+    }
+    // Check each order's materials against the shortage map
+    for (const order of relevantOrders) {
+      const reqs = requirements.byOrder.get(order) ?? [];
+      // Aggregate requirements per material for this order
+      const matTotals = new Map<string, number>();
+      for (const req of reqs) {
+        matTotals.set(req.material, (matTotals.get(req.material) ?? 0) + req.netQty);
+      }
+      for (const [material, reqQty] of matTotals) {
+        const key = `${order}|${material}`;
+        const shortage = shortageMap.get(key);
+        if (shortage) {
+          details.push({
+            materialCode: material,
+            requiredQty: Math.round(reqQty * 100) / 100,
+            shortQty: -Math.round(shortage.shortageQty * 100) / 100, // negative when short
+          });
+        }
+      }
+    }
+    if (details.length > 0) {
+      batchShortageDetails.set(batch.sapOrder, details);
     }
   }
 
@@ -744,6 +802,7 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     missingDates: hasDateColumn ? 0 : batches.length,
     shortages: [...shortagesAgg.values()],
     orderShortages,
+    batchShortageDetails,
     requirementsByFillOrder,
   };
 }
@@ -756,6 +815,7 @@ export function useImport() {
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [shortageRecords, setShortageRecords] = useState<ShortageRecord[]>([]);
   const [orderShortageLinks, setOrderShortageLinks] = useState<Map<string, string[]>>(new Map());
+  const [batchShortageDetailsState, setBatchShortageDetailsState] = useState<Map<string, BatchShortageDetail[]>>(new Map());
   const [resourceAssignments, setResourceAssignments] = useState<Map<string, string>>(new Map());
   const [disperserAssignmentsState, setDisperserAssignmentsState] = useState<Map<string, string>>(new Map());
   const [requirementsByFillOrder, setRequirementsByFillOrder] = useState<Map<string, string[]>>(new Map());
@@ -799,6 +859,7 @@ export function useImport() {
           setBatches(result.batches);
           setShortageRecords(result.shortages);
           setOrderShortageLinks(result.orderShortages);
+          setBatchShortageDetailsState(result.batchShortageDetails);
           setRequirementsByFillOrder(result.requirementsByFillOrder);
 
           // Auto-assign resources: prefer SAP mixer resource codes, fall back to generic
@@ -1272,21 +1333,23 @@ export function useImport() {
           site_id: string;
           batch_id: string;
           shortage_id: string;
+          required_qty: number;
           short_qty: number;
         }> = [];
 
-        for (const [sapOrder, materials] of orderShortageLinks) {
+        // Use per-batch shortage details for accurate per-batch values
+        for (const [sapOrder, details] of batchShortageDetailsState) {
           const bId = orderToBatchId.get(sapOrder);
           if (!bId) continue;
-          for (const material of materials) {
-            const shortageId = materialToShortageId.get(material);
+          for (const detail of details) {
+            const shortageId = materialToShortageId.get(detail.materialCode);
             if (!shortageId) continue;
-            const shortageRec = shortageRecords.find((s) => s.materialCode === material);
             batchShortageRows.push({
               site_id: site.id,
               batch_id: bId,
               shortage_id: shortageId,
-              short_qty: shortageRec?.shortQty ?? 0,
+              required_qty: detail.requiredQty,
+              short_qty: detail.shortQty,
             });
           }
         }

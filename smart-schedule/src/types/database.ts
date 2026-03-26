@@ -379,6 +379,7 @@ export interface DatabaseRow {
     site_id: string;
     batch_id: string;
     shortage_id: string;
+    required_qty: number;
     short_qty: number;
     planner_override: boolean;
     override_by: string | null;
