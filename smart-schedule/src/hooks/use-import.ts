@@ -514,6 +514,8 @@ export interface ProcessResult {
   shortages: ShortageRecord[];
   /** Per-order material shortage links: Map<sapOrder, materialCode[]> */
   orderShortages: Map<string, string[]>;
+  /** BOM components keyed by fill order number — used to update existing fill orders */
+  requirementsByFillOrder: Map<string, string[]>;
 }
 
 export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
@@ -731,11 +733,18 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     }
   }
 
+  // Build a map of fill order number → component material codes from requirements
+  const requirementsByFillOrder = new Map<string, string[]>();
+  for (const [order, reqs] of requirements.byOrder) {
+    requirementsByFillOrder.set(order, [...new Set(reqs.map((r) => r.material))]);
+  }
+
   return {
     batches,
     missingDates: hasDateColumn ? 0 : batches.length,
     shortages: [...shortagesAgg.values()],
     orderShortages,
+    requirementsByFillOrder,
   };
 }
 
@@ -749,6 +758,7 @@ export function useImport() {
   const [orderShortageLinks, setOrderShortageLinks] = useState<Map<string, string[]>>(new Map());
   const [resourceAssignments, setResourceAssignments] = useState<Map<string, string>>(new Map());
   const [disperserAssignmentsState, setDisperserAssignmentsState] = useState<Map<string, string>>(new Map());
+  const [requirementsByFillOrder, setRequirementsByFillOrder] = useState<Map<string, string[]>>(new Map());
   const [isProcessing, setIsProcessing] = useState(false);
 
   const addFiles = useCallback(
@@ -789,6 +799,7 @@ export function useImport() {
           setBatches(result.batches);
           setShortageRecords(result.shortages);
           setOrderShortageLinks(result.orderShortages);
+          setRequirementsByFillOrder(result.requirementsByFillOrder);
 
           // Auto-assign resources: prefer SAP mixer resource codes, fall back to generic
           if (resources.length > 0 && result.batches.length > 0) {
@@ -1164,6 +1175,40 @@ export function useImport() {
 
             if (dedupedRows.length > 0) {
               await supabase.from("linked_fill_orders").insert(dedupedRows as never);
+            }
+          }
+        }
+
+        // Cross-reference requirements back to existing fill orders to populate components
+        // This handles: requirements file imported separately after fill data,
+        // or requirements file imported with fill data but components weren't set
+        if (requirementsByFillOrder.size > 0) {
+          const fillOrderNumbers = [...requirementsByFillOrder.keys()];
+          // Chunk to stay within Supabase .in() limits
+          const chunkSize = 200;
+          for (let i = 0; i < fillOrderNumbers.length; i += chunkSize) {
+            const chunk = fillOrderNumbers.slice(i, i + chunkSize);
+            // Find existing fill orders in DB that match requirement order numbers
+            const { data: existingFills } = await supabase
+              .from("linked_fill_orders")
+              .select("id, fill_order, components")
+              .eq("site_id", site.id)
+              .in("fill_order", chunk);
+
+            if (existingFills && existingFills.length > 0) {
+              for (const row of existingFills) {
+                const fo = row.fill_order as string;
+                const currentComponents = (row.components as string[] | null) ?? [];
+                const reqComponents = requirementsByFillOrder.get(fo);
+                if (!reqComponents || reqComponents.length === 0) continue;
+                // Merge: keep existing + add new from requirements
+                const merged = [...new Set([...currentComponents, ...reqComponents])];
+                if (merged.length === currentComponents.length) continue; // No change
+                await supabase
+                  .from("linked_fill_orders")
+                  .update({ components: merged } as never)
+                  .eq("id", row.id as string);
+              }
             }
           }
         }
