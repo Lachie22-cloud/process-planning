@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { PageHeader } from "@/components/layout/page-header";
 import { WeekSelector } from "@/components/schedule/week-selector";
@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/schedule/status-badge";
 import { ColorGroupBadge } from "@/components/shared/color-group-badge";
@@ -28,6 +29,7 @@ import { BATCH_STATUSES, BATCH_STATUS_LIST } from "@/lib/constants/statuses";
 import { COLOR_GROUPS } from "@/lib/constants/color-groups";
 import { ScanTrigger } from "@/components/ai/scan-trigger";
 import { WeeklyFillingBreakdown } from "@/components/statistics/weekly-filling-breakdown";
+import { HistoricalAnalytics } from "@/components/statistics/historical-analytics";
 import type { Batch, BatchStatus } from "@/types/batch";
 
 function KpiCard({
@@ -55,6 +57,7 @@ function KpiCard({
 }
 
 export function StatisticsPage() {
+  const [viewMode, setViewMode] = useState("weekly");
   const week = useWeek();
 
   const weekStartStr = useMemo(
@@ -133,7 +136,7 @@ export function StatisticsPage() {
       }));
   }, [batches]);
 
-  if (isLoading) {
+  if (isLoading && viewMode !== "historical") {
     return (
       <div className="space-y-6 p-6">
         <PageHeader title="Statistics" actions={<WeekSelector week={week} />} />
@@ -152,219 +155,339 @@ export function StatisticsPage() {
       <PageHeader
         title="Statistics"
         description="Key performance indicators and analytics"
-        actions={<WeekSelector week={week} />}
+        actions={viewMode !== "historical" ? <WeekSelector week={week} /> : undefined}
       />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiCard icon={Layers} label="Total Batches" value={batches.length.toLocaleString()} />
-        <KpiCard icon={Droplets} label="Total Volume" value={`${totalVolume.toLocaleString()}L`} />
-        <KpiCard icon={TrendingUp} label="Avg Batch Size" value={`${avgBatchSize.toLocaleString()}L`} />
-        <KpiCard
-          icon={BarChart3}
-          label="Completion Rate"
-          value={
-            batches.length > 0
-              ? `${Math.round((batches.filter((b) => b.status === "Complete").length / batches.length) * 100)}%`
-              : "—"
-          }
-          colour="text-emerald-600"
-        />
-      </div>
+      {/* View Mode Tabs */}
+      <Tabs value={viewMode} onValueChange={setViewMode}>
+        <TabsList>
+          <TabsTrigger value="weekly">Weekly</TabsTrigger>
+          <TabsTrigger value="total">All Batches</TabsTrigger>
+          <TabsTrigger value="historical">Historical</TabsTrigger>
+        </TabsList>
 
-      {/* Weekly Filling Line Breakdown */}
-      <WeeklyFillingBreakdown
-        batches={batches}
-        weekStart={week.weekStart}
-        weekEnding={week.weekEnding}
-      />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Status Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Status Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {statusCounts.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">
-                No batches this week.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {statusCounts.map(({ status, count }) => {
-                  const pct = Math.round((count / batches.length) * 100);
-                  const config = BATCH_STATUSES[status];
-                  return (
-                    <div key={status} className="flex items-center gap-3">
-                      <StatusBadge status={status} className="w-28 justify-center" />
-                      <div className="flex-1">
-                        <div className="h-2 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                              width: `${pct}%`,
-                              backgroundColor: config?.color,
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <span className="w-16 text-right text-sm tabular-nums">
-                        {count} ({pct}%)
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Material Availability */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Material Availability</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950">
-                  <Package className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">All Materials Ready</p>
-                  <p className="text-xs text-muted-foreground">RM + Packaging available</p>
-                </div>
-                <span className="text-lg font-bold text-emerald-600">
-                  {materialIssues.ready}
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-950">
-                  <AlertTriangle className="h-5 w-5 text-orange-500" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Waiting on Materials</p>
-                  <p className="text-xs text-muted-foreground">Raw materials not available</p>
-                </div>
-                <span className="text-lg font-bold text-orange-500">
-                  {materialIssues.wom}
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-950">
-                  <Package className="h-5 w-5 text-amber-500" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Waiting on Packaging</p>
-                  <p className="text-xs text-muted-foreground">Packaging not available</p>
-                </div>
-                <span className="text-lg font-bold text-amber-500">
-                  {materialIssues.wop}
-                </span>
-              </div>
+        {/* Weekly View */}
+        <TabsContent value="weekly">
+          <div className="space-y-6">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <KpiCard icon={Layers} label="Total Batches" value={batches.length.toLocaleString()} />
+              <KpiCard icon={Droplets} label="Total Volume" value={`${totalVolume.toLocaleString()}L`} />
+              <KpiCard icon={TrendingUp} label="Avg Batch Size" value={`${avgBatchSize.toLocaleString()}L`} />
+              <KpiCard
+                icon={BarChart3}
+                label="Completion Rate"
+                value={
+                  batches.length > 0
+                    ? `${Math.round((batches.filter((b) => b.status === "Complete").length / batches.length) * 100)}%`
+                    : "—"
+                }
+                colour="text-emerald-600"
+              />
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Colour Group Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Colour Group Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {colourCounts.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">
-                No colour data available.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {colourCounts.map(({ code, count, color }) => {
-                  const pct = Math.round((count / batches.length) * 100);
-                  return (
-                    <div key={code} className="flex items-center gap-3">
-                      <div className="w-24">
-                        <ColorGroupBadge code={code} />
+            {/* Weekly Filling Line Breakdown */}
+            <WeeklyFillingBreakdown
+              batches={batches}
+              weekStart={week.weekStart}
+              weekEnding={week.weekEnding}
+            />
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Status Distribution */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Status Distribution</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {statusCounts.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-muted-foreground">
+                      No batches this week.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {statusCounts.map(({ status, count }) => {
+                        const pct = Math.round((count / batches.length) * 100);
+                        const config = BATCH_STATUSES[status];
+                        return (
+                          <div key={status} className="flex items-center gap-3">
+                            <StatusBadge status={status} className="w-28 justify-center" />
+                            <div className="flex-1">
+                              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all"
+                                  style={{
+                                    width: `${pct}%`,
+                                    backgroundColor: config?.color,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            <span className="w-16 text-right text-sm tabular-nums">
+                              {count} ({pct}%)
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Material Availability */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Material Availability</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950">
+                        <Package className="h-5 w-5 text-emerald-600" />
                       </div>
                       <div className="flex-1">
-                        <div className="h-2 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{ width: `${pct}%`, backgroundColor: color }}
-                          />
-                        </div>
+                        <p className="text-sm font-medium">All Materials Ready</p>
+                        <p className="text-xs text-muted-foreground">RM + Packaging available</p>
                       </div>
-                      <span className="w-16 text-right text-sm tabular-nums">
-                        {count} ({pct}%)
+                      <span className="text-lg font-bold text-emerald-600">
+                        {materialIssues.ready}
                       </span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-950">
+                        <AlertTriangle className="h-5 w-5 text-orange-500" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Waiting on Materials</p>
+                        <p className="text-xs text-muted-foreground">Raw materials not available</p>
+                      </div>
+                      <span className="text-lg font-bold text-orange-500">
+                        {materialIssues.wom}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-950">
+                        <Package className="h-5 w-5 text-amber-500" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Waiting on Packaging</p>
+                        <p className="text-xs text-muted-foreground">Packaging not available</p>
+                      </div>
+                      <span className="text-lg font-bold text-amber-500">
+                        {materialIssues.wop}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-        {/* AI Analysis Scan Trigger */}
-        <ScanTrigger />
+              {/* Colour Group Distribution */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Colour Group Distribution</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {colourCounts.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-muted-foreground">
+                      No colour data available.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {colourCounts.map(({ code, count, color }) => {
+                        const pct = Math.round((count / batches.length) * 100);
+                        return (
+                          <div key={code} className="flex items-center gap-3">
+                            <div className="w-24">
+                              <ColorGroupBadge code={code} />
+                            </div>
+                            <div className="flex-1">
+                              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all"
+                                  style={{ width: `${pct}%`, backgroundColor: color }}
+                                />
+                              </div>
+                            </div>
+                            <span className="w-16 text-right text-sm tabular-nums">
+                              {count} ({pct}%)
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-        {/* Daily Breakdown */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Daily Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Day</TableHead>
-                  <TableHead className="text-right">Batches</TableHead>
-                  <TableHead className="text-right">Volume</TableHead>
-                  <TableHead className="text-right">Issues</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dailyBreakdown.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
-                      No data for this week.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  <>
-                    {dailyBreakdown.map((day) => (
-                      <TableRow key={day.date}>
-                        <TableCell className="font-medium">{day.dayLabel}</TableCell>
-                        <TableCell className="text-right tabular-nums">{day.count}</TableCell>
-                        <TableCell className="text-right tabular-nums font-mono">
-                          {day.volume.toLocaleString()}L
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {day.materialIssues > 0 ? (
-                            <span className="text-amber-600">{day.materialIssues}</span>
-                          ) : (
-                            <span className="text-muted-foreground">0</span>
-                          )}
-                        </TableCell>
+              {/* AI Analysis Scan Trigger */}
+              <ScanTrigger />
+
+              {/* Daily Breakdown */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Daily Breakdown</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Day</TableHead>
+                        <TableHead className="text-right">Batches</TableHead>
+                        <TableHead className="text-right">Volume</TableHead>
+                        <TableHead className="text-right">Issues</TableHead>
                       </TableRow>
-                    ))}
-                    <TableRow className="font-semibold bg-muted/50">
-                      <TableCell>Total</TableCell>
-                      <TableCell className="text-right tabular-nums">{batches.length}</TableCell>
-                      <TableCell className="text-right tabular-nums font-mono">
-                        {totalVolume.toLocaleString()}L
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {materialIssues.wom + materialIssues.wop}
-                      </TableCell>
-                    </TableRow>
-                  </>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+                    </TableHeader>
+                    <TableBody>
+                      {dailyBreakdown.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">
+                            No data for this week.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        <>
+                          {dailyBreakdown.map((day) => (
+                            <TableRow key={day.date}>
+                              <TableCell className="font-medium">{day.dayLabel}</TableCell>
+                              <TableCell className="text-right tabular-nums">{day.count}</TableCell>
+                              <TableCell className="text-right tabular-nums font-mono">
+                                {day.volume.toLocaleString()}L
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {day.materialIssues > 0 ? (
+                                  <span className="text-amber-600">{day.materialIssues}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">0</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          <TableRow className="font-semibold bg-muted/50">
+                            <TableCell>Total</TableCell>
+                            <TableCell className="text-right tabular-nums">{batches.length}</TableCell>
+                            <TableCell className="text-right tabular-nums font-mono">
+                              {totalVolume.toLocaleString()}L
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {materialIssues.wom + materialIssues.wop}
+                            </TableCell>
+                          </TableRow>
+                        </>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* All Batches View */}
+        <TabsContent value="total">
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <KpiCard icon={Layers} label="Total Batches" value={batches.length.toLocaleString()} />
+              <KpiCard icon={Droplets} label="Total Volume" value={`${totalVolume.toLocaleString()}L`} />
+              <KpiCard icon={TrendingUp} label="Avg Batch Size" value={`${avgBatchSize.toLocaleString()}L`} />
+              <KpiCard
+                icon={BarChart3}
+                label="Completion Rate"
+                value={
+                  batches.length > 0
+                    ? `${Math.round((batches.filter((b) => b.status === "Complete").length / batches.length) * 100)}%`
+                    : "—"
+                }
+                colour="text-emerald-600"
+              />
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Status Distribution */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Status Distribution</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {statusCounts.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-muted-foreground">
+                      No batches this week.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {statusCounts.map(({ status, count }) => {
+                        const pct = Math.round((count / batches.length) * 100);
+                        const config = BATCH_STATUSES[status];
+                        return (
+                          <div key={status} className="flex items-center gap-3">
+                            <StatusBadge status={status} className="w-28 justify-center" />
+                            <div className="flex-1">
+                              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all"
+                                  style={{
+                                    width: `${pct}%`,
+                                    backgroundColor: config?.color,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            <span className="w-16 text-right text-sm tabular-nums">
+                              {count} ({pct}%)
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Colour Group Distribution */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Colour Group Distribution</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {colourCounts.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-muted-foreground">
+                      No colour data available.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {colourCounts.map(({ code, count, color }) => {
+                        const pct = Math.round((count / batches.length) * 100);
+                        return (
+                          <div key={code} className="flex items-center gap-3">
+                            <div className="w-24">
+                              <ColorGroupBadge code={code} />
+                            </div>
+                            <div className="flex-1">
+                              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all"
+                                  style={{ width: `${pct}%`, backgroundColor: color }}
+                                />
+                              </div>
+                            </div>
+                            <span className="w-16 text-right text-sm tabular-nums">
+                              {count} ({pct}%)
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Historical View */}
+        <TabsContent value="historical">
+          <HistoricalAnalytics />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
