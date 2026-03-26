@@ -745,6 +745,7 @@ export function ResourceTimeline({
           resources={resources}
           dates={dates}
           bookendDates={bookendDates}
+          coreDates={coreDates}
         />
       )}
 
