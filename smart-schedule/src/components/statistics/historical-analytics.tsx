@@ -18,7 +18,6 @@ import {
   type TimeRange,
 } from "@/hooks/use-historical-batches";
 import { LineChart, BarChart } from "./chart-canvas";
-import type { Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import type { ChartData, ChartOptions } from "chart.js";
 
