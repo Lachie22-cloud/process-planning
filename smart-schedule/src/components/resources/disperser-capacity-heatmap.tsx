@@ -75,9 +75,9 @@ export function DisperserCapacityHeatmap({
         const total = batches
           .filter(
             (b) =>
-              b.planDisperserId != null &&
-              memberIds.has(b.planDisperserId) &&
-              b.planDate === date,
+              b.planDate === date &&
+              ((b.planDisperserId != null && memberIds.has(b.planDisperserId)) ||
+               (b.planDisperser2Id != null && memberIds.has(b.planDisperser2Id))),
           )
           .reduce((sum, b) => sum + Math.max(b.premixCount ?? 0, 1), 0);
         dateMap.set(date, total);
@@ -99,7 +99,9 @@ export function DisperserCapacityHeatmap({
 
       for (const date of dates) {
         const dayBatches = batches.filter(
-          (b) => b.planDisperserId === disperser.id && b.planDate === date,
+          (b) =>
+            b.planDate === date &&
+            (b.planDisperserId === disperser.id || b.planDisperser2Id === disperser.id),
         );
 
         const batchCount = dayBatches.length;

@@ -27,6 +27,7 @@ export interface Batch {
   planDate: string | null;
   planResourceId: string | null;
   planDisperserId: string | null;
+  planDisperser2Id: string | null;
   batchVolume: number | null;
   status: BatchStatus;
   sapColorGroup: string | null;

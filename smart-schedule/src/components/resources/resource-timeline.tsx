@@ -359,6 +359,10 @@ export function ResourceTimeline({
       if (batch.planDisperserId && map.has(batch.planDisperserId) && batch.planDisperserId !== batch.planResourceId) {
         map.get(batch.planDisperserId)!.push(batch);
       }
+      // Second disperser stage
+      if (batch.planDisperser2Id && map.has(batch.planDisperser2Id) && batch.planDisperser2Id !== batch.planResourceId && batch.planDisperser2Id !== batch.planDisperserId) {
+        map.get(batch.planDisperser2Id)!.push(batch);
+      }
     }
     return map;
   }, [batches, allVisibleResources]);

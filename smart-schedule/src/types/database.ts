@@ -53,6 +53,7 @@ export interface DatabaseRow {
     plan_date: string | null;
     plan_resource_id: string | null;
     plan_disperser_id: string | null;
+    plan_disperser2_id: string | null;
     batch_volume: number | null;
     status: string;
     sap_color_group: string | null;

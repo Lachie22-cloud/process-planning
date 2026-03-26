@@ -219,7 +219,7 @@ export function HistoricalAnalytics() {
     return dispersers
       .map((disp) => {
         const db = filteredBatches.filter(
-          (b) => b.planDisperserId === disp.id,
+          (b) => b.planDisperserId === disp.id || b.planDisperser2Id === disp.id,
         );
         const totalPMC = db.reduce((s, b) => s + (b.premixCount || 1), 0);
         const daysUsed = new Set(db.map((b) => b.planDate).filter(Boolean))

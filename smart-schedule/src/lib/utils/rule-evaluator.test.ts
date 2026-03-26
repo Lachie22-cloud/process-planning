@@ -15,6 +15,7 @@ function makeBatch(overrides: Partial<Batch> = {}): Batch {
     planDate: "2025-03-10",
     planResourceId: "resource-source",
     planDisperserId: null,
+    planDisperser2Id: null,
     batchVolume: 400,
     status: "Planned",
     sapColorGroup: "WHITE",

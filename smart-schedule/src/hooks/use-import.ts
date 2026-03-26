@@ -836,6 +836,7 @@ export function useImport() {
   const [batchShortageDetailsState, setBatchShortageDetailsState] = useState<Map<string, BatchShortageDetail[]>>(new Map());
   const [resourceAssignments, setResourceAssignments] = useState<Map<string, string>>(new Map());
   const [disperserAssignmentsState, setDisperserAssignmentsState] = useState<Map<string, string>>(new Map());
+  const [disperser2AssignmentsState, setDisperser2AssignmentsState] = useState<Map<string, string>>(new Map());
   const [requirementsByFillOrder, setRequirementsByFillOrder] = useState<Map<string, string[]>>(new Map());
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -883,6 +884,7 @@ export function useImport() {
           if (resources.length > 0 && result.batches.length > 0) {
             const assignments = new Map<string, string>();
             const disperserAssignments = new Map<string, string>();
+            const disperser2Assignments = new Map<string, string>();
 
             // Build lookup: resource_code (uppercase) → resource ID
             const codeToId = new Map<string, string>();
@@ -928,6 +930,14 @@ export function useImport() {
                 const disperserId = disperserCodeToId.get(dCode);
                 if (disperserId) {
                   disperserAssignments.set(batch.sapOrder, disperserId);
+                }
+              }
+              // --- Disperser 2 assignment (second dispersion stage) ---
+              if (batch.sapDisperser2) {
+                const d2Code = batch.sapDisperser2.toUpperCase();
+                const disperser2Id = disperserCodeToId.get(d2Code);
+                if (disperser2Id) {
+                  disperser2Assignments.set(batch.sapOrder, disperser2Id);
                 }
               }
 
@@ -1002,6 +1012,7 @@ export function useImport() {
 
             setResourceAssignments(assignments);
             setDisperserAssignmentsState(disperserAssignments);
+            setDisperser2AssignmentsState(disperser2Assignments);
             const sapDirectCount = result.batches.length - batchesNeedingGenericAssignment.length;
             const assignedCount = assignments.size;
             const unassignedCount = result.batches.length - assignedCount;
@@ -1037,6 +1048,7 @@ export function useImport() {
     setShortageRecords([]);
     setResourceAssignments(new Map());
     setDisperserAssignmentsState(new Map());
+    setDisperser2AssignmentsState(new Map());
   }, []);
 
   const importMutation = useMutation({
@@ -1065,6 +1077,7 @@ export function useImport() {
         plan_date: b.planDate,
         plan_resource_id: resourceAssignments.get(b.sapOrder) ?? null,
         plan_disperser_id: disperserAssignmentsState.get(b.sapOrder) ?? null,
+        plan_disperser2_id: disperser2AssignmentsState.get(b.sapOrder) ?? null,
         batch_volume: b.batchVolume,
         sap_color_group: b.sapColorGroup,
         pack_size: b.packSize,
