@@ -8,6 +8,14 @@ import { BATCH_STATUSES } from "@/lib/constants/statuses";
 import { Eye, Move, CalendarClock } from "lucide-react";
 import type { Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
+/** Derive fill requirement label from fillRequirement field or ipt fallback */
+function getFillLabel(batch: Batch): string {
+  if (batch.fillRequirement && batch.fillRequirement !== "Standard") return batch.fillRequirement;
+  if (batch.ipt === 1) return "Fill within 24hrs";
+  if (batch.ipt === 2) return "Fill within 48hrs";
+  return "Standard";
+}
+
 interface BatchCardProps {
   batch: Batch;
   resource: Resource | undefined;
@@ -27,18 +35,18 @@ interface BatchCardProps {
 function getCardStyle(batch: Batch): { className: string; borderLeftColor?: string } {
   // Grey: nothing available
   if (!batch.rmAvailable && !batch.packagingAvailable)
-    return { className: "border-gray-300 bg-gray-50/60 dark:border-gray-600 dark:bg-gray-800/20" };
+    return { className: "border-gray-300 bg-gray-100 dark:border-gray-600 dark:bg-gray-800/60" };
   // Pink: packaging available but raws are NOT
   if (!batch.rmAvailable)
-    return { className: "border-pink-300 bg-pink-50/60 dark:border-pink-800 dark:bg-pink-950/20" };
+    return { className: "border-pink-400 bg-pink-100 dark:border-pink-700 dark:bg-pink-950/60" };
   // Blue: raws available but packaging is NOT
   if (!batch.packagingAvailable)
-    return { className: "border-blue-300 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-950/20" };
+    return { className: "border-blue-400 bg-blue-100 dark:border-blue-700 dark:bg-blue-950/60" };
 
   // Green: all available
   const cfg = BATCH_STATUSES[batch.status];
   return {
-    className: "border-green-300 bg-green-50/60 dark:border-green-800 dark:bg-green-950/20",
+    className: "border-green-400 bg-green-100 dark:border-green-700 dark:bg-green-950/60",
     borderLeftColor: cfg?.color,
   };
 }
@@ -242,23 +250,28 @@ export function BatchCard({
           </span>
         )}
 
-        {batch.fillRequirement && batch.fillRequirement !== "Standard" && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                className={cn(
-                  "inline-flex items-center rounded-sm border px-1 py-0.5 text-[9px] font-semibold",
-                  batch.fillRequirement.includes("24")
-                    ? "border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
-                    : "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300",
-                )}
-              >
-                {batch.fillRequirement.includes("24") ? "FILL 24H" : "FILL 48H"}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>{batch.fillRequirement}</TooltipContent>
-          </Tooltip>
-        )}
+        {(() => {
+          const fill = getFillLabel(batch);
+          if (fill === "Standard") return null;
+          const is24 = fill.includes("24");
+          return (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-sm border px-1 py-0.5 text-[9px] font-semibold",
+                    is24
+                      ? "border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
+                      : "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300",
+                  )}
+                >
+                  {is24 ? "FILL 24H" : "FILL 48H"}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{fill}</TooltipContent>
+            </Tooltip>
+          );
+        })()}
 
         {batch.qcObservedStage && (
           <Tooltip>

@@ -78,6 +78,14 @@ function formatDate(dateStr: string | null): string {
   }
 }
 
+/** Derive fill requirement label from fillRequirement field or ipt fallback */
+function getFillLabel(batch: { fillRequirement?: string | null; ipt?: number | null }): string {
+  if (batch.fillRequirement && batch.fillRequirement !== "Standard") return batch.fillRequirement;
+  if (batch.ipt === 1) return "Fill within 24hrs";
+  if (batch.ipt === 2) return "Fill within 48hrs";
+  return "Standard";
+}
+
 /** Two-column detail row used in Bulk/Fill info sections */
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -856,22 +864,27 @@ export function BatchDetailSheet({
                         <InfoRow label="Lid Type" value={lidTypes.join(", ")} />
                       ) : null;
                     })()}
-                    <InfoRow
-                      label="Fill Requirement"
-                      value={
-                        <span
-                          className={
-                            batch.fillRequirement?.includes("24")
-                              ? "inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-950 dark:text-red-300"
-                              : batch.fillRequirement?.includes("48")
-                                ? "inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-950 dark:text-orange-300"
-                                : ""
+                    {(() => {
+                      const fill = getFillLabel(batch);
+                      return (
+                        <InfoRow
+                          label="Fill Requirement"
+                          value={
+                            <span
+                              className={
+                                fill.includes("24")
+                                  ? "inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-950 dark:text-red-300"
+                                  : fill.includes("48")
+                                    ? "inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-950 dark:text-orange-300"
+                                    : ""
+                              }
+                            >
+                              {fill}
+                            </span>
                           }
-                        >
-                          {batch.fillRequirement ?? "Standard"}
-                        </span>
-                      }
-                    />
+                        />
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
