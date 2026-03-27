@@ -555,15 +555,21 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
   const fillData = extractFillData(files);
   const requirements = extractRequirements(files);
 
-  // Merge MB52 stock into SOH as fallback — MB52 files with plant columns
-  // are classified as "mb52" not "soh", but still contain valid stock data
+  // MB52 and SOH are the same source data — MB52 files with plant columns
+  // are classified as "mb52" not "soh", so merge MB52 stock into sohData
   for (const [material, mb52] of mb52Data) {
-    if (!sohData.has(material) && mb52.safetyStock != null) {
-      sohData.set(material, {
-        stock: mb52.safetyStock,
-        description: mb52.description ?? "",
-        uom: mb52.uom ?? "KG",
-      });
+    if (mb52.safetyStock != null) {
+      const existing = sohData.get(material);
+      if (existing) {
+        // MB52 aggregates across plants, prefer higher value
+        existing.stock = Math.max(existing.stock, mb52.safetyStock);
+      } else {
+        sohData.set(material, {
+          stock: mb52.safetyStock,
+          description: mb52.description ?? "",
+          uom: mb52.uom ?? "KG",
+        });
+      }
     }
   }
 
