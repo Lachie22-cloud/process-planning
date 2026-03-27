@@ -175,14 +175,35 @@ describe("use-import", () => {
     const deleteMock = vi.fn(() => ({ eq: deleteEq }));
     const insertMock = vi.fn().mockResolvedValue({ error: null });
 
+    // Chainable stub for tables the mutation touches beyond "batches"
+    const chainStub = (): Record<string, unknown> => {
+      const self: Record<string, unknown> = {};
+      const handler = () => self;
+      self.select = vi.fn(() => self);
+      self.insert = vi.fn().mockResolvedValue({ error: null, data: [] });
+      self.upsert = vi.fn().mockResolvedValue({ error: null, data: [] });
+      self.update = vi.fn(() => self);
+      self.delete = vi.fn(() => self);
+      self.eq = vi.fn(() => self);
+      self.in = vi.fn(() => self);
+      self.lt = vi.fn(() => self);
+      self.then = vi.fn((resolve: (v: unknown) => void) => resolve({ data: [], error: null }));
+      return self;
+    };
+
     mockFrom.mockImplementation((table: string) => {
       if (table === "batches") {
         return {
           delete: deleteMock,
           insert: insertMock,
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              in: vi.fn().mockResolvedValue({ data: [], error: null }),
+            })),
+          })),
         };
       }
-      return {};
+      return chainStub();
     });
 
     const client = createTestQueryClient();
