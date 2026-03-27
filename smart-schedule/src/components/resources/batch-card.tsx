@@ -123,11 +123,11 @@ export function BatchCard({
       {/* Row 1: Bulk code (bold, left) + SAP order (bold, right) + action buttons */}
       <div className="flex items-center justify-between gap-1">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="font-mono text-[13px] font-extrabold tracking-tight text-black dark:text-white truncate">
+          <span className="font-mono text-[13px] font-extrabold tracking-tight text-black truncate">
             {batch.bulkCode ?? "\u2014"}
           </span>
           {batch.bulkBatchNumber && (
-            <span className="font-mono text-[13px] font-extrabold tracking-tight text-black dark:text-white truncate">
+            <span className="font-mono text-[13px] font-extrabold tracking-tight text-black truncate">
               {batch.bulkBatchNumber}
             </span>
           )}
@@ -169,32 +169,32 @@ export function BatchCard({
               <TooltipContent>Move to best placement</TooltipContent>
             </Tooltip>
           )}
-          <span className="font-mono text-[13px] font-extrabold tracking-tight text-black dark:text-white">
+          <span className="font-mono text-[13px] font-extrabold tracking-tight text-black">
             {batch.sapOrder}
           </span>
         </div>
       </div>
 
       {/* Row 2: Material description */}
-      <div className="mt-0.5 truncate text-black dark:text-white leading-tight">
+      <div className="mt-0.5 truncate text-black leading-tight">
         {batch.materialDescription ?? "\u2014"}
       </div>
 
       {/* Row 3: Color group */}
       {batch.sapColorGroup && (
-        <div className="mt-0.5 text-[10px] font-medium uppercase text-black dark:text-white">
+        <div className="mt-0.5 text-[10px] font-medium uppercase text-black">
           {batch.sapColorGroup}
         </div>
       )}
 
       {/* Row 4: Volume + resource + pack size */}
       <div className="mt-0.5 flex items-baseline justify-between gap-2">
-        <span className="font-mono tabular-nums font-semibold text-black dark:text-white">
+        <span className="font-mono tabular-nums font-semibold text-black">
           {batch.batchVolume != null
             ? `${batch.batchVolume.toLocaleString()}L`
             : "\u2014"}
         </span>
-        <div className="flex items-center gap-1.5 text-[10px] text-black dark:text-white">
+        <div className="flex items-center gap-1.5 text-[10px] text-black">
           {resource && (
             <span className="truncate max-w-[80px]">{resource.displayName ?? resource.resourceCode}</span>
           )}
@@ -231,6 +231,12 @@ export function BatchCard({
           />
           {statusCfg?.label ?? batch.status}
         </span>
+
+        {batch.status === "Job Complete" && batch.excessPaintComment && (
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200">
+            EXCESS
+          </span>
+        )}
 
         {isOverCapacity && (
           <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200">
