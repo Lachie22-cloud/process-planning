@@ -240,7 +240,7 @@ export function GroupedPotLane({
                       isConflict={
                         resources[0]?.groupCapacity != null
                           ? dayBatches.length > resources[0].groupCapacity
-                          : dayBatches.length > (batchResource ?? resources[0]).maxBatchesPerDay
+                          : dayBatches.length > ((batchResource ?? resources[0])?.maxBatchesPerDay ?? Infinity)
                       }
                       onClick={onBatchClick}
                       onDragStart={onDragStart}
