@@ -9,8 +9,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
 import { useResources } from "@/hooks/use-resources";
 import {
@@ -443,32 +450,34 @@ export function HistoricalAnalytics() {
             <p className="mb-1 text-xs font-medium text-muted-foreground">
               Trunk
             </p>
-            <select
-              value={trunkFilter}
-              onChange={(e) => setTrunkFilter(e.target.value)}
-              className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
-            >
-              <option value="all">All Trunks</option>
-              {allTrunks.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+            <Select value={trunkFilter} onValueChange={setTrunkFilter}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Trunks</SelectItem>
+                {allTrunks.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <p className="mb-1 text-xs font-medium text-muted-foreground">
               Base Type
             </p>
-            <select
-              value={baseFilter}
-              onChange={(e) => setBaseFilter(e.target.value)}
-              className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
-            >
-              <option value="all">All</option>
-              <option value="SOLVENT">Solvent</option>
-              <option value="WATER">Water</option>
-            </select>
+            <Select value={baseFilter} onValueChange={setBaseFilter}>
+              <SelectTrigger className="w-[120px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="SOLVENT">Solvent</SelectItem>
+                <SelectItem value="WATER">Water</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="ml-auto text-xs text-muted-foreground">
             {filteredBatches.length} batches &bull; {allDates.length} days &bull;{" "}
@@ -478,18 +487,15 @@ export function HistoricalAnalytics() {
       </Card>
 
       {/* Chart view selector */}
-      <div className="flex flex-wrap gap-2">
-        {VIEW_BUTTONS.map((v) => (
-          <Button
-            key={v.id}
-            variant={chartView === v.id ? "default" : "outline"}
-            size="sm"
-            onClick={() => setChartView(v.id)}
-          >
-            {v.label}
-          </Button>
-        ))}
-      </div>
+      <Tabs value={chartView} onValueChange={(v) => setChartView(v as ChartView)}>
+        <TabsList>
+          {VIEW_BUTTONS.map((v) => (
+            <TabsTrigger key={v.id} value={v.id}>
+              {v.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
       {/* === MIXER UTILISATION === */}
       {chartView === "utilisation" && (
