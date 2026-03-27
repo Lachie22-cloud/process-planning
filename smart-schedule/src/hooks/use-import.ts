@@ -1377,6 +1377,7 @@ export function useImport() {
           batch_id: string;
           shortage_id: string;
           short_qty: number;
+          required_qty: number;
         }>();
 
         for (const [sapOrder, details] of batchShortageDetailsState) {
@@ -1388,14 +1389,16 @@ export function useImport() {
             const key = `${bId}|${shortageId}`;
             const existing = batchShortageAgg.get(key);
             if (existing) {
-              // Sum shortage across orders for the same batch+material
+              // Sum across orders for the same batch+material
               existing.short_qty += detail.shortQty;
+              existing.required_qty += detail.requiredQty;
             } else {
               batchShortageAgg.set(key, {
                 site_id: site.id,
                 batch_id: bId,
                 shortage_id: shortageId,
                 short_qty: detail.shortQty,
+                required_qty: detail.requiredQty,
               });
             }
           }
@@ -1404,6 +1407,7 @@ export function useImport() {
         const batchShortageRows = [...batchShortageAgg.values()];
 
         if (batchShortageRows.length > 0) {
+          // Try with required_qty first
           const { error: bsError } = await supabase
             .from("batch_material_shortages")
             .upsert(batchShortageRows as never, {
@@ -1411,8 +1415,22 @@ export function useImport() {
               ignoreDuplicates: false,
             });
           if (bsError) {
-            console.error("Failed to upsert batch_material_shortages:", bsError);
-            toast.warning(`Shortage details could not be saved: ${bsError.message}`);
+            // required_qty column may not exist — retry without it
+            const rowsWithoutReqQty = batchShortageRows.map(
+              ({ required_qty: _, ...rest }) => rest,
+            );
+            const { error: retryError } = await supabase
+              .from("batch_material_shortages")
+              .upsert(rowsWithoutReqQty as never, {
+                onConflict: "batch_id,shortage_id",
+                ignoreDuplicates: false,
+              });
+            if (retryError) {
+              console.error("Failed to upsert batch_material_shortages:", retryError);
+              toast.warning(`Shortage details could not be saved: ${retryError.message}`);
+            } else {
+              console.log("[Import] batch_material_shortages upserted %d rows (without required_qty)", rowsWithoutReqQty.length);
+            }
           } else {
             console.log("[Import] batch_material_shortages upserted %d rows", batchShortageRows.length);
           }

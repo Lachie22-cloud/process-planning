@@ -218,13 +218,13 @@ function ShortageTable({
                 </Badge>
               </td>
               <td className="px-2 py-2 text-right font-mono text-xs tabular-nums">
-                {(bs.requiredQty || bs.shortage.requiredQty).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                {(bs.requiredQty > 0 ? bs.requiredQty : (bs.shortage.sohQty + Math.abs(bs.shortQty))).toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </td>
               <td className="px-2 py-2 text-right font-mono text-xs tabular-nums">
                 {bs.shortage.sohQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </td>
               <td className="px-2 py-2 text-right font-mono text-xs tabular-nums font-bold text-red-600">
-                {(bs.shortQty || bs.shortage.shortQty).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                {bs.shortQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </td>
               <td className="px-2 py-2 text-xs text-muted-foreground">
                 {bs.shortage.uom}
