@@ -5,7 +5,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/ui/cn";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
-import { Eye, Move, CalendarClock } from "lucide-react";
+import { Eye, Move, CalendarClock, AlertTriangle } from "lucide-react";
 import type { Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 /** Derive fill requirement label from fillRequirement field or ipt fallback */
@@ -32,22 +32,38 @@ interface BatchCardProps {
   onReschedule?: (batch: Batch) => void;
 }
 
-function getCardStyle(batch: Batch): { className: string; borderLeftColor?: string } {
+/** Returns card background + border classes and left-border color based on material availability & vetting */
+function getCardStyle(batch: Batch): { bgClass: string; borderColor: string } {
+  // Purple overrules everything when not vetted
+  if (batch.vettingStatus === "pending")
+    return {
+      bgClass: "bg-purple-50/70 border-purple-200 dark:bg-purple-950/30 dark:border-purple-800",
+      borderColor: "#a855f7", // purple-500
+    };
+
   // Grey: nothing available
   if (!batch.rmAvailable && !batch.packagingAvailable)
-    return { className: "border-gray-300 bg-gray-100 dark:border-gray-600 dark:bg-gray-800/60" };
-  // Pink: packaging available but raws are NOT
+    return {
+      bgClass: "bg-gray-50 border-gray-200 dark:bg-gray-800/40 dark:border-gray-700",
+      borderColor: "#9ca3af", // gray-400
+    };
+  // Pink: packaging here but raws are NOT
   if (!batch.rmAvailable)
-    return { className: "border-pink-400 bg-pink-100 dark:border-pink-700 dark:bg-pink-950/60" };
-  // Blue: raws available but packaging is NOT
+    return {
+      bgClass: "bg-pink-50/70 border-pink-200 dark:bg-pink-950/30 dark:border-pink-800",
+      borderColor: "#ec4899", // pink-500
+    };
+  // Blue: raws here but packaging is NOT
   if (!batch.packagingAvailable)
-    return { className: "border-blue-400 bg-blue-100 dark:border-blue-700 dark:bg-blue-950/60" };
+    return {
+      bgClass: "bg-blue-50/70 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800",
+      borderColor: "#3b82f6", // blue-500
+    };
 
-  // Green: all available
-  const cfg = BATCH_STATUSES[batch.status];
+  // Green: everything here
   return {
-    className: "border-green-400 bg-green-100 dark:border-green-700 dark:bg-green-950/60",
-    borderLeftColor: cfg?.color,
+    bgClass: "bg-green-50/70 border-green-200 dark:bg-green-950/30 dark:border-green-800",
+    borderColor: "#22c55e", // green-500
   };
 }
 
@@ -80,27 +96,21 @@ export function BatchCard({
     batch.batchVolume < resource.minCapacity;
 
   const cardStyle = getCardStyle(batch);
-
-  const borderLeft = cardStyle.borderLeftColor;
-
-  // Status colour (used in badge, no longer for top accent)
   const statusCfg = BATCH_STATUSES[batch.status];
 
   return (
     <div
       data-batch-id={batch.id}
       className={cn(
-        "group relative cursor-pointer rounded-md border px-2 py-1.5 text-xs transition-all hover:shadow-md",
-        cardStyle.className,
+        "group relative cursor-pointer rounded-lg border px-2.5 py-2 text-xs shadow-sm transition-all hover:shadow-md",
+        cardStyle.bgClass,
         isHighlighted && "ring-2 ring-primary ring-offset-1",
         isSpotlighted && "z-[35] ring-2 ring-amber-400 shadow-[0_0_0_4px_rgba(245,158,11,0.3),0_0_20px_rgba(245,158,11,0.4)] scale-[1.02] animate-pulse",
         isDimmed && "opacity-30",
         isDragging && "opacity-60 shadow-lg",
         draggable && "cursor-grab active:cursor-grabbing",
       )}
-      style={{
-        ...(borderLeft ? { borderLeftWidth: 3, borderLeftColor: borderLeft } : {}),
-      }}
+      style={{ borderLeftWidth: 4, borderLeftColor: cardStyle.borderColor }}
       draggable={draggable}
       onDragStart={(e) => {
         if (!draggable) return;
@@ -114,16 +124,18 @@ export function BatchCard({
         onClick?.(batch);
       }}
     >
-      {/* Top row: SAP order + material code + move buttons */}
+      {/* Row 1: Bulk code (bold, left) + SAP order (right) + action buttons */}
       <div className="flex items-center justify-between gap-1">
-        <span className="font-semibold truncate">{batch.sapOrder}</span>
+        <span className="font-mono text-[13px] font-extrabold tracking-tight text-gray-900 dark:text-gray-100 truncate">
+          {batch.bulkCode ?? batch.sapOrder}
+        </span>
         <div className="flex items-center gap-1 shrink-0">
           {canSchedule && onReschedule && (!batch.rmAvailable || !batch.packagingAvailable) && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="hidden group-hover:inline-flex items-center justify-center h-4 w-4 rounded hover:bg-gray-500/10 text-gray-500 hover:text-gray-600 transition-colors"
+                  className="hidden group-hover:inline-flex items-center justify-center h-4 w-4 rounded hover:bg-gray-500/10 text-gray-400 hover:text-gray-600 transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
                     onReschedule(batch);
@@ -154,54 +166,68 @@ export function BatchCard({
               <TooltipContent>Move to best placement</TooltipContent>
             </Tooltip>
           )}
-          {batch.materialCode && (
-            <span className="font-mono text-[10px] text-muted-foreground">
-              {batch.materialCode}
-            </span>
+          {isOverCapacity && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+              </TooltipTrigger>
+              <TooltipContent>
+                Exceeds capacity ({resource!.maxCapacity?.toLocaleString()}L)
+              </TooltipContent>
+            </Tooltip>
           )}
+          <span className="font-mono text-[10px] text-gray-400 dark:text-gray-500">
+            {batch.bulkCode ? batch.sapOrder : batch.materialCode}
+          </span>
         </div>
       </div>
 
-      {/* Material description */}
-      <div className="mt-0.5 truncate text-muted-foreground leading-tight">
+      {/* Row 2: Material description */}
+      <div className="mt-0.5 truncate text-gray-500 dark:text-gray-400 leading-tight">
         {batch.materialDescription ?? "\u2014"}
       </div>
 
-      {/* Colour code + volume row */}
-      <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-        {batch.sapColorGroup && (
-          <span className="font-medium uppercase">{batch.sapColorGroup}</span>
-        )}
-        <span className="font-mono tabular-nums font-semibold text-foreground">
+      {/* Row 3: Color group */}
+      {batch.sapColorGroup && (
+        <div className="mt-0.5 text-[10px] font-medium uppercase text-gray-400 dark:text-gray-500">
+          {batch.sapColorGroup}
+        </div>
+      )}
+
+      {/* Row 4: Volume (bold) + resource + pack size */}
+      <div className="mt-1 flex items-baseline justify-between gap-2">
+        <span className="font-mono text-sm font-bold tabular-nums text-gray-900 dark:text-gray-100">
           {batch.batchVolume != null
             ? `${batch.batchVolume.toLocaleString()}L`
             : "\u2014"}
         </span>
-        {batch.packSize && (
-          <>
-            <span className="text-muted-foreground/50">&middot;</span>
+        <div className="flex items-center gap-1.5 text-[10px] text-gray-400 dark:text-gray-500">
+          {resource && (
+            <span className="truncate max-w-[80px]">{resource.name}</span>
+          )}
+          {batch.packSize && (
             <span>{batch.packSize}</span>
-          </>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Status & alert indicators */}
-      <div className="mt-1 flex items-center gap-1 flex-wrap">
+      {/* Row 5: Pills */}
+      <div className="mt-1.5 flex items-center gap-1 flex-wrap">
         {!batch.rmAvailable && (
-          <span className="inline-flex items-center rounded-sm border px-1 py-0.5 text-[9px] font-semibold text-pink-600">
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-pink-500 text-white">
             WOM
           </span>
         )}
         {!batch.packagingAvailable && (
-          <span className="inline-flex items-center rounded-sm border px-1 py-0.5 text-[9px] font-semibold text-blue-600">
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-blue-500 text-white">
             WOP
           </span>
         )}
 
-        {/* Status badge — always shown */}
+        {/* Status badge */}
         <span
           className={cn(
-            "inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-[9px] font-semibold leading-none",
+            "inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold leading-none uppercase",
             statusCfg?.bgClass ?? "bg-muted",
             statusCfg?.textClass ?? "text-muted-foreground",
           )}
@@ -214,21 +240,14 @@ export function BatchCard({
         </span>
 
         {isOverCapacity && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex items-center rounded-sm bg-red-100 px-1 py-0.5 text-[9px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">
-                OVER
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              Exceeds capacity ({resource!.maxCapacity?.toLocaleString()}L)
-            </TooltipContent>
-          </Tooltip>
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-red-500 text-white">
+            OVER
+          </span>
         )}
         {isUnderCapacity && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex items-center rounded-sm bg-amber-100 px-1 py-0.5 text-[9px] font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-500 text-white">
                 UNDER
               </span>
             </TooltipTrigger>
@@ -240,15 +259,11 @@ export function BatchCard({
 
         {/* Vetting status */}
         {batch.vettingStatus === "approved" && (
-          <span className="inline-flex items-center rounded-sm border border-emerald-300 px-1 py-0.5 text-[9px] font-semibold text-emerald-700">
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-emerald-500 text-white">
             VETTED
           </span>
         )}
-        {batch.vettingStatus === "pending" && (
-          <span className="inline-flex items-center rounded-sm border border-amber-300 px-1 py-0.5 text-[9px] font-semibold text-amber-700">
-            NOT VETTED
-          </span>
-        )}
+        {/* Not vetted is indicated by purple left border */}
 
         {(() => {
           const fill = getFillLabel(batch);
@@ -259,13 +274,11 @@ export function BatchCard({
               <TooltipTrigger asChild>
                 <span
                   className={cn(
-                    "inline-flex items-center rounded-sm border px-1 py-0.5 text-[9px] font-semibold",
-                    is24
-                      ? "border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
-                      : "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300",
+                    "inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase text-white",
+                    is24 ? "bg-red-500" : "bg-orange-500",
                   )}
                 >
-                  {is24 ? "FILL 24H" : "FILL 48H"}
+                  {is24 ? "24hr" : "48hr"}
                 </span>
               </TooltipTrigger>
               <TooltipContent>{fill}</TooltipContent>
@@ -282,6 +295,18 @@ export function BatchCard({
               QC Observation: {batch.qcObservedStage}
             </TooltipContent>
           </Tooltip>
+        )}
+
+        {/* Observation & EBR pills */}
+        {batch.observationRequired && (
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-purple-500 text-white">
+            OBS
+          </span>
+        )}
+        {batch.ebrBatch && (
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-indigo-500 text-white">
+            EBR
+          </span>
         )}
       </div>
     </div>
