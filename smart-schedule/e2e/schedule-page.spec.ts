@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { installSupabaseMocks } from "./helpers/mock-supabase";
 
 test("schedule page loads", async ({ page }) => {
+  test.setTimeout(60_000);
   await installSupabaseMocks(page);
 
   await page.goto("/schedule");

@@ -1311,6 +1311,47 @@ export function useImport() {
         }
       }
 
+      // Clean up stale shortage data before re-inserting current shortages.
+      // Delete all batch_material_shortages for the imported batches so rows
+      // from materials that are no longer short don't persist.
+      const importedSapOrders = data.map((b) => b.sapOrder);
+      const { data: importedBatchRows } = await supabase
+        .from("batches")
+        .select("id")
+        .eq("site_id", site.id)
+        .in("sap_order", importedSapOrders);
+      const importedBatchIds = (importedBatchRows ?? []).map((r: Record<string, unknown>) => r.id as string);
+      if (importedBatchIds.length > 0) {
+        await supabase
+          .from("batch_material_shortages")
+          .delete()
+          .eq("site_id", site.id)
+          .in("batch_id", importedBatchIds);
+      }
+
+      // Delete material_shortages that are no longer short (will be re-created if still short)
+      const currentShortMaterials = new Set(shortageRecords.map((s) => s.materialCode));
+      const { data: existingShortages } = await supabase
+        .from("material_shortages")
+        .select("id, material_code")
+        .eq("site_id", site.id);
+      const staleIds = (existingShortages ?? [])
+        .filter((r: Record<string, unknown>) => !currentShortMaterials.has(r.material_code as string))
+        .map((r: Record<string, unknown>) => r.id as string);
+      if (staleIds.length > 0) {
+        // Delete batch links for stale shortages first (FK constraint)
+        await supabase
+          .from("batch_material_shortages")
+          .delete()
+          .eq("site_id", site.id)
+          .in("shortage_id", staleIds);
+        await supabase
+          .from("material_shortages")
+          .delete()
+          .eq("site_id", site.id)
+          .in("id", staleIds);
+      }
+
       // Upsert material shortages from BOM/SOH analysis
       if (shortageRecords.length > 0) {
         const shortageRows = shortageRecords.map((s) => ({
