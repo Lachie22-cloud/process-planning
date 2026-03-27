@@ -94,9 +94,9 @@ const CHART_FONT = {
   size: 12,
 };
 
-function baseChartOptions<T extends "line" | "bar">(
+function baseChartOptions(
   title: string,
-): Partial<ChartOptions<T>> {
+): ChartOptions<"bar"> & ChartOptions<"line"> {
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -129,7 +129,7 @@ function baseChartOptions<T extends "line" | "bar">(
         beginAtZero: true,
       },
     },
-  } as Partial<ChartOptions<T>>;
+  };
 }
 
 // ── Types ─────────────────────────────────────────────────────
@@ -430,8 +430,11 @@ export function HistoricalAnalytics() {
       const jsDay = d.getDay(); // 0=Sun 1=Mon..5=Fri 6=Sat
       if (jsDay >= 1 && jsDay <= 5) {
         const idx = jsDay - 1; // 0=Mon..4=Fri
-        dayBuckets[idx].volume += b.batchVolume ?? 0;
-        dayBuckets[idx].batches++;
+        const bucket = dayBuckets[idx];
+        if (bucket) {
+          bucket.volume += b.batchVolume ?? 0;
+          bucket.batches++;
+        }
         weekSet.add(getWeekEnding(b.planDate));
       }
     }
@@ -503,7 +506,7 @@ export function HistoricalAnalytics() {
   };
 
   const volumeTrendOptions: ChartOptions<"line"> = {
-    ...baseChartOptions<"line">("Volume & Batch Trend by Week"),
+    ...baseChartOptions("Volume & Batch Trend by Week"),
     scales: {
       x: { ticks: { font: CHART_FONT }, grid: { color: "rgba(0,0,0,0.04)" } },
       y: {
@@ -533,7 +536,7 @@ export function HistoricalAnalytics() {
   };
 
   const trunkTrendOptions: ChartOptions<"bar"> = {
-    ...baseChartOptions<"bar">("Volume by Trunk per Week"),
+    ...baseChartOptions("Volume by Trunk per Week"),
     scales: {
       x: { stacked: true, ticks: { font: CHART_FONT }, grid: { color: "rgba(0,0,0,0.04)" } },
       y: {
@@ -561,10 +564,10 @@ export function HistoricalAnalytics() {
   };
 
   const mixerBarOptions: ChartOptions<"bar"> = {
-    ...baseChartOptions<"bar">("Volume per Mixer"),
+    ...baseChartOptions("Volume per Mixer"),
     indexAxis: "y" as const,
     plugins: {
-      ...baseChartOptions<"bar">("Volume per Mixer").plugins,
+      ...baseChartOptions("Volume per Mixer").plugins,
       legend: { display: false },
     },
     scales: {
@@ -602,7 +605,7 @@ export function HistoricalAnalytics() {
   };
 
   const disperserBarOptions: ChartOptions<"bar"> = {
-    ...baseChartOptions<"bar">("Disperser Usage: Batches & PMC Load"),
+    ...baseChartOptions("Disperser Usage: Batches & PMC Load"),
     scales: {
       x: { ticks: { font: CHART_FONT }, grid: { color: "rgba(0,0,0,0.04)" } },
       y: { beginAtZero: true, ticks: { font: CHART_FONT }, grid: { color: "rgba(0,0,0,0.06)" } },
@@ -641,7 +644,7 @@ export function HistoricalAnalytics() {
   };
 
   const throughputOptions: ChartOptions<"line"> = {
-    ...baseChartOptions<"line">("Daily Throughput Trend"),
+    ...baseChartOptions("Daily Throughput Trend"),
     scales: {
       x: { ticks: { font: CHART_FONT }, grid: { color: "rgba(0,0,0,0.04)" } },
       y: {
@@ -682,7 +685,7 @@ export function HistoricalAnalytics() {
   };
 
   const dayOfWeekOptions: ChartOptions<"bar"> = {
-    ...baseChartOptions<"bar">("Average Production by Day of Week"),
+    ...baseChartOptions("Average Production by Day of Week"),
     scales: {
       x: { ticks: { font: CHART_FONT }, grid: { display: false } },
       y: {
@@ -722,9 +725,9 @@ export function HistoricalAnalytics() {
   };
 
   const batchSizeOptions: ChartOptions<"bar"> = {
-    ...baseChartOptions<"bar">("Batch Size Distribution"),
+    ...baseChartOptions("Batch Size Distribution"),
     plugins: {
-      ...baseChartOptions<"bar">("Batch Size Distribution").plugins,
+      ...baseChartOptions("Batch Size Distribution").plugins,
       legend: { display: false },
     },
     scales: {
@@ -770,7 +773,7 @@ export function HistoricalAnalytics() {
   };
 
   const completionTrendOptions: ChartOptions<"line"> = {
-    ...baseChartOptions<"line">("Completion Rate & Material Issues"),
+    ...baseChartOptions("Completion Rate & Material Issues"),
     scales: {
       x: { ticks: { font: CHART_FONT }, grid: { color: "rgba(0,0,0,0.04)" } },
       y: {
