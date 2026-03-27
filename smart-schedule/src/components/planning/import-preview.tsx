@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Upload, AlertTriangle, RefreshCw } from "lucide-react";
+import { Loader2, Upload, AlertTriangle } from "lucide-react";
 import type { ImportBatch, ImportMode } from "@/hooks/use-import";
 
 interface ImportPreviewProps {
@@ -53,65 +53,8 @@ export function ImportPreview({
 }: ImportPreviewProps) {
   const [mode, setMode] = useState<ImportMode>("merge");
 
-  // SOH-only update: show a simple card without batch preview
-  if (sohOnly) {
-    return (
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">
-              SOH Update
-            </CardTitle>
-            <Badge variant="secondary">Stock on Hand only</Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Updates stock levels on all existing batches using the uploaded SOH / MB52 data.
-            Batch schedule, vetting status, and fill orders will not be changed.
-          </p>
-
-          {importError && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                SOH update failed: {importError.message}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {importSuccess && (
-            <Alert>
-              <AlertDescription>
-                SOH data updated successfully.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="flex justify-end">
-            <Button
-              onClick={() => onImport({ data: [], mode: "soh_update" })}
-              disabled={isImporting}
-            >
-              {isImporting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Updating SOH…
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Update SOH
-                </>
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (batches.length === 0) return null;
+  // SOH-only mode is handled by FileUpload — nothing to show here
+  if (sohOnly || batches.length === 0) return null;
 
   const withDates = batches.filter((b) => b.planDate);
   const withVolume = batches.filter((b) => b.batchVolume != null);

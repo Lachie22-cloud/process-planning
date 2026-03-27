@@ -927,7 +927,10 @@ export function useImport() {
           }
         }
         if (parsed.length > 0) {
-          const allFiles = [...files, ...parsed];
+          // Replace existing files of the same type (e.g. new SOH replaces old SOH)
+          const newTypes = new Set(parsed.map((f) => f.type));
+          const kept = files.filter((f) => !newTypes.has(f.type));
+          const allFiles = [...kept, ...parsed];
           setFiles(allFiles);
 
           // Auto-process if we have bulk data
