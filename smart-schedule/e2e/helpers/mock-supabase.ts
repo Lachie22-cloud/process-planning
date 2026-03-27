@@ -658,8 +658,6 @@ export async function installSupabaseMocks(page: Page) {
       if (joinMatch) {
         const joinTable = joinMatch[1];
         const joinRows = tables[joinTable] ?? [];
-        // Foreign key convention: shortage_id -> material_shortages.id
-        const fkCol = joinTable.replace(/s$/, "").replace(/_/g, "_") + "_id";
         // Try common FK patterns
         const fkCandidates = [
           `${joinTable.replace(/s$/, "_id")}`, // material_shortages -> material_shortage_id
