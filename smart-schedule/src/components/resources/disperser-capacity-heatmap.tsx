@@ -79,7 +79,18 @@ export function DisperserCapacityHeatmap({
               ((b.planDisperserId != null && memberIds.has(b.planDisperserId)) ||
                (b.planDisperser2Id != null && memberIds.has(b.planDisperser2Id))),
           )
-          .reduce((sum, b) => sum + Math.max(b.premixCount ?? 0, 1), 0);
+          .reduce((sum, b) => {
+            // Count each dispersion stage's PMC separately so batches with two
+            // dispersers in the same group are counted once per stage.
+            let stagePmc = 0;
+            if (b.planDisperserId != null && memberIds.has(b.planDisperserId)) {
+              stagePmc += Math.max(b.premixCount ?? 0, 1);
+            }
+            if (b.planDisperser2Id != null && memberIds.has(b.planDisperser2Id)) {
+              stagePmc += Math.max(b.premixCount2 ?? 0, 1);
+            }
+            return sum + stagePmc;
+          }, 0);
         dateMap.set(date, total);
       }
       map.set(groupName, dateMap);
@@ -105,10 +116,14 @@ export function DisperserCapacityHeatmap({
         );
 
         const batchCount = dayBatches.length;
-        const pmcTotal = dayBatches.reduce(
-          (sum, b) => sum + Math.max(b.premixCount ?? 0, 1),
-          0,
-        );
+        const pmcTotal = dayBatches.reduce((sum, b) => {
+          // Use the premix count specific to this disperser's stage:
+          // disp1 → premixCount, disp2 → premixCount2
+          const pmc = b.planDisperser2Id === disperser.id && b.planDisperserId !== disperser.id
+            ? Math.max(b.premixCount2 ?? 0, 1)
+            : Math.max(b.premixCount ?? 0, 1);
+          return sum + pmc;
+        }, 0);
 
         let cap: number;
         let pct: number;

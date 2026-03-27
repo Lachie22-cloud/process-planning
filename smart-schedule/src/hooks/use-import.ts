@@ -50,6 +50,7 @@ export interface ImportBatch {
   sapDisperser1: string | null;
   sapDisperser2: string | null;
   sapPreMixCount: number | null;
+  sapPreMixCount2: number | null;
   sapIpt: number | null;
   sapFillOrder: string | null;
   sapFillQuantity: number | null;
@@ -188,6 +189,24 @@ function rowNumeric(row: ParsedRow, headers: string[], ...keywords: string[]): n
   const col = findColumn(headers, ...keywords);
   if (!col) return null;
   const val = row[col];
+  if (val == null || val === "") return null;
+  const n = typeof val === "number" ? val : parseFloat(String(val));
+  return isNaN(n) ? null : n;
+}
+
+/**
+ * Reads a numeric value from the column immediately following anchorKeyword.
+ * Used to read the second "Pre Mix Count" column that appears after "Dispersion 2 Resource",
+ * since both premix count columns may share the same header name.
+ */
+function rowNumericAfter(row: ParsedRow, headers: string[], anchorKeyword: string): number | null {
+  const anchorCol = findColumn(headers, anchorKeyword);
+  if (!anchorCol) return null;
+  const anchorIdx = headers.indexOf(anchorCol);
+  if (anchorIdx < 0 || anchorIdx + 1 >= headers.length) return null;
+  const nextCol = headers[anchorIdx + 1];
+  if (!nextCol) return null;
+  const val = row[nextCol];
   if (val == null || val === "") return null;
   const n = typeof val === "number" ? val : parseFloat(String(val));
   return isNaN(n) ? null : n;
@@ -702,6 +721,8 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     const sapDisperser1 = rowValue(row, headers, "dispersion 1 resource", "disperser 1") ?? null;
     const sapDisperser2 = rowValue(row, headers, "dispersion 2 resource", "disperser 2") ?? null;
     const sapPreMixCount = rowNumeric(row, headers, "pre mix count", "pre mix", "premix") ?? null;
+    // Second premix count follows the "Dispersion 2 Resource" column (both columns may share the same header name)
+    const sapPreMixCount2 = rowNumericAfter(row, headers, "dispersion 2 resource") ?? null;
     const sapIpt = rowNumeric(row, headers, "ipt") ?? null;
     // Fill order linking from Fill Data file (first fill used for legacy single-value fields)
     const sapFillOrder = firstFill?.fillOrder ?? rowValue(row, headers, "fill order") ?? null;
@@ -736,6 +757,7 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
       sapDisperser1,
       sapDisperser2,
       sapPreMixCount,
+      sapPreMixCount2,
       sapIpt,
       sapFillOrder,
       sapFillQuantity,
@@ -1125,6 +1147,7 @@ export function useImport() {
         forecast: b.forecast,
         material_shortage: b.materialShortage,
         premix_count: b.sapPreMixCount ?? 0,
+        premix_count_2: b.sapPreMixCount2 ?? 0,
         ipt: b.sapIpt,
       });
 

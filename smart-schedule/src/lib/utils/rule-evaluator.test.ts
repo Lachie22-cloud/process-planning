@@ -41,6 +41,7 @@ function makeBatch(overrides: Partial<Batch> = {}): Batch {
     vettingComment: null,
     bulkBatchNumber: null,
     premixCount: 0,
+    premixCount2: 0,
     ipt: null,
     fillRequirement: null,
     observationRequired: false,

@@ -53,6 +53,7 @@ export interface Batch {
   vettingComment: string | null;
   bulkBatchNumber: string | null;
   premixCount: number;
+  premixCount2: number;
   ipt: number | null;
   fillRequirement: string | null;
   observationRequired: boolean;
