@@ -16,7 +16,7 @@ import { PermissionGate } from "@/components/shared/permission-gate";
 import { ShieldCheck, CalendarCheck, ArrowUpDown } from "lucide-react";
 import {
   useAllBatchShortages,
-  useUpdateShortageEta,
+  useUpdateBatchShortageEta,
 } from "@/hooks/use-material-shortages";
 import type { BatchShortageRow } from "@/hooks/use-material-shortages";
 
@@ -65,7 +65,7 @@ function ShortageTable({
   rows: BatchShortageRow[];
   materialType: "RM" | "PKG";
 }) {
-  const updateEta = useUpdateShortageEta();
+  const updateEta = useUpdateBatchShortageEta();
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filterMaterial, setFilterMaterial] = useState("");
@@ -73,15 +73,6 @@ function ShortageTable({
   const [sortKey, setSortKey] = useState<SortKey>("planDate");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [bulkEta, setBulkEta] = useState("");
-
-  // Unique shortage IDs for each selected batch-shortage row (for ETA update)
-  const selectedShortageIds = useMemo(() => {
-    const ids = new Set<string>();
-    rows.forEach((r) => {
-      if (selected.has(r.id)) ids.add(r.shortageId);
-    });
-    return ids;
-  }, [selected, rows]);
 
   const filtered = useMemo(() => {
     let list = rows;
@@ -128,8 +119,8 @@ function ShortageTable({
 
   function applyBulkEta() {
     if (!bulkEta) return;
-    selectedShortageIds.forEach((id) => {
-      updateEta.mutate({ shortageId: id, eta: bulkEta });
+    selected.forEach((batchShortageId) => {
+      updateEta.mutate({ batchShortageId, eta: bulkEta });
     });
     setSelected(new Set());
     setBulkEta("");
@@ -223,7 +214,7 @@ function ShortageTable({
                 <SortButton label="Short" sortKey="shortQty" active={sortKey} dir={sortDir} onClick={toggleSort} />
               </TableHead>
               <TableHead className="w-[40px] py-2 px-2">UOM</TableHead>
-              <TableHead className="w-[120px] py-2 px-2">ETA</TableHead>
+              <TableHead className="w-[110px] py-2 px-2">ETA</TableHead>
               <TableHead className="w-[72px] py-2 px-2">Override</TableHead>
             </TableRow>
           </TableHeader>
@@ -276,19 +267,21 @@ function ShortageTable({
                       {row.shortQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="py-1.5 px-2 w-[40px] text-muted-foreground">{row.uom}</TableCell>
-                    <TableCell className="py-1.5 px-2 w-[120px]">
+                    <TableCell className="py-1.5 px-2 w-[110px]">
                       <PermissionGate
                         permission="planning.vet"
                         fallback={
-                          <span className="text-xs text-muted-foreground">{row.eta ?? "—"}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {row.eta ? formatDate(row.eta) : "—"}
+                          </span>
                         }
                       >
                         <Input
                           type="date"
-                          className="h-6 w-full text-xs"
+                          className="h-6 w-[100px] text-[11px] px-1"
                           defaultValue={row.eta ?? ""}
                           onBlur={(e) =>
-                            updateEta.mutate({ shortageId: row.shortageId, eta: e.target.value || null })
+                            updateEta.mutate({ batchShortageId: row.id, eta: e.target.value || null })
                           }
                         />
                       </PermissionGate>

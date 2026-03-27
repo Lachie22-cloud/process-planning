@@ -39,7 +39,7 @@ import { COMMENT_REQUIRED_STATUSES } from "@/types/batch";
 import type { BatchStatus, Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
-import { useBatchShortages, useOverrideBatchShortage, useUpdateShortageEta } from "@/hooks/use-material-shortages";
+import { useBatchShortages, useOverrideBatchShortage, useUpdateBatchShortageEta } from "@/hooks/use-material-shortages";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -182,7 +182,7 @@ function ShortageTable({
   shortages: (import("@/types/material-shortage").BatchMaterialShortage & { shortage: import("@/types/material-shortage").MaterialShortage })[];
   canOverride: boolean;
   onOverride: (target: { id: string; materialCode: string; shortQty: number; uom: string }) => void;
-  onEtaChange: (shortageId: string, value: string) => void;
+  onEtaChange: (batchShortageId: string, value: string) => void;
 }) {
   if (shortages.length === 0) return null;
 
@@ -229,14 +229,13 @@ function ShortageTable({
                 {canOverride ? (
                   <Input
                     type="date"
-                    className="h-7 w-[120px] text-xs px-1.5"
-                    defaultValue={bs.shortage.eta ?? ""}
-                    onBlur={(e) => onEtaChange(bs.shortage.id, e.target.value)}
-                    placeholder="dd/mm/yyyy"
+                    className="h-7 w-[110px] text-[11px] px-1"
+                    defaultValue={bs.eta ?? bs.shortage.eta ?? ""}
+                    onBlur={(e) => onEtaChange(bs.id, e.target.value)}
                   />
                 ) : (
                   <span className="text-xs text-muted-foreground">
-                    {bs.shortage.eta ? format(new Date(bs.shortage.eta), "d MMM yyyy") : "—"}
+                    {(bs.eta ?? bs.shortage.eta) ? format(new Date((bs.eta ?? bs.shortage.eta)!), "d MMM yyyy") : "—"}
                   </span>
                 )}
               </td>
@@ -251,7 +250,7 @@ function ShortageTable({
 function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; canOverride: boolean }) {
   const { data: batchShortages = [] } = useBatchShortages(batch.id);
   const overrideMutation = useOverrideBatchShortage();
-  const etaMutation = useUpdateShortageEta();
+  const etaMutation = useUpdateBatchShortageEta();
   const [overrideTarget, setOverrideTarget] = useState<{ id: string; materialCode: string; shortQty: number; uom: string } | null>(null);
   const [overrideComment, setOverrideComment] = useState("");
   const [sohConfirmed, setSohConfirmed] = useState(false);
@@ -279,8 +278,8 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
     );
   };
 
-  const handleEtaChange = (shortageId: string, value: string) => {
-    etaMutation.mutate({ shortageId, eta: value || null });
+  const handleEtaChange = (batchShortageId: string, value: string) => {
+    etaMutation.mutate({ batchShortageId, eta: value || null });
   };
 
   return (

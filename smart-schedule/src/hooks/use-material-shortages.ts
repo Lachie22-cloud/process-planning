@@ -208,6 +208,43 @@ export function useOverrideBatchShortage() {
   });
 }
 
+/** Update ETA on a specific batch shortage row */
+export function useUpdateBatchShortageEta() {
+  const { site, user } = useCurrentSite();
+  const { hasPermission } = usePermissions();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ batchShortageId, eta }: { batchShortageId: string; eta: string | null }) => {
+      if (!site) throw new Error("No site selected");
+      if (!hasPermission("planning.vet")) {
+        throw new Error("You do not have permission to update shortage ETA");
+      }
+
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("batch_material_shortages")
+        .update({ eta } as never)
+        .eq("id", batchShortageId)
+        .eq("site_id", site.id);
+      if (error) throw error;
+
+      await supabase.from("audit_log").insert({
+        site_id: site.id,
+        action: "batch_shortage.eta_updated",
+        details: { batchShortageId, eta },
+        performed_by: user?.id ?? null,
+        performed_at: now,
+      } as never);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all_batch_material_shortages"] });
+      queryClient.invalidateQueries({ queryKey: ["batch_material_shortages"] });
+      queryClient.invalidateQueries({ queryKey: ["batches"] });
+    },
+  });
+}
+
 export interface BatchShortageRow {
   /** batch_material_shortages id */
   id: string;
@@ -225,6 +262,7 @@ export interface BatchShortageRow {
   materialDesc: string | null;
   materialType: "RM" | "PKG";
   uom: string;
+  /** batch-level ETA (takes priority), falls back to material-level */
   eta: string | null;
   shortageOverride: boolean;
   // from batches
@@ -289,7 +327,7 @@ export function useAllBatchShortages() {
           materialDesc: (ms?.material_desc as string | null) ?? null,
           materialType: ms?.material_type as "RM" | "PKG",
           uom: ms?.uom as string,
-          eta: (ms?.eta as string | null) ?? null,
+          eta: (r.eta as string | null) ?? (ms?.eta as string | null) ?? null,
           shortageOverride: (ms?.planner_override as boolean) ?? false,
           sapOrder: (b?.sap_order as string) ?? "",
           bulkCode: (b?.bulk_code as string | null) ?? null,

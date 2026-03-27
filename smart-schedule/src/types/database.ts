@@ -79,6 +79,7 @@ export interface DatabaseRow {
     vetting_comment: string | null;
     bulk_batch_number: string | null;
     premix_count: number;
+    premix_count_2: number;
     ipt: number | null;
     fill_requirement: string | null;
     observation_required: boolean;
@@ -382,6 +383,7 @@ export interface DatabaseRow {
     shortage_id: string;
     required_qty: number;
     short_qty: number;
+    eta: string | null;
     planner_override: boolean;
     override_by: string | null;
     override_at: string | null;
