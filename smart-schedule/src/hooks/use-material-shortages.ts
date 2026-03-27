@@ -240,23 +240,40 @@ export function useAllBatchShortages() {
     queryKey: ["all_batch_material_shortages", site?.id],
     queryFn: async () => {
       if (!site) return [];
+
+      // Step 1: fetch batch shortages with joined batch + material shortage
       const { data, error } = await supabase
         .from("batch_material_shortages")
-        .select(
-          "*, material_shortages(*), batches(sap_order, bulk_code, material_description, plan_date), linked_fill_orders(fill_order)",
-        )
+        .select("*, material_shortages(*), batches(id, sap_order, bulk_code, material_description, plan_date)")
         .eq("site_id", site.id)
         .lt("short_qty", 0)
         .order("short_qty", { ascending: true });
       if (error) throw error;
+
+      // Step 2: for PKG shortages, fetch fill orders keyed by batch_id
+      const batchIds = [...new Set((data ?? []).map((r) => r.batch_id as string))];
+      const fillOrdersByBatchId: Record<string, string | null> = {};
+      if (batchIds.length > 0) {
+        const { data: fills } = await supabase
+          .from("linked_fill_orders")
+          .select("batch_id, fill_order")
+          .in("batch_id", batchIds);
+        (fills ?? []).forEach((f: Record<string, unknown>) => {
+          const bid = f.batch_id as string;
+          if (!fillOrdersByBatchId[bid]) {
+            fillOrdersByBatchId[bid] = (f.fill_order as string | null) ?? null;
+          }
+        });
+      }
+
       return (data ?? []).map((r: Record<string, unknown>) => {
         const ms = r.material_shortages as Record<string, unknown>;
         const b = r.batches as Record<string, unknown> | null;
-        const fills = r.linked_fill_orders as Array<Record<string, unknown>> | null;
+        const batchId = r.batch_id as string;
         return {
           id: r.id as string,
           shortageId: r.shortage_id as string,
-          batchId: r.batch_id as string,
+          batchId,
           siteId: r.site_id as string,
           shortQty: r.short_qty as number,
           requiredQty: (r.required_qty as number) ?? 0,
@@ -270,11 +287,11 @@ export function useAllBatchShortages() {
           uom: ms?.uom as string,
           eta: (ms?.eta as string | null) ?? null,
           shortageOverride: (ms?.planner_override as boolean) ?? false,
-          sapOrder: b?.sap_order as string,
+          sapOrder: (b?.sap_order as string) ?? "",
           bulkCode: (b?.bulk_code as string | null) ?? null,
           materialDescription: (b?.material_description as string | null) ?? null,
           planDate: (b?.plan_date as string | null) ?? null,
-          fillOrder: fills && fills.length > 0 ? ((fills[0]?.fill_order as string | null) ?? null) : null,
+          fillOrder: fillOrdersByBatchId[batchId] ?? null,
         };
       });
     },
