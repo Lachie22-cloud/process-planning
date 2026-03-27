@@ -64,7 +64,7 @@ export interface ImportBatch {
   recipient: boolean;
 }
 
-export type ImportMode = "replace" | "update" | "merge";
+export type ImportMode = "replace" | "update" | "merge" | "soh_update";
 
 function detectFileType(headers: string[]): SapFileType {
   const set = new Set(headers.map((h) => h.toLowerCase().trim()));
@@ -1115,8 +1115,124 @@ export function useImport() {
     }: {
       data: ImportBatch[];
       mode: ImportMode;
-    }) => {
+    }): Promise<{ mode: ImportMode }> => {
       if (!site) throw new Error("No site selected");
+
+      // ---- SOH-only update: refresh stock fields on existing batches ----
+      if (mode === "soh_update") {
+        // Extract SOH and MB52 data from the uploaded files
+        const sohData = extractSohData(files);
+        const mb52Data = extractMb52Data(files);
+        // Merge MB52 stock into sohData (same logic as processFilesToBatches)
+        for (const [material, mb52] of mb52Data) {
+          if (mb52.safetyStock != null) {
+            const existing = sohData.get(material);
+            if (existing) {
+              existing.stock = Math.max(existing.stock, mb52.safetyStock);
+            } else {
+              sohData.set(material, {
+                stock: mb52.safetyStock,
+                description: mb52.description ?? "",
+                uom: mb52.uom ?? "KG",
+              });
+            }
+          }
+        }
+
+        if (sohData.size === 0) throw new Error("No SOH data found in uploaded files");
+
+        // Fetch all existing batches for this site
+        const { data: existingBatches, error: fetchErr } = await supabase
+          .from("batches")
+          .select("id, sap_order, material_code, bulk_code")
+          .eq("site_id", site.id);
+        if (fetchErr) throw fetchErr;
+        if (!existingBatches || existingBatches.length === 0) {
+          throw new Error("No existing batches to update — upload Bulk Data first");
+        }
+
+        // Update safety_stock on each batch by matching material_code to SOH data
+        let updatedCount = 0;
+        for (const batch of existingBatches) {
+          const materialCode = batch.material_code as string | null;
+          const bulkCode = batch.bulk_code as string | null;
+          const sohEntry = lookupByMaterial(sohData, materialCode, bulkCode);
+          if (sohEntry) {
+            const { error: updateErr } = await supabase
+              .from("batches")
+              .update({ safety_stock: sohEntry.stock } as never)
+              .eq("id", batch.id as string);
+            if (updateErr) {
+              console.error(`Failed to update SOH for batch ${batch.sap_order}:`, updateErr);
+            } else {
+              updatedCount++;
+            }
+          }
+        }
+
+        // Recalculate shortages using existing requirements from linked_fill_orders
+        // Fetch all linked fill orders with their components
+        const { data: fillOrderRows } = await supabase
+          .from("linked_fill_orders")
+          .select("batch_id, fill_order, components")
+          .eq("site_id", site.id);
+
+        // Fetch all batches with their requirements context
+        const { data: allBatches } = await supabase
+          .from("batches")
+          .select("id, sap_order, material_code, bulk_code")
+          .eq("site_id", site.id);
+
+        // Build a requirements-by-material map from existing fill order components
+        // and recalculate material_shortage flag on each batch
+        const batchMaterialMap = new Map<string, string[]>();
+        for (const fo of (fillOrderRows ?? [])) {
+          const components = (fo.components as string[] | null) ?? [];
+          const batchId = fo.batch_id as string;
+          const existing = batchMaterialMap.get(batchId) ?? [];
+          existing.push(...components);
+          batchMaterialMap.set(batchId, existing);
+        }
+
+        // Update material_shortage flag: batch is short if any of its component
+        // materials have SOH = 0 (simple heuristic when we don't have full BOM qty)
+        for (const batch of (allBatches ?? [])) {
+          const bId = batch.id as string;
+          const components = batchMaterialMap.get(bId) ?? [];
+          const materialCode = batch.material_code as string | null;
+          const bulkCode = batch.bulk_code as string | null;
+
+          // Check if bulk material itself has stock
+          const bulkSoh = lookupByMaterial(sohData, materialCode, bulkCode);
+          const bulkHasStock = bulkSoh ? bulkSoh.stock > 0 : true; // assume OK if not in SOH
+
+          // Check component materials
+          let componentShort = false;
+          for (const comp of components) {
+            const compSoh = sohData.get(comp);
+            if (compSoh && compSoh.stock <= 0) {
+              componentShort = true;
+              break;
+            }
+          }
+
+          const materialShortage = !bulkHasStock || componentShort;
+          const rmAvailable = bulkHasStock;
+          const packagingAvailable = !componentShort;
+
+          await supabase
+            .from("batches")
+            .update({
+              material_shortage: materialShortage,
+              rm_available: rmAvailable,
+              packaging_available: packagingAvailable,
+            } as never)
+            .eq("id", bId);
+        }
+
+        toast.success(`SOH updated on ${updatedCount} of ${existingBatches.length} batches`);
+        return { mode }; // Skip normal import flow
+      }
 
       /** Derive vetting status from Mat.Grping / Recipient columns */
       const deriveVettingStatus = (b: ImportBatch): string => {
@@ -1539,13 +1655,18 @@ export function useImport() {
           console.warn("Shortage records found but no batch shortage rows were generated. batchShortageDetailsState size:", batchShortageDetailsState.size);
         }
       }
+      return { mode };
     },
-    onSuccess: () => {
-      if (site && shortageRecords.length > 0) {
-        const shortCount = shortageRecords.length;
-        toast.info(
-          `${shortCount} material shortage${shortCount !== 1 ? "s" : ""} identified`,
-        );
+    onSuccess: (result) => {
+      // SOH-only update already shows its own toast
+      if (result?.mode !== "soh_update") {
+        if (site && shortageRecords.length > 0) {
+          const shortCount = shortageRecords.length;
+          toast.info(
+            `${shortCount} material shortage${shortCount !== 1 ? "s" : ""} identified`,
+          );
+        }
+        toast.success("Import completed successfully");
       }
 
       queryClient.invalidateQueries({ queryKey: ["batches"] });
@@ -1553,7 +1674,6 @@ export function useImport() {
       queryClient.invalidateQueries({ queryKey: ["batch_material_shortages"] });
       queryClient.invalidateQueries({ queryKey: ["fill_orders_week"] });
       clearFiles();
-      toast.success("Import completed successfully");
     },
     onError: (err) => {
       toast.error(
@@ -1562,9 +1682,15 @@ export function useImport() {
     },
   });
 
+  // Detect SOH-only mode: files present, has SOH/MB52, but no bulk data
+  const hasBulk = files.some((f) => f.type === "bulk_data" || f.type === "coois");
+  const hasSoh = files.some((f) => f.type === "soh" || f.type === "mb52");
+  const sohOnly = files.length > 0 && !hasBulk && hasSoh;
+
   return {
     files,
     batches,
+    sohOnly,
     isProcessing,
     addFiles,
     clearFiles,

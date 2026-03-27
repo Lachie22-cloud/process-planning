@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   Table,
   TableBody,
@@ -41,22 +41,60 @@ import {
   XCircle,
   AlertTriangle,
   Loader2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import type { Batch, VettingStatus } from "@/types/batch";
+import type { Resource } from "@/types/resource";
 
 type StatusFilter = "needs_vetting" | "all" | VettingStatus;
+type SortField = "order" | "bulkCode" | "description" | "mixer" | "disp1" | "disp2" | "volume" | "date" | "vetting";
+type SortDir = "asc" | "desc";
 
 interface VettingPanelProps {
   batches: Batch[];
+  resources: Resource[];
 }
 
-export function VettingPanel({ batches }: VettingPanelProps) {
+export function VettingPanel({ batches, resources }: VettingPanelProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkComment, setBulkComment] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("needs_vetting");
   const [overrideBatch, setOverrideBatch] = useState<Batch | null>(null);
   const [overrideComment, setOverrideComment] = useState("");
   const [manualSohConfirmed, setManualSohConfirmed] = useState(false);
+  const [sortField, setSortField] = useState<SortField>("date");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  // Build resource lookup map
+  const resourceMap = useMemo(() => {
+    const map = new Map<string, Resource>();
+    for (const r of resources) map.set(r.id, r);
+    return map;
+  }, [resources]);
+
+  const getResourceName = useCallback((id: string | null) => {
+    if (!id) return "—";
+    const r = resourceMap.get(id);
+    return r?.displayName ?? r?.resourceCode ?? "—";
+  }, [resourceMap]);
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="ml-1 inline h-3 w-3 text-muted-foreground/50" />;
+    return sortDir === "asc"
+      ? <ArrowUp className="ml-1 inline h-3 w-3" />
+      : <ArrowDown className="ml-1 inline h-3 w-3" />;
+  };
 
   const vetBatch = useVetBatch();
   const bulkVet = useBulkVet();
@@ -75,23 +113,44 @@ export function VettingPanel({ batches }: VettingPanelProps) {
       filtered = batches.filter((b) => b.vettingStatus === statusFilter);
     }
 
+    // Apply user sort
+    const dir = sortDir === "asc" ? 1 : -1;
     return filtered.sort((a, b) => {
-      // Pending first, then rejected, then approved, then not_required
-      const order: Record<VettingStatus, number> = {
-        pending: 0,
-        rejected: 1,
-        approved: 2,
-        not_required: 3,
-      };
-      const statusDiff = (order[a.vettingStatus] ?? 3) - (order[b.vettingStatus] ?? 3);
-      if (statusDiff !== 0) return statusDiff;
-      // Then by material shortage, then by plan date
-      if (a.materialShortage !== b.materialShortage) {
-        return a.materialShortage ? -1 : 1;
+      let cmp = 0;
+      switch (sortField) {
+        case "order":
+          cmp = (a.sapOrder).localeCompare(b.sapOrder);
+          break;
+        case "bulkCode":
+          cmp = (a.bulkCode ?? "").localeCompare(b.bulkCode ?? "");
+          break;
+        case "description":
+          cmp = (a.materialDescription ?? "").localeCompare(b.materialDescription ?? "");
+          break;
+        case "mixer":
+          cmp = getResourceName(a.planResourceId).localeCompare(getResourceName(b.planResourceId));
+          break;
+        case "disp1":
+          cmp = getResourceName(a.planDisperserId).localeCompare(getResourceName(b.planDisperserId));
+          break;
+        case "disp2":
+          cmp = getResourceName(a.planDisperser2Id).localeCompare(getResourceName(b.planDisperser2Id));
+          break;
+        case "volume":
+          cmp = (a.batchVolume ?? 0) - (b.batchVolume ?? 0);
+          break;
+        case "date":
+          cmp = (a.planDate ?? "").localeCompare(b.planDate ?? "");
+          break;
+        case "vetting": {
+          const order: Record<VettingStatus, number> = { pending: 0, rejected: 1, approved: 2, not_required: 3 };
+          cmp = (order[a.vettingStatus] ?? 3) - (order[b.vettingStatus] ?? 3);
+          break;
+        }
       }
-      return (a.planDate ?? "").localeCompare(b.planDate ?? "");
+      return cmp * dir;
     });
-  }, [batches, statusFilter]);
+  }, [batches, statusFilter, sortField, sortDir, getResourceName]);
 
   const pendingCount = batches.filter((b) => b.vettingStatus === "pending").length;
   const approvedCount = batches.filter((b) => b.vettingStatus === "approved").length;
@@ -316,14 +375,33 @@ export function VettingPanel({ batches }: VettingPanelProps) {
                       />
                     </TableHead>
                   </PermissionGate>
-                  <TableHead>Order</TableHead>
-                  <TableHead>Material</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Volume</TableHead>
-                  <TableHead className="text-right">Cover (days)</TableHead>
-                  <TableHead>Shortage</TableHead>
-                  <TableHead>Vetting</TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("order")}>
+                    Order<SortIcon field="order" />
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("bulkCode")}>
+                    Bulk Material<SortIcon field="bulkCode" />
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("description")}>
+                    Description<SortIcon field="description" />
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("mixer")}>
+                    Mixer<SortIcon field="mixer" />
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("disp1")}>
+                    Disp1<SortIcon field="disp1" />
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("disp2")}>
+                    Disp2<SortIcon field="disp2" />
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none text-right" onClick={() => toggleSort("volume")}>
+                    Volume<SortIcon field="volume" />
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("date")}>
+                    Scheduled Date<SortIcon field="date" />
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("vetting")}>
+                    Vetting<SortIcon field="vetting" />
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -344,39 +422,24 @@ export function VettingPanel({ batches }: VettingPanelProps) {
                     </PermissionGate>
                     <TableCell className="font-medium">{batch.sapOrder}</TableCell>
                     <TableCell className="font-mono text-xs">
-                      {batch.materialCode ?? "—"}
+                      {batch.bulkCode ?? batch.materialCode ?? "—"}
                     </TableCell>
                     <TableCell className="max-w-xs truncate text-muted-foreground">
                       {batch.materialDescription ?? "—"}
                     </TableCell>
-                    <TableCell>{batch.planDate ?? "—"}</TableCell>
+                    <TableCell className="text-xs">
+                      {getResourceName(batch.planResourceId)}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {getResourceName(batch.planDisperserId)}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {getResourceName(batch.planDisperser2Id)}
+                    </TableCell>
                     <TableCell className="text-right font-mono tabular-nums">
                       {batch.batchVolume?.toLocaleString() ?? "—"}
                     </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">
-                      {batch.stockCover?.toFixed(0) ?? "—"}
-                    </TableCell>
-                    <TableCell>
-                      {batch.materialShortage ? (
-                        <div className="flex items-center gap-2">
-                          <Badge variant="destructive" className="text-[10px]">
-                            Short
-                          </Badge>
-                          <PermissionGate permission="planning.vet">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-6 px-2 text-[10px]"
-                              onClick={() => openManualOverrideDialog(batch)}
-                            >
-                              Manual Override
-                            </Button>
-                          </PermissionGate>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">OK</span>
-                      )}
-                    </TableCell>
+                    <TableCell>{batch.planDate ?? "—"}</TableCell>
                     <TableCell>
                       <VettingStatusBadge
                         status={batch.vettingStatus}

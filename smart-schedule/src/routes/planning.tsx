@@ -33,6 +33,7 @@ export function PlanningPage() {
   const {
     files,
     batches: importBatchList,
+    sohOnly,
     isProcessing,
     addFiles,
     clearFiles,
@@ -118,6 +119,7 @@ export function PlanningPage() {
 
       <ImportPreview
         batches={importBatchList}
+        sohOnly={sohOnly}
         isImporting={isImporting}
         importError={importError}
         importSuccess={importSuccess}
@@ -128,7 +130,7 @@ export function PlanningPage() {
 
       <CoverageTable files={files} batches={dbBatches} />
 
-      <VettingPanel batches={dbBatches} />
+      <VettingPanel batches={dbBatches} resources={resources} />
 
       <StockHeatmap
         batches={dbBatches}
