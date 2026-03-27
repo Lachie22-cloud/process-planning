@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Checkbox } from "@/components/ui/checkbox";
 import { PermissionGate } from "@/components/shared/permission-gate";
 import { ShieldCheck, CalendarCheck, ArrowUpDown } from "lucide-react";
 import {
@@ -149,10 +148,11 @@ function ShortageTable({
           className="h-7 w-48 text-xs"
         />
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
-          <Checkbox
+          <input
+            type="checkbox"
             checked={showOverriddenOnly}
-            onCheckedChange={(v) => setShowOverriddenOnly(!!v)}
-            className="h-3.5 w-3.5"
+            onChange={(e) => setShowOverriddenOnly(e.target.checked)}
+            className="accent-primary"
           />
           Show overrides only
         </label>
@@ -203,10 +203,11 @@ function ShortageTable({
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead className="w-8 py-2">
-                <Checkbox
+                <input
+                  type="checkbox"
                   checked={allSelected}
-                  onCheckedChange={toggleAll}
-                  className="h-3.5 w-3.5"
+                  onChange={toggleAll}
+                  className="accent-primary"
                 />
               </TableHead>
               <TableHead className="min-w-[180px] py-2">
@@ -246,10 +247,11 @@ function ShortageTable({
                     }
                   >
                     <TableCell className="py-1.5">
-                      <Checkbox
+                      <input
+                        type="checkbox"
                         checked={selected.has(row.id)}
-                        onCheckedChange={() => toggleRow(row.id)}
-                        className="h-3.5 w-3.5"
+                        onChange={() => toggleRow(row.id)}
+                        className="accent-primary"
                       />
                     </TableCell>
                     <TableCell className="py-1.5">

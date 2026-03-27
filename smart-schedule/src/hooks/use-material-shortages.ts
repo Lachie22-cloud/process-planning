@@ -274,7 +274,7 @@ export function useAllBatchShortages() {
           bulkCode: (b?.bulk_code as string | null) ?? null,
           materialDescription: (b?.material_description as string | null) ?? null,
           planDate: (b?.plan_date as string | null) ?? null,
-          fillOrder: fills && fills.length > 0 ? ((fills[0].fill_order as string | null) ?? null) : null,
+          fillOrder: fills && fills.length > 0 ? ((fills[0]?.fill_order as string | null) ?? null) : null,
         };
       });
     },
