@@ -363,6 +363,11 @@ function extractRequirements(files: ParsedFile[]): {
   );
   if (reqFiles.length === 0) return { byOrder, byMaterial };
 
+  // Deduplicate exact duplicate rows (same order, material, qty, withdrawn,
+  // date) — these inflate requirements and create false shortages. Rows with
+  // different quantities for the same order+material are legitimate BOM lines.
+  const seen = new Set<string>();
+
   for (const reqFile of reqFiles) {
     const { headers, rows } = reqFile;
     for (const row of rows) {
@@ -372,9 +377,15 @@ function extractRequirements(files: ParsedFile[]): {
 
       const reqQty = rowNumeric(row, headers, "requirement quantity") ?? 0;
       const qtyWithdrawn = rowNumeric(row, headers, "quantity withdrawn") ?? 0;
-      // Use reqQty directly — SOH already reflects withdrawals, so subtracting
-      // qtyWithdrawn would double-count. netQty kept for reference only.
-      const netQty = reqQty;
+
+      // Exact-row dedup: order + material + qty + withdrawn
+      const dedupeKey = `${order}|${material}|${reqQty}|${qtyWithdrawn}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      // Net requirement = total required minus what's already been physically
+      // withdrawn from the warehouse. SOH reflects current stock AFTER
+      // withdrawals, so we must subtract withdrawn to avoid double-counting.
+      const netQty = reqQty - qtyWithdrawn;
 
       const dateRaw = rowRawValue(row, headers, "requirement date");
       const reqDate = excelDateToISO(dateRaw) ?? "";
