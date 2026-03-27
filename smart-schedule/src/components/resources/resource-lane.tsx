@@ -10,7 +10,6 @@ import { ArrowLeftFromLine, ArrowRightFromLine } from "lucide-react";
 import { BatchCard } from "./batch-card";
 import { BlockedOverlay } from "./blocked-overlay";
 import type { Batch } from "@/types/batch";
-import type { BatchStatus } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import type { ResourceBlock } from "@/types/site";
 import type { MovementInfo } from "@/hooks/use-schedule-movements";
@@ -46,58 +45,6 @@ interface ResourceLaneProps {
   onDrop?: (resourceId: string, date: string) => void;
   onMoveStart?: (batch: Batch) => void;
   onReschedule?: (batch: Batch) => void;
-}
-
-function CellStatusSummary({ batches }: { batches: Batch[] }) {
-  // Group batches by status and pick the dominant (most common) one
-  const statusCounts = new Map<BatchStatus, number>();
-  for (const b of batches) {
-    statusCounts.set(b.status, (statusCounts.get(b.status) ?? 0) + 1);
-  }
-
-  // Sort by count descending, then by sortOrder ascending for ties
-  const sorted = [...statusCounts.entries()].sort((a, b) => {
-    if (b[1] !== a[1]) return b[1] - a[1];
-    return (BATCH_STATUSES[a[0]]?.sortOrder ?? 0) - (BATCH_STATUSES[b[0]]?.sortOrder ?? 0);
-  });
-
-  // Show up to 2 statuses as pills
-  const pills = sorted.slice(0, 2);
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div className="flex items-center gap-1 flex-wrap">
-          {pills.map(([status, count]) => {
-            const cfg = BATCH_STATUSES[status];
-            return (
-              <span
-                key={status}
-                className={cn(
-                  "inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-[9px] font-semibold leading-none",
-                  cfg?.bgClass,
-                  cfg?.textClass,
-                )}
-              >
-                <span
-                  className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
-                  style={{ backgroundColor: cfg?.color }}
-                />
-                {count > 1 ? `${count}× ` : ""}{cfg?.label ?? status}
-              </span>
-            );
-          })}
-        </div>
-      </TooltipTrigger>
-      <TooltipContent>
-        {sorted.map(([status, count]) => (
-          <div key={status}>
-            {count}× {BATCH_STATUSES[status]?.label ?? status}
-          </div>
-        ))}
-      </TooltipContent>
-    </Tooltip>
-  );
 }
 
 function getCellKey(resourceId: string, date: string) {
@@ -243,7 +190,7 @@ export function ResourceLane({
               </div>
             )}
 
-            {/* Cell indicator: movement arrow (if any batch moved) or status summary */}
+            {/* Cell indicator: movement arrow (if any batch moved) */}
             {dayBatches.length > 0 && !block && !isDayBlocked && (() => {
               // Check if any batch in this cell has a movement direction
               const cellMovements = dayBatches
@@ -287,11 +234,7 @@ export function ResourceLane({
                 );
               }
 
-              return (
-                <div className="mb-1 flex justify-end">
-                  <CellStatusSummary batches={dayBatches} />
-                </div>
-              );
+              return null;
             })()}
 
             {/* Warning for drops with caveats */}
