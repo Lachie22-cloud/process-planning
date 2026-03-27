@@ -144,6 +144,7 @@ export function ResourcesPage() {
         sapDisperser1: null,
         sapDisperser2: null,
         sapPreMixCount: null,
+        sapPreMixCount2: null,
         sapIpt: null,
         sapFillOrder: null,
         sapFillQuantity: null,
