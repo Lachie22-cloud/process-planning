@@ -211,6 +211,8 @@ interface Zw04Record {
 interface Mb52Record {
   /** Unrestricted stock from MB52, or safety stock from ZP40 fallback */
   safetyStock: number | null;
+  description?: string;
+  uom?: string;
 }
 
 /** Fill Data record keyed by batch/order number */
@@ -300,13 +302,15 @@ function extractMb52Data(files: ParsedFile[]): Map<string, Mb52Record> {
 
     // MB52 "Unrestricted" column = available plant stock (not safety stock)
     const unrestricted = rowNumeric(row, headers, "unrestricted");
+    const description = rowValue(row, headers, "material description", "description") ?? "";
+    const uom = rowValue(row, headers, "base unit of measure", "base unit", "buom", "uom") ?? "KG";
 
     // Accumulate across plants for the same material
     const existing = map.get(material);
     if (existing) {
       existing.safetyStock = (existing.safetyStock ?? 0) + (unrestricted ?? 0);
     } else {
-      map.set(material, { safetyStock: unrestricted });
+      map.set(material, { safetyStock: unrestricted, description, uom });
     }
   }
   return map;
@@ -550,6 +554,18 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
   const sohData = extractSohData(files);
   const fillData = extractFillData(files);
   const requirements = extractRequirements(files);
+
+  // Merge MB52 stock into SOH as fallback — MB52 files with plant columns
+  // are classified as "mb52" not "soh", but still contain valid stock data
+  for (const [material, mb52] of mb52Data) {
+    if (!sohData.has(material) && mb52.safetyStock != null) {
+      sohData.set(material, {
+        stock: mb52.safetyStock,
+        description: mb52.description ?? "",
+        uom: mb52.uom ?? "KG",
+      });
+    }
+  }
 
   // Enrich fill records with BOM component material codes from requirements
   for (const fills of fillData.values()) {
