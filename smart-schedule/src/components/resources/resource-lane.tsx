@@ -259,6 +259,7 @@ export function ResourceLane({
                     isDragging={draggedBatchId === batch.id}
                     draggable={canDrag}
                     canSchedule={canSchedule}
+                    isConflict={dayBatches.length > resource.maxBatchesPerDay}
                     onClick={onBatchClick}
                     onDragStart={onDragStart}
                     onDragEnd={onDragEnd}

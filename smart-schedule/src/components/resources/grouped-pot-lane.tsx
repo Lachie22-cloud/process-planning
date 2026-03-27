@@ -237,6 +237,11 @@ export function GroupedPotLane({
                       isDragging={draggedBatchId === batch.id}
                       draggable={canDrag}
                       canSchedule={canSchedule}
+                      isConflict={
+                        resources[0]?.groupCapacity != null
+                          ? dayBatches.length > resources[0].groupCapacity
+                          : dayBatches.length > (batchResource ?? resources[0]).maxBatchesPerDay
+                      }
                       onClick={onBatchClick}
                       onDragStart={onDragStart}
                       onDragEnd={onDragEnd}
