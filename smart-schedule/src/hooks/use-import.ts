@@ -1323,18 +1323,25 @@ export function useImport() {
           updated_at: new Date().toISOString(),
         }));
 
-        await supabase
+        const { error: msError } = await supabase
           .from("material_shortages")
           .upsert(shortageRows as never, {
             onConflict: "site_id,material_code",
             ignoreDuplicates: false,
           });
+        if (msError) {
+          console.error("Failed to upsert material_shortages:", msError);
+        }
 
         // Link shortages to batches
-        const { data: shortageDbRows } = await supabase
+        const { data: shortageDbRows, error: shortageQueryError } = await supabase
           .from("material_shortages")
           .select("id, material_code")
           .eq("site_id", site.id);
+
+        if (shortageQueryError) {
+          console.error("Failed to query material_shortages:", shortageQueryError);
+        }
 
         const materialToShortageId = new Map(
           (shortageDbRows ?? []).map((r: Record<string, unknown>) => [
@@ -1342,6 +1349,9 @@ export function useImport() {
             r.id as string,
           ]),
         );
+
+        console.log("[Import] Shortage linking: shortageRecords=%d, materialToShortageId=%d, batchShortageDetailsState=%d",
+          shortageRecords.length, materialToShortageId.size, batchShortageDetailsState.size);
 
         // Get batch IDs for linking
         const allSapOrders = data.map((b) => b.sapOrder);
@@ -1357,6 +1367,8 @@ export function useImport() {
             r.id as string,
           ]),
         );
+
+        console.log("[Import] orderToBatchId=%d, allSapOrders=%d", orderToBatchId.size, allSapOrders.length);
 
         const batchShortageRows: Array<{
           site_id: string;
@@ -1384,12 +1396,18 @@ export function useImport() {
         }
 
         if (batchShortageRows.length > 0) {
-          await supabase
+          const { error: bsError } = await supabase
             .from("batch_material_shortages")
             .upsert(batchShortageRows as never, {
               onConflict: "batch_id,shortage_id",
               ignoreDuplicates: false,
             });
+          if (bsError) {
+            console.error("Failed to upsert batch_material_shortages:", bsError);
+            toast.warning(`Shortage details could not be saved: ${bsError.message}`);
+          }
+        } else if (shortageRecords.length > 0) {
+          console.warn("Shortage records found but no batch shortage rows were generated. batchShortageDetailsState size:", batchShortageDetailsState.size);
         }
       }
     },
