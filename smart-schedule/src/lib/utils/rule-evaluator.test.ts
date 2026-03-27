@@ -47,6 +47,8 @@ function makeBatch(overrides: Partial<Batch> = {}): Batch {
     observationRequired: false,
     ebrBatch: false,
     physicalLocation: null,
+    excessPaintComment: null,
+    bulkOffComment: null,
     createdAt: "2025-03-01T00:00:00.000Z",
     updatedAt: "2025-03-01T00:00:00.000Z",
     ...overrides,
