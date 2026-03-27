@@ -13,27 +13,17 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { PermissionGate } from "@/components/shared/permission-gate";
 import { VettingStatusBadge } from "./vetting-status-badge";
 import {
   useVetBatch,
   useBulkVet,
-  useManualShortageOverride,
   ALLOWED_TRANSITIONS,
 } from "@/hooks/use-vetting";
 import {
@@ -61,9 +51,7 @@ export function VettingPanel({ batches, resources }: VettingPanelProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkComment, setBulkComment] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("needs_vetting");
-  const [overrideBatch, setOverrideBatch] = useState<Batch | null>(null);
-  const [overrideComment, setOverrideComment] = useState("");
-  const [manualSohConfirmed, setManualSohConfirmed] = useState(false);
+
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
@@ -98,7 +86,6 @@ export function VettingPanel({ batches, resources }: VettingPanelProps) {
 
   const vetBatch = useVetBatch();
   const bulkVet = useBulkVet();
-  const manualShortageOverride = useManualShortageOverride();
 
   // Apply status filter
   const filteredBatches = useMemo(() => {
@@ -207,28 +194,6 @@ export function VettingPanel({ batches, resources }: VettingPanelProps) {
     vetBatch.mutate({ batchId, vettingStatus: status, vettingComment: comment });
   };
 
-  const openManualOverrideDialog = (batch: Batch) => {
-    setOverrideBatch(batch);
-    setOverrideComment("");
-    setManualSohConfirmed(false);
-  };
-
-  const closeManualOverrideDialog = () => {
-    setOverrideBatch(null);
-    setOverrideComment("");
-    setManualSohConfirmed(false);
-  };
-
-  const handleManualOverrideConfirm = () => {
-    if (!overrideBatch || !manualSohConfirmed) return;
-    manualShortageOverride.mutate(
-      {
-        batchId: overrideBatch.id,
-        overrideComment: overrideComment.trim() || null,
-      },
-      { onSuccess: closeManualOverrideDialog },
-    );
-  };
 
   if (batches.length === 0) return null;
 
@@ -457,67 +422,6 @@ export function VettingPanel({ batches, resources }: VettingPanelProps) {
         )}
       </CardContent>
 
-      <Dialog
-        open={overrideBatch !== null}
-        onOpenChange={(open) => {
-          if (!open) closeManualOverrideDialog();
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Manual Shortage Override</DialogTitle>
-            <DialogDescription>
-              Confirm the manual SOH check for batch{" "}
-              <span className="font-medium">{overrideBatch?.sapOrder ?? "—"}</span> before
-              clearing this shortage flag.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={manualSohConfirmed}
-                onChange={(e) => setManualSohConfirmed(e.target.checked)}
-                className="mt-0.5 accent-primary"
-              />
-              <span>
-                I confirm I have completed a manual SOH check and this batch is no longer
-                a shortage.
-              </span>
-            </label>
-
-            <div className="space-y-1">
-              <Label htmlFor="override-comment" className="text-xs">
-                Comment (optional)
-              </Label>
-              <Textarea
-                id="override-comment"
-                placeholder="Add context for this manual override..."
-                value={overrideComment}
-                onChange={(e) => setOverrideComment(e.target.value)}
-                rows={2}
-                className="text-xs"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={closeManualOverrideDialog}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleManualOverrideConfirm}
-              disabled={!manualSohConfirmed || manualShortageOverride.isPending}
-            >
-              {manualShortageOverride.isPending ? (
-                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-              ) : null}
-              Confirm Override
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }
