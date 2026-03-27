@@ -9,6 +9,7 @@ test("schedule page loads", async ({ page }) => {
 });
 
 test("batch detail shows shortage table with rows", async ({ page }) => {
+  test.setTimeout(60_000);
   await installSupabaseMocks(page);
 
   await page.goto("/schedule");

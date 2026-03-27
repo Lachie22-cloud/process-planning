@@ -39,7 +39,7 @@ import { COMMENT_REQUIRED_STATUSES } from "@/types/batch";
 import type { BatchStatus, Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
-import { useBatchShortages, useOverrideBatchShortage, useUpdateShortageEta } from "@/hooks/use-material-shortages";
+import { useBatchShortages, useMaterialShortages, useOverrideBatchShortage, useUpdateShortageEta } from "@/hooks/use-material-shortages";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -254,6 +254,7 @@ function ShortageTable({
 
 function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; canOverride: boolean }) {
   const { data: batchShortages = [] } = useBatchShortages(batch.id);
+  const { data: siteShortages = [] } = useMaterialShortages();
   const overrideMutation = useOverrideBatchShortage();
   const etaMutation = useUpdateShortageEta();
   const [overrideTarget, setOverrideTarget] = useState<{ id: string; materialCode: string; shortQty: number; uom: string } | null>(null);
@@ -261,7 +262,30 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
   const [sohConfirmed, setSohConfirmed] = useState(false);
   const [showOverrides, setShowOverrides] = useState(false);
 
-  const activeShortages = batchShortages.filter((bs) => bs.shortQty < 0 || bs.shortage.shortQty < 0);
+  // When batch_material_shortages has no rows but the batch is flagged as
+  // having a material shortage, fall back to site-level material_shortages.
+  const effectiveShortages = batchShortages.length > 0
+    ? batchShortages
+    : batch.materialShortage && siteShortages.length > 0
+      ? siteShortages
+          .filter((s) => s.shortQty < 0)
+          .map((s) => ({
+            id: s.id,
+            siteId: s.siteId,
+            batchId: batch.id,
+            shortageId: s.id,
+            requiredQty: s.requiredQty,
+            shortQty: s.shortQty,
+            plannerOverride: s.plannerOverride,
+            overrideBy: s.overrideBy,
+            overrideAt: s.overrideAt,
+            overrideComment: s.overrideComment,
+            createdAt: s.createdAt,
+            shortage: s,
+          }))
+      : [];
+
+  const activeShortages = effectiveShortages.filter((bs) => bs.shortQty < 0 || bs.shortage.shortQty < 0);
   const displayShortages = showOverrides ? activeShortages : activeShortages.filter((bs) => !bs.plannerOverride);
 
   const closeDialog = () => {
