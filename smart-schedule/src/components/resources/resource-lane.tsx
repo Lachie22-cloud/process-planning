@@ -5,7 +5,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/ui/cn";
-import { BATCH_STATUSES } from "@/lib/constants/statuses";
 import { ArrowLeftFromLine, ArrowRightFromLine } from "lucide-react";
 import { BatchCard } from "./batch-card";
 import { BlockedOverlay } from "./blocked-overlay";
