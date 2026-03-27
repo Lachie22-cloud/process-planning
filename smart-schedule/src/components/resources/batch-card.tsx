@@ -232,7 +232,7 @@ export function BatchCard({
           {statusCfg?.label ?? batch.status}
         </span>
 
-        {batch.status === "Job Complete" && batch.excessPaintComment && (
+        {(batch.status as string) === "Job Complete" && batch.excessPaintComment && (
           <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200">
             EXCESS
           </span>
