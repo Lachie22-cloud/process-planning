@@ -1151,7 +1151,14 @@ export function useImport() {
           throw new Error("No existing batches to update — upload Bulk Data first");
         }
 
-        // Update safety_stock on each batch by matching material_code to SOH data
+        // Clear ALL safety_stock first so stale values don't persist
+        const { error: clearErr } = await supabase
+          .from("batches")
+          .update({ safety_stock: null } as never)
+          .eq("site_id", site.id);
+        if (clearErr) throw clearErr;
+
+        // Set safety_stock from new SOH data by matching material_code
         let updatedCount = 0;
         for (const batch of existingBatches) {
           const materialCode = batch.material_code as string | null;
