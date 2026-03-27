@@ -242,6 +242,24 @@ export function BatchCard({
           </span>
         )}
 
+        {batch.fillRequirement && batch.fillRequirement !== "Standard" && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-sm border px-1 py-0.5 text-[9px] font-semibold",
+                  batch.fillRequirement.includes("24")
+                    ? "border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
+                    : "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300",
+                )}
+              >
+                {batch.fillRequirement.includes("24") ? "FILL 24H" : "FILL 48H"}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{batch.fillRequirement}</TooltipContent>
+          </Tooltip>
+        )}
+
         {batch.qcObservedStage && (
           <Tooltip>
             <TooltipTrigger asChild>

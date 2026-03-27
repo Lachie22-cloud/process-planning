@@ -856,7 +856,22 @@ export function BatchDetailSheet({
                         <InfoRow label="Lid Type" value={lidTypes.join(", ")} />
                       ) : null;
                     })()}
-                    <InfoRow label="Fill Requirement" value={batch.fillRequirement ?? "Standard"} />
+                    <InfoRow
+                      label="Fill Requirement"
+                      value={
+                        <span
+                          className={
+                            batch.fillRequirement?.includes("24")
+                              ? "inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-950 dark:text-red-300"
+                              : batch.fillRequirement?.includes("48")
+                                ? "inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-950 dark:text-orange-300"
+                                : ""
+                          }
+                        >
+                          {batch.fillRequirement ?? "Standard"}
+                        </span>
+                      }
+                    />
                   </div>
                 </div>
               </div>

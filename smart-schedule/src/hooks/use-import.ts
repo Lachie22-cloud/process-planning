@@ -1149,6 +1149,8 @@ export function useImport() {
         premix_count: b.sapPreMixCount ?? 0,
         premix_count_2: b.sapPreMixCount2 ?? 0,
         ipt: b.sapIpt,
+        fill_requirement:
+          b.sapIpt === 1 ? "Fill within 24hrs" : b.sapIpt === 2 ? "Fill within 48hrs" : "Standard",
       });
 
       if (mode === "replace") {
