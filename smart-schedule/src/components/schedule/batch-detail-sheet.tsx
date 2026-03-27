@@ -28,6 +28,8 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
+import { mapLinkedFillOrder } from "@/lib/utils/mappers";
+import type { DatabaseRow } from "@/types/database";
 import { useBatch } from "@/hooks/use-batches";
 import type { LinkedFillOrder } from "@/types/batch";
 import { useUpdateBatch, useAddAuditEntry } from "@/hooks/use-batch-mutations";
@@ -569,19 +571,9 @@ export function BatchDetailSheet({
         .select("*")
         .eq("batch_id", batchId);
       if (error) throw error;
-      const mapped = (data ?? []).map((r: Record<string, unknown>) => ({
-        id: r.id as string,
-        batchId: r.batch_id as string,
-        siteId: r.site_id as string,
-        fillOrder: r.fill_order as string | null,
-        fillMaterial: r.fill_material as string | null,
-        fillDescription: r.fill_description as string | null,
-        packSize: r.pack_size as string | null,
-        quantity: r.quantity as number | null,
-        unit: r.unit as string | null,
-        lidType: r.lid_type as string | null,
-        components: (r.components as string[] | null) ?? [],
-      }));
+      const mapped = (data ?? []).map((r: Record<string, unknown>) =>
+        mapLinkedFillOrder(r as DatabaseRow["linked_fill_orders"])
+      );
       // Deduplicate by fill order number — keep first occurrence
       const seen = new Set<string>();
       return mapped.filter((fo) => {
