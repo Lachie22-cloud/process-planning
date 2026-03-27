@@ -203,7 +203,7 @@ export function BatchCard({
         </span>
         <div className="flex items-center gap-1.5 text-[10px] text-gray-400 dark:text-gray-500">
           {resource && (
-            <span className="truncate max-w-[80px]">{resource.name}</span>
+            <span className="truncate max-w-[80px]">{resource.displayName ?? resource.resourceCode}</span>
           )}
           {batch.packSize && (
             <span>{batch.packSize}</span>
