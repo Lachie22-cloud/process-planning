@@ -178,7 +178,6 @@ describe("use-import", () => {
     // Chainable stub for tables the mutation touches beyond "batches"
     const chainStub = (): Record<string, unknown> => {
       const self: Record<string, unknown> = {};
-      const handler = () => self;
       self.select = vi.fn(() => self);
       self.insert = vi.fn().mockResolvedValue({ error: null, data: [] });
       self.upsert = vi.fn().mockResolvedValue({ error: null, data: [] });
