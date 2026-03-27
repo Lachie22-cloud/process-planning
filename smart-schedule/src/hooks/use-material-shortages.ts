@@ -204,6 +204,84 @@ export function useOverrideBatchShortage() {
   });
 }
 
+export interface BatchShortageRow {
+  /** batch_material_shortages id */
+  id: string;
+  shortageId: string;
+  batchId: string;
+  siteId: string;
+  shortQty: number;
+  requiredQty: number;
+  plannerOverride: boolean;
+  overrideBy: string | null;
+  overrideAt: string | null;
+  overrideComment: string | null;
+  // from material_shortages
+  materialCode: string;
+  materialDesc: string | null;
+  materialType: "RM" | "PKG";
+  uom: string;
+  eta: string | null;
+  shortageOverride: boolean;
+  // from batches
+  sapOrder: string;
+  bulkCode: string | null;
+  materialDescription: string | null;
+  planDate: string | null;
+  // fill order (PKG only — first linked fill order for this batch)
+  fillOrder: string | null;
+}
+
+/** Fetch all batch-level shortages for the current site, with batch + material details */
+export function useAllBatchShortages() {
+  const { site } = useCurrentSite();
+
+  return useQuery<BatchShortageRow[]>({
+    queryKey: ["all_batch_material_shortages", site?.id],
+    queryFn: async () => {
+      if (!site) return [];
+      const { data, error } = await supabase
+        .from("batch_material_shortages")
+        .select(
+          "*, material_shortages(*), batches(sap_order, bulk_code, material_description, plan_date), linked_fill_orders(fill_order)",
+        )
+        .eq("site_id", site.id)
+        .lt("short_qty", 0)
+        .order("short_qty", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map((r: Record<string, unknown>) => {
+        const ms = r.material_shortages as Record<string, unknown>;
+        const b = r.batches as Record<string, unknown> | null;
+        const fills = r.linked_fill_orders as Array<Record<string, unknown>> | null;
+        return {
+          id: r.id as string,
+          shortageId: r.shortage_id as string,
+          batchId: r.batch_id as string,
+          siteId: r.site_id as string,
+          shortQty: r.short_qty as number,
+          requiredQty: (r.required_qty as number) ?? 0,
+          plannerOverride: r.planner_override as boolean,
+          overrideBy: (r.override_by as string | null) ?? null,
+          overrideAt: (r.override_at as string | null) ?? null,
+          overrideComment: (r.override_comment as string | null) ?? null,
+          materialCode: ms?.material_code as string,
+          materialDesc: (ms?.material_desc as string | null) ?? null,
+          materialType: ms?.material_type as "RM" | "PKG",
+          uom: ms?.uom as string,
+          eta: (ms?.eta as string | null) ?? null,
+          shortageOverride: (ms?.planner_override as boolean) ?? false,
+          sapOrder: b?.sap_order as string,
+          bulkCode: (b?.bulk_code as string | null) ?? null,
+          materialDescription: (b?.material_description as string | null) ?? null,
+          planDate: (b?.plan_date as string | null) ?? null,
+          fillOrder: fills && fills.length > 0 ? ((fills[0].fill_order as string | null) ?? null) : null,
+        };
+      });
+    },
+    enabled: !!site,
+  });
+}
+
 /** Upsert material shortages from import data */
 export function useUpsertMaterialShortages() {
   const { site } = useCurrentSite();
