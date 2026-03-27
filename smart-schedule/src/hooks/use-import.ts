@@ -1374,8 +1374,8 @@ export function useImport() {
           site_id: string;
           batch_id: string;
           shortage_id: string;
-          required_qty: number;
           short_qty: number;
+          required_qty: number;
         }> = [];
 
         // Use per-batch shortage details for accurate per-batch values
@@ -1389,13 +1389,14 @@ export function useImport() {
               site_id: site.id,
               batch_id: bId,
               shortage_id: shortageId,
-              required_qty: detail.requiredQty,
               short_qty: detail.shortQty,
+              required_qty: detail.requiredQty,
             });
           }
         }
 
         if (batchShortageRows.length > 0) {
+          // Try upsert with required_qty; if column doesn't exist, retry without it
           const { error: bsError } = await supabase
             .from("batch_material_shortages")
             .upsert(batchShortageRows as never, {
@@ -1403,8 +1404,22 @@ export function useImport() {
               ignoreDuplicates: false,
             });
           if (bsError) {
-            console.error("Failed to upsert batch_material_shortages:", bsError);
-            toast.warning(`Shortage details could not be saved: ${bsError.message}`);
+            console.warn("batch_material_shortages upsert failed, retrying without required_qty:", bsError.message);
+            const rowsWithoutReqQty = batchShortageRows.map(({ required_qty: _, ...rest }) => rest);
+            const { error: retryError } = await supabase
+              .from("batch_material_shortages")
+              .upsert(rowsWithoutReqQty as never, {
+                onConflict: "batch_id,shortage_id",
+                ignoreDuplicates: false,
+              });
+            if (retryError) {
+              console.error("Failed to upsert batch_material_shortages (retry):", retryError);
+              toast.warning(`Shortage details could not be saved: ${retryError.message}`);
+            } else {
+              console.log("[Import] batch_material_shortages upserted %d rows (without required_qty)", rowsWithoutReqQty.length);
+            }
+          } else {
+            console.log("[Import] batch_material_shortages upserted %d rows", batchShortageRows.length);
           }
         } else if (shortageRecords.length > 0) {
           console.warn("Shortage records found but no batch shortage rows were generated. batchShortageDetailsState size:", batchShortageDetailsState.size);
