@@ -430,6 +430,8 @@ function calculateShortages(
     );
 
     for (const [order, { netQty }] of sortedOrders) {
+      // Skip fully-withdrawn orders (netQty <= 0) — they don't consume SOH
+      if (netQty <= 0) continue;
       const needed = netQty;
       const shortageQty = Math.max(0, needed - remainingSOH);
       remainingSOH = Math.max(0, remainingSOH - needed);
