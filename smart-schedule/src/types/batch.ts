@@ -1,21 +1,68 @@
 export type BatchStatus =
   | "Planned"
   | "In Progress"
-  | "Complete"
-  | "Rework"
-  | "NCB"
-  | "Excess Paint"
-  | "Bulk Off"
-  | "OFF"
-  | "WOM"
-  | "WOP"
+  | "In Lab"
   | "On Test"
   | "Ready to Fill"
   | "Filling"
-  | "Hold"
-  | "Cancelled";
+  | "Job Complete"
+  | "NCB"
+  | "OFF Rework"
+  | "OFF WOM"
+  | "OFF WOP"
+  | "Hold";
 
 export type VettingStatus = "pending" | "approved" | "rejected" | "not_required";
+
+/** Status group classification */
+export type StatusGroup = "production" | "variable";
+
+/** Production statuses in linear flow order */
+export const PRODUCTION_STATUSES: BatchStatus[] = [
+  "Planned",
+  "In Progress",
+  "In Lab",
+  "On Test",
+  "Ready to Fill",
+  "Filling",
+  "Job Complete",
+];
+
+/** Variable statuses (hold/off/quality) — top-level items shown in dropdown */
+export const VARIABLE_STATUSES: BatchStatus[] = [
+  "NCB",
+  "OFF Rework",
+  "OFF WOM",
+  "OFF WOP",
+  "Hold",
+];
+
+/** Variable statuses excluding OFF sub-types (shown at top level in dropdown) */
+export const VARIABLE_TOP_LEVEL: BatchStatus[] = ["NCB", "Hold"];
+
+/** OFF sub-statuses (shown after selecting OFF parent) */
+export const OFF_STATUSES: BatchStatus[] = ["OFF Rework", "OFF WOM", "OFF WOP"];
+
+/** Labels for OFF sub-options shown in the drill-down */
+export const OFF_SUB_LABELS: Record<string, string> = {
+  "OFF Rework": "Rework",
+  "OFF WOM": "WOM — Material shortage",
+  "OFF WOP": "WOP — Packaging shortage",
+};
+
+/** Statuses that require a mandatory comment */
+export const COMMENT_REQUIRED_STATUSES: BatchStatus[] = [
+  "NCB",
+  "OFF Rework",
+  "OFF WOM",
+  "OFF WOP",
+  "Hold",
+];
+
+/** Statuses that have an optional comment prompt */
+export const OPTIONAL_COMMENT_STATUSES: BatchStatus[] = [
+  "Job Complete",
+];
 
 export interface Batch {
   id: string;
@@ -41,6 +88,8 @@ export interface Batch {
   statusComment: string | null;
   statusChangedAt: string | null;
   statusChangedBy: string | null;
+  excessPaintComment: string | null;
+  bulkOffComment: string | null;
   stockCover: number | null;
   safetyStock: number | null;
   poDate: string | null;
@@ -81,10 +130,3 @@ export interface LinkedFillOrder {
 export interface BatchWithFillOrders extends Batch {
   linkedFillOrders: LinkedFillOrder[];
 }
-
-/** Statuses that require a mandatory comment */
-export const COMMENT_REQUIRED_STATUSES: BatchStatus[] = [
-  "Rework",
-  "Bulk Off",
-  "Excess Paint",
-];

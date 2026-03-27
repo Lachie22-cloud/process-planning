@@ -17,6 +17,8 @@ interface UpdateBatchInput {
     observationRequired?: boolean;
     ebrBatch?: boolean;
     physicalLocation?: string | null;
+    excessPaintComment?: string | null;
+    bulkOffComment?: string | null;
   };
 }
 
@@ -56,6 +58,10 @@ export function useUpdateBatch() {
         dbUpdates.ebr_batch = updates.ebrBatch;
       if (updates.physicalLocation !== undefined)
         dbUpdates.physical_location = updates.physicalLocation;
+      if (updates.excessPaintComment !== undefined)
+        dbUpdates.excess_paint_comment = updates.excessPaintComment;
+      if (updates.bulkOffComment !== undefined)
+        dbUpdates.bulk_off_comment = updates.bulkOffComment;
 
       if (updates.status !== undefined) {
         dbUpdates.status_changed_at = new Date().toISOString();

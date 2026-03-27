@@ -102,6 +102,8 @@ export function mapBatch(row: DatabaseRow["batches"]): Batch {
     observationRequired: row.observation_required ?? false,
     ebrBatch: row.ebr_batch ?? false,
     physicalLocation: row.physical_location,
+    excessPaintComment: row.excess_paint_comment,
+    bulkOffComment: row.bulk_off_comment,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

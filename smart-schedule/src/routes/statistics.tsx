@@ -179,7 +179,7 @@ export function StatisticsPage() {
                 label="Completion Rate"
                 value={
                   batches.length > 0
-                    ? `${Math.round((batches.filter((b) => b.status === "Complete").length / batches.length) * 100)}%`
+                    ? `${Math.round((batches.filter((b) => b.status === "Job Complete").length / batches.length) * 100)}%`
                     : "—"
                 }
                 colour="text-emerald-600"
@@ -394,7 +394,7 @@ export function StatisticsPage() {
                 label="Completion Rate"
                 value={
                   batches.length > 0
-                    ? `${Math.round((batches.filter((b) => b.status === "Complete").length / batches.length) * 100)}%`
+                    ? `${Math.round((batches.filter((b) => b.status === "Job Complete").length / batches.length) * 100)}%`
                     : "—"
                 }
                 colour="text-emerald-600"

@@ -35,7 +35,7 @@ import type { LinkedFillOrder } from "@/types/batch";
 import { useUpdateBatch, useAddAuditEntry } from "@/hooks/use-batch-mutations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useCurrentSite } from "@/hooks/use-current-site";
-import { COMMENT_REQUIRED_STATUSES } from "@/types/batch";
+import { COMMENT_REQUIRED_STATUSES, OPTIONAL_COMMENT_STATUSES } from "@/types/batch";
 import type { BatchStatus, Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
@@ -100,14 +100,20 @@ const PHYSICAL_LOCATIONS = ["Mixing", "Lab", "Filling", "Waiting"] as const;
 
 /** Status description map for the alert banner */
 const STATUS_DESCRIPTIONS: Partial<Record<BatchStatus, string>> = {
-  WOM: "Waiting on raw materials for this batch",
-  WOP: "Packaging is not available for this batch",
+  "OFF WOM": "Waiting on raw materials for this batch",
+  "OFF WOP": "Packaging is not available for this batch",
   Hold: "Batch is on hold pending resolution",
   "On Test": "Batch is undergoing laboratory testing",
-  Rework: "Batch requires rework before proceeding",
+  "OFF Rework": "Job is going to rework",
   NCB: "Non-conforming batch — requires investigation",
-  "Bulk Off": "Bulk material has been taken offline",
-  "Excess Paint": "Excess paint from production run",
+};
+
+/** Expanded labels for alert banner heading */
+const STATUS_LABELS: Partial<Record<BatchStatus, string>> = {
+  "OFF WOM": "OFF — Waiting On Materials",
+  "OFF WOP": "OFF — Waiting On Packaging",
+  "OFF Rework": "OFF — Rework",
+  NCB: "NCB — Quality Hold",
 };
 
 function StatusAlertBanner({ batch }: { batch: Batch }) {
@@ -117,8 +123,8 @@ function StatusAlertBanner({ batch }: { batch: Batch }) {
   // Show banner for warning/alert statuses
   if (!description) return null;
 
-  const isError = ["NCB", "Bulk Off"].includes(batch.status);
-  const isWarning = ["WOM", "WOP", "Hold", "On Test", "Rework", "Excess Paint"].includes(batch.status);
+  const isError = ["NCB"].includes(batch.status);
+  const isWarning = ["OFF WOM", "OFF WOP", "Hold", "On Test", "OFF Rework"].includes(batch.status);
 
   if (!isError && !isWarning) return null;
 
@@ -131,7 +137,7 @@ function StatusAlertBanner({ batch }: { batch: Batch }) {
       />
       <div>
         <p className="text-sm font-semibold">
-          {cfg?.label}: {batch.status === "WOM" ? "Waiting On Materials" : batch.status === "WOP" ? "Waiting On Packaging" : cfg?.label}
+          {STATUS_LABELS[batch.status] ?? cfg?.label}
         </p>
         <p className="text-xs text-muted-foreground">
           {description}
@@ -629,7 +635,11 @@ export function BatchDetailSheet({
     const status = newStatus as BatchStatus;
     if (status === batch.status) return;
 
-    if (COMMENT_REQUIRED_STATUSES.includes(status)) {
+    // Statuses that need the comment modal (required or optional)
+    if (
+      COMMENT_REQUIRED_STATUSES.includes(status) ||
+      OPTIONAL_COMMENT_STATUSES.includes(status)
+    ) {
       setPendingStatus(status);
       setCommentModalOpen(true);
       return;
@@ -657,13 +667,36 @@ export function BatchDetailSheet({
     );
   };
 
-  const handleCommentConfirm = (comment: string) => {
+  const handleCommentConfirm = (data: {
+    comment: string;
+    excessPaintComment?: string;
+    bulkOffComment?: string;
+  }) => {
     if (!batch || !pendingStatus) return;
+
+    const updates: Record<string, unknown> = {
+      status: pendingStatus,
+    };
+
+    // Only set statusComment if provided
+    if (data.comment) {
+      updates.statusComment = data.comment;
+    }
+
+    // OFF Rework: optional bulk off comment
+    if (data.bulkOffComment) {
+      updates.bulkOffComment = data.bulkOffComment;
+    }
+
+    // Job Complete: optional excess paint comment
+    if (data.excessPaintComment) {
+      updates.excessPaintComment = data.excessPaintComment;
+    }
 
     updateBatch.mutate(
       {
         batchId: batch.id,
-        updates: { status: pendingStatus, statusComment: comment },
+        updates: updates as never,
       },
       {
         onSuccess: () => {
@@ -673,7 +706,13 @@ export function BatchDetailSheet({
             details: {
               from: batch.status,
               to: pendingStatus,
-              comment,
+              ...(data.comment ? { comment: data.comment } : {}),
+              ...(data.excessPaintComment
+                ? { excess_paint: data.excessPaintComment }
+                : {}),
+              ...(data.bulkOffComment
+                ? { bulk_off: data.bulkOffComment }
+                : {}),
               changed_by: user?.email ?? user?.id ?? "unknown",
             },
           });
@@ -744,7 +783,10 @@ export function BatchDetailSheet({
                       disabled={updateBatch.isPending}
                     />
                   ) : (
-                    <StatusBadge status={batch.status} />
+                    <StatusBadge
+                      status={batch.status}
+                      showExcess={!!batch.excessPaintComment}
+                    />
                   )}
                 </div>
 
@@ -1024,6 +1066,37 @@ export function BatchDetailSheet({
                       {batch.statusChangedBy && `By ${batch.statusChangedBy}`}
                       {batch.statusChangedAt &&
                         ` on ${formatDateTime(batch.statusChangedAt)}`}
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {/* Bulk off comment (OFF Rework) */}
+              {batch.bulkOffComment && (
+                <>
+                  <Separator />
+                  <div>
+                    <h3 className="mb-2 text-sm font-semibold">Bulk Off Details</h3>
+                    <p className="rounded-md bg-muted p-3 text-sm">
+                      {batch.bulkOffComment}
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {/* Excess paint comment (Job Complete) */}
+              {batch.excessPaintComment && (
+                <>
+                  <Separator />
+                  <div>
+                    <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                      Excess Paint
+                      <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                        EXCESS
+                      </span>
+                    </h3>
+                    <p className="rounded-md bg-muted p-3 text-sm">
+                      {batch.excessPaintComment}
                     </p>
                   </div>
                 </>

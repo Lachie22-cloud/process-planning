@@ -1,14 +1,18 @@
 import { z } from "zod";
 
 export const batchStatusSchema = z.enum([
-  "unscheduled",
-  "scheduled",
-  "in_progress",
-  "qc_hold",
-  "qc_pass",
-  "completed",
-  "on_hold",
-  "cancelled",
+  "Planned",
+  "In Progress",
+  "In Lab",
+  "On Test",
+  "Ready to Fill",
+  "Filling",
+  "Job Complete",
+  "NCB",
+  "OFF Rework",
+  "OFF WOM",
+  "OFF WOP",
+  "Hold",
 ]);
 
 export const batchSchema = z.object({

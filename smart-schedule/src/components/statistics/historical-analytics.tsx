@@ -289,7 +289,7 @@ export function HistoricalAnalytics() {
   const avgBatchSize = filteredBatches.length > 0 ? Math.round(totalVolume / filteredBatches.length) : 0;
   const completionRate = useMemo(() => {
     if (filteredBatches.length === 0) return 0;
-    const completed = filteredBatches.filter((b) => b.status === "Complete" || b.status === "Ready to Fill" || b.status === "Filling").length;
+    const completed = filteredBatches.filter((b) => b.status === "Job Complete" || b.status === "Ready to Fill" || b.status === "Filling").length;
     return Math.round((completed / filteredBatches.length) * 100);
   }, [filteredBatches]);
   const topMixer = useMemo(() => {
@@ -321,7 +321,7 @@ export function HistoricalAnalytics() {
         weeks[we] = { batches: 0, volume: 0, trunks: {}, completedCount: 0, materialIssueCount: 0 };
       weeks[we].batches++;
       weeks[we].volume += b.batchVolume ?? 0;
-      if (b.status === "Complete" || b.status === "Ready to Fill" || b.status === "Filling") weeks[we].completedCount++;
+      if (b.status === "Job Complete" || b.status === "Ready to Fill" || b.status === "Filling") weeks[we].completedCount++;
       if (!b.rmAvailable || !b.packagingAvailable) weeks[we].materialIssueCount++;
       const res = b.planResourceId ? resourceMap.get(b.planResourceId) : null;
       const trunk = res?.trunkLine ?? "Other";

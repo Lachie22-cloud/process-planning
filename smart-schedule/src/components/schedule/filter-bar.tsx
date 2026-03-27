@@ -2,14 +2,18 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BATCH_STATUS_LIST } from "@/lib/constants/statuses";
+import { PRODUCTION_STATUS_LIST } from "@/lib/constants/statuses";
 import type { BatchStatus } from "@/types/batch";
+import { VARIABLE_TOP_LEVEL, OFF_STATUSES, OFF_SUB_LABELS } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 
 export interface FilterState {
@@ -62,11 +66,39 @@ export function FilterBar({ filters, onFiltersChange, resources }: FilterBarProp
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Statuses</SelectItem>
-          {BATCH_STATUS_LIST.map((status) => (
-            <SelectItem key={status} value={status}>
-              {status}
-            </SelectItem>
-          ))}
+          <SelectSeparator />
+          <SelectGroup>
+            <SelectLabel className="text-xs font-medium text-muted-foreground">
+              Production
+            </SelectLabel>
+            {PRODUCTION_STATUS_LIST.map((status) => (
+              <SelectItem key={status} value={status}>
+                {status}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+          <SelectSeparator />
+          <SelectGroup>
+            <SelectLabel className="text-xs font-medium text-muted-foreground">
+              Variable
+            </SelectLabel>
+            {VARIABLE_TOP_LEVEL.map((status) => (
+              <SelectItem key={status} value={status}>
+                {status}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+          <SelectSeparator />
+          <SelectGroup>
+            <SelectLabel className="text-xs font-medium text-muted-foreground">
+              OFF
+            </SelectLabel>
+            {OFF_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {OFF_SUB_LABELS[status]}
+              </SelectItem>
+            ))}
+          </SelectGroup>
         </SelectContent>
       </Select>
 

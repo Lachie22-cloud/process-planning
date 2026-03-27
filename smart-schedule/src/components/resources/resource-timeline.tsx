@@ -477,7 +477,7 @@ export function ResourceTimeline({
       ) {
         const s = map.get(batch.planDate)!;
         s.total++;
-        if (batch.status === "Complete") s.completed++;
+        if (batch.status === "Job Complete") s.completed++;
       }
     }
     return map;

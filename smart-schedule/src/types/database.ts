@@ -85,6 +85,8 @@ export interface DatabaseRow {
     observation_required: boolean;
     ebr_batch: boolean;
     physical_location: string | null;
+    excess_paint_comment: string | null;
+    bulk_off_comment: string | null;
     created_at: string;
     updated_at: string;
   };

@@ -15,7 +15,7 @@ export function SummaryCards({ batches }: SummaryCardsProps) {
   const materialIssues = batches.filter(
     (b) => !b.rmAvailable || !b.packagingAvailable,
   ).length;
-  const completed = batches.filter((b) => b.status === "Complete").length;
+  const completed = batches.filter((b) => b.status === "Job Complete").length;
 
   const cards = [
     {
