@@ -80,6 +80,8 @@ export function useUpdateShortageEta() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["material_shortages"] });
+      queryClient.invalidateQueries({ queryKey: ["batch_material_shortages"] });
+      queryClient.invalidateQueries({ queryKey: ["all_batch_material_shortages"] });
     },
   });
 }
@@ -138,6 +140,7 @@ export function useOverrideMaterialShortage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["material_shortages"] });
       queryClient.invalidateQueries({ queryKey: ["batch_material_shortages"] });
+      queryClient.invalidateQueries({ queryKey: ["all_batch_material_shortages"] });
       queryClient.invalidateQueries({ queryKey: ["batches"] });
     },
   });
@@ -198,6 +201,7 @@ export function useOverrideBatchShortage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["batch_material_shortages"] });
+      queryClient.invalidateQueries({ queryKey: ["all_batch_material_shortages"] });
       queryClient.invalidateQueries({ queryKey: ["batches"] });
       queryClient.invalidateQueries({ queryKey: ["material_shortages"] });
     },

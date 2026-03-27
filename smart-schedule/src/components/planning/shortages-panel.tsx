@@ -199,10 +199,10 @@ function ShortageTable({
 
       {/* Table */}
       <div className="max-h-[520px] overflow-auto rounded-md border">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow className="text-xs">
-              <TableHead className="w-8 py-2">
+              <TableHead className="w-9 py-2 px-2">
                 <input
                   type="checkbox"
                   checked={allSelected}
@@ -210,21 +210,21 @@ function ShortageTable({
                   className="accent-primary"
                 />
               </TableHead>
-              <TableHead className="min-w-[180px] py-2">
+              <TableHead className="w-[160px] py-2 px-2">
                 <SortButton label="Material" sortKey="material" active={sortKey} dir={sortDir} onClick={toggleSort} />
               </TableHead>
-              <TableHead className="w-28 py-2">Batch #</TableHead>
-              <TableHead className="w-44 py-2">Bulk Name</TableHead>
-              {materialType === "PKG" && <TableHead className="w-28 py-2">Fill Order</TableHead>}
-              <TableHead className="w-32 py-2">
+              <TableHead className="w-[88px] py-2 px-2">Batch #</TableHead>
+              <TableHead className="w-[200px] py-2 px-2">Bulk Name</TableHead>
+              {materialType === "PKG" && <TableHead className="w-[88px] py-2 px-2">Fill Order</TableHead>}
+              <TableHead className="w-[100px] py-2 px-2">
                 <SortButton label="Sched. Day" sortKey="planDate" active={sortKey} dir={sortDir} onClick={toggleSort} />
               </TableHead>
-              <TableHead className="w-28 text-right py-2">
+              <TableHead className="w-[90px] text-right py-2 px-2">
                 <SortButton label="Short" sortKey="shortQty" active={sortKey} dir={sortDir} onClick={toggleSort} />
               </TableHead>
-              <TableHead className="w-12 py-2">UOM</TableHead>
-              <TableHead className="w-28 py-2">ETA</TableHead>
-              <TableHead className="w-20 py-2">Override</TableHead>
+              <TableHead className="w-[40px] py-2 px-2">UOM</TableHead>
+              <TableHead className="w-[120px] py-2 px-2">ETA</TableHead>
+              <TableHead className="w-[72px] py-2 px-2">Override</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -246,7 +246,7 @@ function ShortageTable({
                         : "bg-red-50/30 text-xs"
                     }
                   >
-                    <TableCell className="py-1.5">
+                    <TableCell className="py-1.5 px-2 w-9">
                       <input
                         type="checkbox"
                         checked={selected.has(row.id)}
@@ -254,29 +254,29 @@ function ShortageTable({
                         className="accent-primary"
                       />
                     </TableCell>
-                    <TableCell className="py-1.5">
-                      <div>
+                    <TableCell className="py-1.5 px-2 w-[160px]">
+                      <div className="truncate">
                         <span className="font-mono font-semibold">{row.materialCode}</span>
                         {row.materialDesc && (
-                          <p className="text-[11px] text-muted-foreground truncate max-w-[200px]">
+                          <p className="text-[11px] text-muted-foreground truncate">
                             {row.materialDesc}
                           </p>
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="py-1.5 font-mono">{row.sapOrder ?? "—"}</TableCell>
-                    <TableCell className="py-1.5 truncate max-w-[160px]">
-                      {row.materialDescription ?? row.bulkCode ?? "—"}
+                    <TableCell className="py-1.5 px-2 w-[88px] font-mono">{row.sapOrder ?? "—"}</TableCell>
+                    <TableCell className="py-1.5 px-2 w-[200px]">
+                      <span className="block truncate">{row.materialDescription ?? row.bulkCode ?? "—"}</span>
                     </TableCell>
                     {materialType === "PKG" && (
-                      <TableCell className="py-1.5 font-mono">{row.fillOrder ?? "—"}</TableCell>
+                      <TableCell className="py-1.5 px-2 w-[88px] font-mono">{row.fillOrder ?? "—"}</TableCell>
                     )}
-                    <TableCell className="py-1.5">{formatDate(row.planDate)}</TableCell>
-                    <TableCell className="py-1.5 text-right font-mono font-bold text-red-600 tabular-nums">
+                    <TableCell className="py-1.5 px-2 w-[100px] whitespace-nowrap">{formatDate(row.planDate)}</TableCell>
+                    <TableCell className="py-1.5 px-2 w-[90px] text-right font-mono font-bold text-red-600 tabular-nums">
                       {row.shortQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </TableCell>
-                    <TableCell className="py-1.5 text-muted-foreground">{row.uom}</TableCell>
-                    <TableCell className="py-1.5">
+                    <TableCell className="py-1.5 px-2 w-[40px] text-muted-foreground">{row.uom}</TableCell>
+                    <TableCell className="py-1.5 px-2 w-[120px]">
                       <PermissionGate
                         permission="planning.vet"
                         fallback={
@@ -285,7 +285,7 @@ function ShortageTable({
                       >
                         <Input
                           type="date"
-                          className="h-6 w-28 text-xs"
+                          className="h-6 w-full text-xs"
                           defaultValue={row.eta ?? ""}
                           onBlur={(e) =>
                             updateEta.mutate({ shortageId: row.shortageId, eta: e.target.value || null })
@@ -293,14 +293,13 @@ function ShortageTable({
                         />
                       </PermissionGate>
                     </TableCell>
-                    <TableCell className="py-1.5">
+                    <TableCell className="py-1.5 px-2 w-[72px]">
                       {overrideActive ? (
                         <Badge
                           variant="secondary"
                           className="gap-1 text-[10px] bg-green-100 text-green-700 border-green-200"
                         >
                           <ShieldCheck className="h-3 w-3" />
-                          Override
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground/40 text-[10px]">—</span>
