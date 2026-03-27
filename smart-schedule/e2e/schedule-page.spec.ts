@@ -31,7 +31,6 @@ test("batch detail shows shortage table with rows", async ({ page }) => {
 
   // Verify shortage table column headers
   await expect(page.getByRole("columnheader", { name: "Required" })).toBeVisible();
-  await expect(page.getByRole("columnheader", { name: "SOH" })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Short" })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "UOM" })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "ETA" })).toBeVisible();

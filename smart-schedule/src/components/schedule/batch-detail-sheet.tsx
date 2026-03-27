@@ -194,7 +194,6 @@ function ShortageTable({
             <th className="px-3 py-1.5 text-left text-xs font-medium text-muted-foreground min-w-[160px]">Material</th>
             <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground w-14">Type</th>
             <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">Required</th>
-            <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">SOH</th>
             <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">Short</th>
             <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">UOM</th>
             <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">ETA</th>
@@ -218,10 +217,7 @@ function ShortageTable({
                 </Badge>
               </td>
               <td className="px-2 py-2 text-right font-mono text-xs tabular-nums">
-                {(bs.requiredQty > 0 ? bs.requiredQty : (bs.shortage.sohQty + Math.abs(bs.shortQty))).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-              </td>
-              <td className="px-2 py-2 text-right font-mono text-xs tabular-nums">
-                {bs.shortage.sohQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                {(bs.requiredQty > 0 ? bs.requiredQty : Math.abs(bs.shortQty)).toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </td>
               <td className="px-2 py-2 text-right font-mono text-xs tabular-nums font-bold text-red-600">
                 {bs.shortQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
