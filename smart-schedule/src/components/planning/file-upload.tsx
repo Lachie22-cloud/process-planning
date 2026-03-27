@@ -3,16 +3,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Upload, FileSpreadsheet, X, Loader2, Info } from "lucide-react";
+import { Upload, FileSpreadsheet, X, Loader2, Info, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { toast } from "sonner";
-import type { ParsedFile, SapFileType } from "@/hooks/use-import";
+import type { ParsedFile, SapFileType, ImportMode, ImportBatch } from "@/hooks/use-import";
 
 interface FileUploadProps {
   files: ParsedFile[];
   isProcessing: boolean;
+  sohOnly?: boolean;
+  isImporting?: boolean;
   onAddFiles: (files: File[]) => void;
   onClear: () => void;
+  onImport?: (data: { data: ImportBatch[]; mode: ImportMode }) => void;
 }
 
 const FILE_TYPE_LABELS: Record<SapFileType, string> = {
@@ -50,8 +53,11 @@ function getMissingColumns(file: ParsedFile): string[] {
 export function FileUpload({
   files,
   isProcessing,
+  sohOnly = false,
+  isImporting = false,
   onAddFiles,
   onClear,
+  onImport,
 }: FileUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -231,6 +237,37 @@ export function FileUpload({
               );
             })}
           </div>
+
+          {/* SOH-only update action */}
+          {sohOnly && onImport && (
+            <Card className="border-blue-200 bg-blue-50/50 p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">SOH Update</p>
+                  <p className="text-xs text-muted-foreground">
+                    Updates stock levels on existing batches. Schedule, vetting, and fill orders are preserved.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => onImport({ data: [], mode: "soh_update" })}
+                  disabled={isImporting}
+                >
+                  {isImporting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Updating…
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Update SOH
+                    </>
+                  )}
+                </Button>
+              </div>
+            </Card>
+          )}
         </div>
       )}
     </div>

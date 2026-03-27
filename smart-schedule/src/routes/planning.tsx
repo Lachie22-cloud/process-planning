@@ -113,8 +113,11 @@ export function PlanningPage() {
       <FileUpload
         files={files}
         isProcessing={isProcessing}
+        sohOnly={sohOnly}
+        isImporting={isImporting}
         onAddFiles={addFiles}
         onClear={clearFiles}
+        onImport={sohOnly ? importBatches : undefined}
       />
 
       <ImportPreview
