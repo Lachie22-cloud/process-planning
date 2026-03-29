@@ -92,9 +92,9 @@ export function CoveragePopup({ batch, zp40File, children }: CoveragePopupProps)
           ) || 0;
 
         let level: CoverageItem["level"];
-        if (stockCover <= 0 || availableStock <= 0) level = "Stock Out";
-        else if (stockCover < 15) level = "Critical";
-        else if (stockCover < 30) level = "Low";
+        if (availableStock <= 0) level = "Stock Out";
+        else if (availableStock < 15) level = "Critical";
+        else if (availableStock < 30) level = "Low";
         else level = "Good";
 
         return { planningMaterial, material, description, availableStock, stockCover, level };

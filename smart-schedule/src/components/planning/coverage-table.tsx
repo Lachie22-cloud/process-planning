@@ -35,11 +35,11 @@ interface CoverageRow {
 
 function classifyCoverage(
   availableStock: number,
-  stockCover: number,
+  _stockCover: number,
 ): CoverageRow["level"] {
-  if (stockCover <= 0 || availableStock <= 0) return "Stock Out";
-  if (stockCover < 15) return "Critical";
-  if (stockCover < 30) return "Low";
+  if (availableStock <= 0) return "Stock Out";
+  if (availableStock < 15) return "Critical";
+  if (availableStock < 30) return "Low";
   return "Good";
 }
 
