@@ -36,8 +36,11 @@ interface CoverageRow {
 function classifyCoverage(
   availableStock: number,
   _stockCover: number,
+  nextPoOrder?: string | null,
 ): CoverageRow["level"] {
-  if (availableStock <= 0) return "Stock Out";
+  // Stock Out only flags when a fill order (NextPO) exists in ZP40
+  if (availableStock <= 0 && nextPoOrder) return "Stock Out";
+  if (availableStock <= 0) return "Critical";
   if (availableStock < 15) return "Critical";
   if (availableStock < 30) return "Low";
   return "Good";
@@ -100,6 +103,9 @@ export function CoverageTable({ files, batches }: CoverageTableProps) {
     const availIdx = findColumnIdx(headers, "available stock", "available");
     const coverIdx = findColumnIdx(headers, "stock cover", "cover");
     const fcst0Idx = findColumnIdx(headers, "current month", "forecast");
+    const nextPoIdx = headers.findIndex(
+      (h) => h.includes("nextpo") || h.includes("next po") || h.includes("next_po") || h.includes("nextorder"),
+    );
 
     // Build ZW04 PO lookup by material
     const poLookup = new Map<string, { poDate: string | null; poQuantity: number }>();
@@ -168,7 +174,10 @@ export function CoverageTable({ files, batches }: CoverageTableProps) {
         const safetyStock =
           safetyLookup.get(planningMaterial) ?? safetyLookup.get(material) ?? 0;
 
-        const level = classifyCoverage(availableStock, stockCover);
+        const nextPoOrder = nextPoIdx >= 0
+          ? cellValue(row, rawHeaders, nextPoIdx, -1) || null
+          : null;
+        const level = classifyCoverage(availableStock, stockCover, nextPoOrder);
         const materialShortage = level === "Stock Out" || level === "Critical";
 
         return {

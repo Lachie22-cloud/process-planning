@@ -62,6 +62,9 @@ export function CoveragePopup({ batch, zp40File, children }: CoveragePopupProps)
     const coverIdx = headers.findIndex(
       (h) => h.includes("stock cover") || h === "cover",
     );
+    const nextPoIdx = headers.findIndex(
+      (h) => h.includes("nextpo") || h.includes("next po") || h.includes("next_po") || h.includes("nextorder"),
+    );
 
     const bulkCode =
       batch.bulkCode ?? batch.materialCode?.split("-")[0] ?? "";
@@ -90,9 +93,14 @@ export function CoveragePopup({ batch, zp40File, children }: CoveragePopupProps)
               row[rawHeaders[coverIdx >= 0 ? coverIdx : 10] ?? ""] ?? "0",
             ),
           ) || 0;
+        const nextPoOrder = nextPoIdx >= 0
+          ? String(row[rawHeaders[nextPoIdx] ?? ""] ?? "").trim() || null
+          : null;
 
+        // Stock Out only flags when a fill order (NextPO) exists in ZP40
         let level: CoverageItem["level"];
-        if (availableStock <= 0) level = "Stock Out";
+        if (availableStock <= 0 && nextPoOrder) level = "Stock Out";
+        else if (availableStock <= 0) level = "Critical";
         else if (availableStock < 15) level = "Critical";
         else if (availableStock < 30) level = "Low";
         else level = "Good";

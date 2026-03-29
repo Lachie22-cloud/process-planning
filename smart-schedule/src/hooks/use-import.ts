@@ -1773,8 +1773,10 @@ export function useImport() {
           const nextPoOrder = nextPoCol ? String(row[nextPoCol] ?? "") || null : null;
 
           // Classify coverage level based on available stock
+          // Stock Out only flags when a fill order (NextPO) exists in ZP40
           let level: string;
-          if (availableStock <= 0) level = "Stock Out";
+          if (availableStock <= 0 && nextPoOrder) level = "Stock Out";
+          else if (availableStock <= 0) level = "Critical";
           else if (availableStock < 15) level = "Critical";
           else if (availableStock < 30) level = "Low";
           else level = "Good";
