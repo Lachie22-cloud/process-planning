@@ -15,7 +15,7 @@ import { useWeek } from "@/hooks/use-week";
 import { useBatches } from "@/hooks/use-batches";
 import { useResources } from "@/hooks/use-resources";
 import { usePermissions } from "@/hooks/use-permissions";
-import { exportBatchesCsv } from "@/lib/utils/csv-export";
+import { exportBatchesCsv, exportBatchDateExport } from "@/lib/utils/csv-export";
 import type { Batch } from "@/types/batch";
 
 export function SchedulePage() {
@@ -108,15 +108,26 @@ export function SchedulePage() {
         actions={
           <div className="flex items-center gap-3">
             {hasPermission("planning.export") && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => exportBatchesCsv(filteredBatches, resources)}
-                disabled={filteredBatches.length === 0}
-              >
-                <Download className="mr-1 h-4 w-4" />
-                Export CSV
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => exportBatchesCsv(filteredBatches, resources)}
+                  disabled={filteredBatches.length === 0}
+                >
+                  <Download className="mr-1 h-4 w-4" />
+                  Export CSV
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => exportBatchDateExport(filteredBatches)}
+                  disabled={filteredBatches.length === 0}
+                >
+                  <Download className="mr-1 h-4 w-4" />
+                  Date Export
+                </Button>
+              </>
             )}
             <WeekSelector week={week} />
           </div>

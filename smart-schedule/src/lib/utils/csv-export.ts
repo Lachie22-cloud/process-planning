@@ -112,3 +112,22 @@ export function exportBatchDatesCsv(batches: Batch[], resources: Resource[]) {
   const csv = [toCsvRow(header), ...rows].join("\n");
   downloadCsv(csv, `batch-dates-${new Date().toISOString().slice(0, 10)}.csv`);
 }
+
+function formatDateDDMMYYYY(dateStr: string | null | undefined): string {
+  if (!dateStr) return "";
+  const [year, month, day] = dateStr.split("-");
+  return `${day}.${month}.${year}`;
+}
+
+/**
+ * Export batch numbers with plan dates in DD.MM.YYYY format (SAP-style).
+ */
+export function exportBatchDateExport(batches: Batch[]) {
+  const header = ["Batch Number", "Plan Date"];
+  const rows = batches.map((b) =>
+    toCsvRow([b.sapOrder, formatDateDDMMYYYY(b.planDate)]),
+  );
+
+  const csv = [toCsvRow(header), ...rows].join("\n");
+  downloadCsv(csv, `batch-date-export-${new Date().toISOString().slice(0, 10)}.csv`);
+}
