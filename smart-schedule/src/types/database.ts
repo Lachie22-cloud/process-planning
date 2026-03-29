@@ -408,6 +408,7 @@ export interface DatabaseRow {
     po_quantity: number;
     level: 'Stock Out' | 'Critical' | 'Low' | 'Good';
     next_po_order: string | null;
+    oos_locked: boolean;
     created_at: string;
   };
   rule_exceptions: {

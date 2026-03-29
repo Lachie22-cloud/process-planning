@@ -149,4 +149,5 @@ export interface BatchCoverageItem {
   poQuantity: number;
   level: CoverageLevel;
   nextPoOrder: string | null;
+  oosLocked: boolean;
 }

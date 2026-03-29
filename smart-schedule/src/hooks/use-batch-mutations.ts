@@ -75,9 +75,19 @@ export function useUpdateBatch() {
         .eq("site_id", site.id);
 
       if (error) throw error;
+
+      // When a batch reaches "Job Complete", clear OOS-locked coverage items
+      if (updates.status === "Job Complete") {
+        await supabase
+          .from("batch_coverage_items")
+          .delete()
+          .eq("batch_id", batchId)
+          .eq("oos_locked", true);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["batches"] });
+      queryClient.invalidateQueries({ queryKey: ["batch_coverage_items"] });
     },
   });
 }

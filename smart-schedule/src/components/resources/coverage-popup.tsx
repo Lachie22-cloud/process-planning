@@ -97,12 +97,12 @@ export function CoveragePopup({ batch, zp40File, children }: CoveragePopupProps)
           ? String(row[rawHeaders[nextPoIdx] ?? ""] ?? "").trim() || null
           : null;
 
-        // Stock Out only flags when a fill order (NextPO) exists in ZP40
+        // Classification based on stock cover days from ZP40
         let level: CoverageItem["level"];
-        if (availableStock <= 0 && nextPoOrder) level = "Stock Out";
-        else if (availableStock <= 0) level = "Critical";
-        else if (availableStock < 15) level = "Critical";
-        else if (availableStock < 30) level = "Low";
+        if (stockCover <= 0 && nextPoOrder) level = "Stock Out";
+        else if (stockCover <= 0) level = "Critical";
+        else if (stockCover < 15) level = "Critical";
+        else if (stockCover < 30) level = "Low";
         else level = "Good";
 
         return { planningMaterial, material, description, availableStock, stockCover, level };

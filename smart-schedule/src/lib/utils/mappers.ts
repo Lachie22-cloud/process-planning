@@ -245,6 +245,7 @@ export function mapBatchCoverageItem(row: DatabaseRow["batch_coverage_items"]): 
     poQuantity: Number(row.po_quantity),
     level: row.level as CoverageLevel,
     nextPoOrder: row.next_po_order,
+    oosLocked: row.oos_locked,
   };
 }
 
