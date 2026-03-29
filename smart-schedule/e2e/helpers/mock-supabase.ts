@@ -17,8 +17,27 @@ function isoNow() {
   return new Date().toISOString();
 }
 
+/**
+ * Return a YYYY-MM-DD that always falls within the current schedule week.
+ * Mirrors use-week.ts logic: weekEndDay=5 (Friday), horizonDays=6.
+ * We pick the Wednesday inside that range — always a valid weekday.
+ */
+function midWeekDate(): string {
+  const today = new Date();
+  const day = today.getDay(); // 0=Sun … 6=Sat
+  // Same as use-week getWeekEnding: advance to next Friday (or stay if already Friday)
+  const toFriday = (5 - day + 7) % 7;
+  const weekEnding = new Date(today);
+  weekEnding.setDate(weekEnding.getDate() + (toFriday === 0 ? 0 : toFriday));
+  // Wednesday is 2 days before Friday — always within the 6-day horizon
+  const wed = new Date(weekEnding);
+  wed.setDate(wed.getDate() - 2);
+  return wed.toISOString().slice(0, 10);
+}
+
 function seededTables(): TableMap {
   const now = isoNow();
+  const planDate = midWeekDate();
   return {
     site_users: [
       {
@@ -91,7 +110,7 @@ function seededTables(): TableMap {
         material_code: "46289931-B",
         material_description: "METALSHIELD ETCH PRIMER LIGHT GREY",
         bulk_code: "46289931-B",
-        plan_date: "2026-03-26",
+        plan_date: planDate,
         plan_resource_id: "00000000-0000-4000-8000-000000000101",
         plan_disperser_id: null,
         plan_disperser2_id: null,
