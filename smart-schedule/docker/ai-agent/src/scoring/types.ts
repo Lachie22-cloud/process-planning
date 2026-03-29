@@ -130,6 +130,7 @@ export interface ScoringSubstitutionRule {
 /** Minimal resource data needed for scoring */
 export interface ScoringResource {
   id: string;
+  displayName: string | null;
   minCapacity: number | null;
   maxCapacity: number | null;
   maxBatchesPerDay: number;
@@ -157,6 +158,7 @@ export type HealthIssueSeverity = 'critical' | 'warning' | 'info';
 
 export interface SuggestedAction {
   targetResourceId: string;
+  targetResourceName: string | null;
   targetDate: string;
   placementScore: number;
   description: string;
@@ -167,6 +169,7 @@ export interface HealthIssue {
   severity: HealthIssueSeverity;
   batchId: string;
   resourceId: string | null;
+  resourceName: string | null;
   date: string | null;
   message: string;
   suggestedAction: SuggestedAction | null;

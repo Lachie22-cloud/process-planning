@@ -241,7 +241,7 @@ async function fetchResources(
   const { data } = await supabase
     .from('resources')
     .select(
-      'id, min_capacity, max_capacity, max_batches_per_day, group_capacity, ' +
+      'id, display_name, min_capacity, max_capacity, max_batches_per_day, group_capacity, ' +
       'chemical_base, trunk_line, group_name, active',
     )
     .eq('site_id', siteId)
@@ -250,6 +250,7 @@ async function fetchResources(
   const rows = (data ?? []) as unknown as Record<string, unknown>[];
   return rows.map((r) => ({
     id: r.id as string,
+    displayName: (r.display_name as string | null) ?? null,
     minCapacity: r.min_capacity as number | null,
     maxCapacity: r.max_capacity as number | null,
     maxBatchesPerDay: (r.max_batches_per_day as number) ?? 1,
@@ -364,6 +365,7 @@ async function fetchScoringContext(
   substitutionRules: ScoringSubstitutionRule[];
   weights: ScoringWeights;
   resourceTrunkLines: Record<string, string | null>;
+  resourceNameMap: Record<string, string>;
 }> {
   const [batches, resources, colourGroups, colourTransitions, resourceBlocks, substitutionRules, scheduleRules] =
     await Promise.all([
@@ -378,11 +380,13 @@ async function fetchScoringContext(
 
   const weights = extractWeights(scheduleRules);
   const resourceTrunkLines: Record<string, string | null> = {};
+  const resourceNameMap: Record<string, string> = {};
   for (const r of resources) {
     resourceTrunkLines[r.id] = r.trunkLine;
+    if (r.displayName) resourceNameMap[r.id] = r.displayName;
   }
 
-  return { batches, resources, colourGroups, colourTransitions, resourceBlocks, substitutionRules, weights, resourceTrunkLines };
+  return { batches, resources, colourGroups, colourTransitions, resourceBlocks, substitutionRules, weights, resourceTrunkLines, resourceNameMap };
 }
 
 /** Extra fields exposed alongside ScoringBatch for ranking/chat use */
@@ -494,7 +498,7 @@ const handlers: Record<string, ToolHandler> = {
       const placementCtx = buildPlacementContext(resource.id, targetDate, ctx);
       const result = scorer.score(batch, resource, targetDate, placementCtx);
 
-      return textResult(JSON.stringify({ batch_id: batchId, resource_id: resource.id, target_date: targetDate, ...result }, null, 2));
+      return textResult(JSON.stringify({ batch_id: batchId, resource_id: resource.id, resource_name: resource.displayName, target_date: targetDate, ...result }, null, 2));
     }
 
     // Score all active resources
@@ -502,7 +506,7 @@ const handlers: Record<string, ToolHandler> = {
     const results = activeResources.map((resource) => {
       const placementCtx = buildPlacementContext(resource.id, targetDate, ctx);
       const result = scorer.score(batch, resource, targetDate, placementCtx);
-      return { resource_id: resource.id, ...result };
+      return { resource_id: resource.id, resource_name: resource.displayName, ...result };
     });
 
     results.sort((a, b) => b.score - a.score);
@@ -555,7 +559,7 @@ const handlers: Record<string, ToolHandler> = {
     const scored = candidates.map((resource) => {
       const placementCtx = buildPlacementContext(resource.id, targetDate, ctx);
       const result = scorer.score(batch, resource, targetDate, placementCtx);
-      return { resource_id: resource.id, ...result };
+      return { resource_id: resource.id, resource_name: resource.displayName, ...result };
     });
 
     // Sort by score descending, take top 5 feasible
@@ -622,12 +626,15 @@ const handlers: Record<string, ToolHandler> = {
     const resolvedIssues = beforeReport.issues.filter((i) => !afterIssueKeys.has(`${i.batchId}|${i.type}`));
     const newIssues = afterReport.issues.filter((i) => !beforeIssueKeys.has(`${i.batchId}|${i.type}`));
 
+    const fromResource = ctx.resources.find((r) => r.id === batch.planResourceId);
     return textResult(JSON.stringify({
       batch_id: batchId,
       move: {
         from_resource_id: batch.planResourceId,
+        from_resource_name: fromResource?.displayName ?? null,
         from_date: batch.planDate,
         to_resource_id: targetResourceId,
+        to_resource_name: targetResource.displayName,
         to_date: targetDate,
       },
       placement_score: placementResult,
@@ -737,11 +744,13 @@ const handlers: Record<string, ToolHandler> = {
       const options = activeResources.map((resource) => {
         const placementCtx = buildPlacementContext(resource.id, targetDate, ctx);
         const result = scorer.score(enriched, resource, targetDate, placementCtx);
-        return { resource_id: resource.id, target_date: targetDate, ...result };
+        return { resource_id: resource.id, resource_name: resource.displayName, target_date: targetDate, ...result };
       });
 
       options.sort((a, b) => b.score - a.score);
       const topFeasible = options.filter((o) => o.feasible).slice(0, topOptionsCount);
+
+      const planResource = enriched.planResourceId ? ctx.resourceNameMap[enriched.planResourceId] ?? null : null;
 
       return {
         batch_id: enriched.id,
@@ -749,6 +758,7 @@ const handlers: Record<string, ToolHandler> = {
         material_description: enriched.materialDescription,
         plan_date: enriched.planDate,
         plan_resource_id: enriched.planResourceId,
+        plan_resource_name: planResource,
         is_wom: isWom,
         is_wop: isWop,
         po_date: enriched.poDate,
@@ -757,6 +767,7 @@ const handlers: Record<string, ToolHandler> = {
         earliest_reschedule_date: earliestRescheduleDate,
         recommended_options: topFeasible.map((o) => ({
           resource_id: o.resource_id,
+          resource_name: o.resource_name,
           target_date: o.target_date,
           placement_score: o.score,
           feasible: o.feasible,

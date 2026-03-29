@@ -220,7 +220,7 @@ const handlers: Record<string, ToolHandler> = {
       .from('batches')
       .select(
         'id, sap_order, material_code, material_description, bulk_code, ' +
-        'plan_date, plan_resource_id, batch_volume, status, ' +
+        'plan_date, plan_resource_id, plan_disperser_id, batch_volume, status, ' +
         'vetting_status, rm_available, packaging_available, stock_cover',
       )
       .eq('site_id', siteId)
@@ -252,7 +252,32 @@ const handlers: Record<string, ToolHandler> = {
       return textResult(`Error querying batches: ${error.message}`);
     }
 
-    return textResult(JSON.stringify(data ?? [], null, 2));
+    // Enrich with resource display names so the AI sees real names
+    const rows = (data ?? []) as unknown as Record<string, unknown>[];
+    const resourceIds = new Set<string>();
+    for (const row of rows) {
+      if (row.plan_resource_id) resourceIds.add(row.plan_resource_id as string);
+      if (row.plan_disperser_id) resourceIds.add(row.plan_disperser_id as string);
+    }
+
+    const nameMap: Record<string, string> = {};
+    if (resourceIds.size > 0) {
+      const { data: resources } = await supabase
+        .from('resources')
+        .select('id, display_name')
+        .in('id', Array.from(resourceIds));
+      for (const r of (resources ?? []) as Record<string, unknown>[]) {
+        if (r.display_name) nameMap[r.id as string] = r.display_name as string;
+      }
+    }
+
+    const enriched = rows.map((row) => ({
+      ...row,
+      plan_resource_name: nameMap[row.plan_resource_id as string] ?? null,
+      plan_disperser_name: nameMap[row.plan_disperser_id as string] ?? null,
+    }));
+
+    return textResult(JSON.stringify(enriched, null, 2));
   },
 
   query_resources: async (args, supabase, siteId) => {
@@ -263,7 +288,7 @@ const handlers: Record<string, ToolHandler> = {
       .from('resources')
       .select(
         'id, resource_code, resource_type, display_name, trunk_line, ' +
-        'group_name, min_capacity, max_capacity, max_batches_per_day, ' +
+        'group_name, group_capacity, min_capacity, max_capacity, max_batches_per_day, ' +
         'chemical_base, sort_order, active',
       )
       .eq('site_id', siteId)
@@ -312,7 +337,32 @@ const handlers: Record<string, ToolHandler> = {
       return textResult(`Error querying substitution rules: ${error.message}`);
     }
 
-    return textResult(JSON.stringify(data ?? [], null, 2));
+    // Enrich with resource display names
+    const rows = (data ?? []) as unknown as Record<string, unknown>[];
+    const resourceIds = new Set<string>();
+    for (const row of rows) {
+      if (row.source_resource_id) resourceIds.add(row.source_resource_id as string);
+      if (row.target_resource_id) resourceIds.add(row.target_resource_id as string);
+    }
+
+    const nameMap: Record<string, string> = {};
+    if (resourceIds.size > 0) {
+      const { data: resources } = await supabase
+        .from('resources')
+        .select('id, display_name')
+        .in('id', Array.from(resourceIds));
+      for (const r of (resources ?? []) as Record<string, unknown>[]) {
+        if (r.display_name) nameMap[r.id as string] = r.display_name as string;
+      }
+    }
+
+    const enriched = rows.map((row) => ({
+      ...row,
+      source_resource_name: nameMap[row.source_resource_id as string] ?? null,
+      target_resource_name: nameMap[row.target_resource_id as string] ?? null,
+    }));
+
+    return textResult(JSON.stringify(enriched, null, 2));
   },
 
   get_schedule_summary: async (args, supabase, siteId) => {

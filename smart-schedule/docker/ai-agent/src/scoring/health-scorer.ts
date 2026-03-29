@@ -119,13 +119,15 @@ export class HealthScorer {
         const utilRatio = batches.length / resource.maxBatchesPerDay;
         if (utilRatio < 0.3 && resource.active) {
           const suggestedAction = this.findBestPlacement(batches[0]!, ctx, resource.id);
+          const name = resource.displayName ?? resource.id;
           issues.push({
             type: 'under_utilization',
             severity: 'info',
             batchId: batches[0]!.id,
             resourceId: resource.id,
+            resourceName: resource.displayName,
             date,
-            message: `Resource ${resource.id} is under-utilized at ${Math.round(utilRatio * 100)}% batch capacity on ${date}`,
+            message: `Resource ${name} is under-utilised at ${Math.round(utilRatio * 100)}% batch capacity on ${date}`,
             suggestedAction,
           });
         }
@@ -154,7 +156,7 @@ export class HealthScorer {
             batch,
             resource,
             batch.planDate!,
-            `Chemical base mismatch: batch is ${batch.chemicalBase}, resource requires ${resource.chemicalBase}`,
+            `Chemical base mismatch on ${resource.displayName ?? resource.id}: batch is ${batch.chemicalBase}, resource requires ${resource.chemicalBase}`,
             ctx,
           ),
         );
@@ -177,7 +179,7 @@ export class HealthScorer {
             batch,
             resource,
             batch.planDate!,
-            `Batch scheduled on blocked resource ${resource.id} on ${batch.planDate}`,
+            `Batch scheduled on blocked resource ${resource.displayName ?? resource.id} on ${batch.planDate}`,
             ctx,
           ),
         );
@@ -232,6 +234,7 @@ export class HealthScorer {
       severity: 'critical',
       batchId: batch.id,
       resourceId: null,
+      resourceName: null,
       date: null,
       message: `Batch ${batch.id} is not assigned to any resource`,
       suggestedAction,
@@ -245,13 +248,15 @@ export class HealthScorer {
     ctx: HealthScoringContext,
   ): HealthIssue {
     const suggestedAction = this.findBestPlacement(batch, ctx, resource.id);
+    const name = resource.displayName ?? resource.id;
     return {
       type: 'capacity_overload',
       severity: 'critical',
       batchId: batch.id,
       resourceId: resource.id,
+      resourceName: resource.displayName,
       date,
-      message: `Resource ${resource.id} is overloaded on ${date}`,
+      message: `Resource ${name} is overloaded on ${date}`,
       suggestedAction,
     };
   }
@@ -269,6 +274,7 @@ export class HealthScorer {
       severity: 'warning',
       batchId: batch.id,
       resourceId: resource.id,
+      resourceName: resource.displayName,
       date,
       message,
       suggestedAction,
@@ -303,13 +309,15 @@ export class HealthScorer {
 
       if (transition && !transition.allowed) {
         const suggestedAction = this.findBestPlacement(curr, ctx, resource.id);
+        const name = resource.displayName ?? resource.id;
         issues.push({
           type: 'colour_violation',
           severity: 'warning',
           batchId: curr.id,
           resourceId: resource.id,
+          resourceName: resource.displayName,
           date,
-          message: `Colour transition ${fromGroup.code}→${toGroup.code} not allowed on resource ${resource.id}`,
+          message: `Colour transition ${fromGroup.code}→${toGroup.code} not allowed on resource ${name}`,
           suggestedAction,
         });
       }
@@ -338,6 +346,7 @@ export class HealthScorer {
         severity: 'warning',
         batchId: batch.id,
         resourceId: resource.id,
+        resourceName: resource.displayName,
         date,
         message: batch.rmAvailableDate
           ? `Raw materials unavailable until ${batch.rmAvailableDate} (scheduled ${date})`
@@ -361,6 +370,7 @@ export class HealthScorer {
         severity: 'warning',
         batchId: batch.id,
         resourceId: resource.id,
+        resourceName: resource.displayName,
         date,
         message: batch.packagingAvailableDate
           ? `Packaging unavailable until ${batch.packagingAvailableDate} (scheduled ${date})`
@@ -409,11 +419,13 @@ export class HealthScorer {
 
       if (result.feasible && result.score > bestScore) {
         bestScore = result.score;
+        const name = resource.displayName ?? resource.id;
         bestAction = {
           targetResourceId: resource.id,
+          targetResourceName: resource.displayName,
           targetDate,
           placementScore: result.score,
-          description: `Move to ${resource.id} on ${targetDate} (score: ${result.score})`,
+          description: `Move to ${name} on ${targetDate} (score: ${result.score})`,
         };
       }
     }
@@ -459,11 +471,13 @@ export class HealthScorer {
 
       if (result.feasible && result.score > bestScore) {
         bestScore = result.score;
+        const name = resource.displayName ?? resource.id;
         bestAction = {
           targetResourceId: resource.id,
+          targetResourceName: resource.displayName,
           targetDate,
           placementScore: result.score,
-          description: `Reschedule to ${resource.id} on ${targetDate} when materials available (score: ${result.score})`,
+          description: `Reschedule to ${name} on ${targetDate} when materials available (score: ${result.score})`,
         };
       }
     }
