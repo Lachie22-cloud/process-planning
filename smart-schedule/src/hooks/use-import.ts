@@ -5,7 +5,8 @@ import { supabase } from "@/lib/supabase/client";
 import { useCurrentSite } from "./use-current-site";
 import { useResources } from "./use-resources";
 import { parseExcelFile, excelDateToISO, type ParsedRow } from "@/lib/utils/excel-parser";
-import { assignBatchesToResources } from "@/lib/utils/resource-assignment";
+import { assignBatchesToResources, resolveConflictsWithSubstitutions } from "@/lib/utils/resource-assignment";
+import { useSubstitutionRules } from "./use-rules";
 
 /** Recognised SAP file types */
 export type SapFileType =
@@ -887,6 +888,7 @@ export function useImport() {
   const { site } = useCurrentSite();
   const queryClient = useQueryClient();
   const { data: resources = [] } = useResources();
+  const { data: substitutionRules = [] } = useSubstitutionRules();
   const [files, setFiles] = useState<ParsedFile[]>([]);
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [shortageRecords, setShortageRecords] = useState<ShortageRecord[]>([]);
@@ -895,6 +897,7 @@ export function useImport() {
   const [disperserAssignmentsState, setDisperserAssignmentsState] = useState<Map<string, string>>(new Map());
   const [disperser2AssignmentsState, setDisperser2AssignmentsState] = useState<Map<string, string>>(new Map());
   const [requirementsByFillOrder, setRequirementsByFillOrder] = useState<Map<string, string[]>>(new Map());
+  const [unresolvedConflicts, setUnresolvedConflicts] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
 
   const addFiles = useCallback(
@@ -1070,6 +1073,30 @@ export function useImport() {
               }
             }
 
+            // --- Auto-resolve resource conflicts via substitution rules ---
+            const enabledSubRules = substitutionRules.filter((r) => r.enabled);
+            if (enabledSubRules.length > 0) {
+              const { resolved, unresolved } = resolveConflictsWithSubstitutions(
+                assignments,
+                result.batches,
+                resources,
+                enabledSubRules,
+              );
+              setUnresolvedConflicts(unresolved);
+
+              const movedCount = resolved.size;
+              if (movedCount > 0 || unresolved.size > 0) {
+                toast.info(
+                  `${movedCount} conflict${movedCount !== 1 ? "s" : ""} auto-resolved` +
+                    (unresolved.size > 0
+                      ? ` · ${unresolved.size} need planner action`
+                      : ""),
+                );
+              }
+            } else {
+              setUnresolvedConflicts(new Set());
+            }
+
             setResourceAssignments(assignments);
             setDisperserAssignmentsState(disperserAssignments);
             setDisperser2AssignmentsState(disperser2Assignments);
@@ -1099,7 +1126,7 @@ export function useImport() {
         setIsProcessing(false);
       }
     },
-    [files, resources],
+    [files, resources, substitutionRules],
   );
 
   const clearFiles = useCallback(() => {
@@ -1708,7 +1735,6 @@ export function useImport() {
         }
 
         const zp40Headers = zp40File.headers;
-        const zp40Lower = zp40Headers.map((h) => h.toLowerCase().trim());
 
         const planMatCol = findColumn(zp40Headers, "planning material", "planning mat");
         const matCol = findColumn(zp40Headers, "material");
@@ -1846,6 +1872,7 @@ export function useImport() {
     batches,
     sohOnly,
     isProcessing,
+    unresolvedConflicts,
     addFiles,
     clearFiles,
     importBatches: importMutation.mutate,
