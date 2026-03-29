@@ -1702,18 +1702,16 @@ export function useImport() {
           .eq("site_id", site.id)
           .in("batch_id", importedBatchIds);
 
-        // Build order→batchId map if not already available
-        const covOrderToBatchId = orderToBatchId.size > 0
-          ? orderToBatchId
-          : new Map(
-              (await supabase
-                .from("batches")
-                .select("id, sap_order, bulk_code, material_code")
-                .eq("site_id", site.id)
-                .in("sap_order", data.map((b) => b.sapOrder))
-                .then((r) => r.data ?? []))
-                .map((r: Record<string, unknown>) => [r.sap_order as string, r.id as string]),
-            );
+        // Build order→batchId map for coverage linking
+        const covOrderToBatchId = new Map(
+          (await supabase
+            .from("batches")
+            .select("id, sap_order, bulk_code, material_code")
+            .eq("site_id", site.id)
+            .in("sap_order", data.map((b) => b.sapOrder))
+            .then((r) => r.data ?? []))
+            .map((r: Record<string, unknown>) => [r.sap_order as string, r.id as string]),
+        );
 
         // Build bulkCode→batchId and materialCode→batchId lookups
         const bulkToBatchIds = new Map<string, string[]>();

@@ -1,5 +1,6 @@
 import type { Resource } from "@/types/resource";
 import type { ImportBatch } from "@/hooks/use-import";
+import type { SubstitutionRule } from "@/types/rule";
 
 /**
  * Assigns a batch to the best-fit resource based on:
@@ -131,6 +132,208 @@ export function assignBatchesToResources(
   }
 
   return assignments;
+}
+
+/**
+ * Checks whether a substitution from sourceResource to targetResource is
+ * allowed for a batch with the given volume and colour group.
+ * Shared by import conflict resolution, placement scoring, and rule evaluation.
+ */
+export function isSubstitutionAllowed(
+  sourceResourceId: string,
+  targetResourceId: string,
+  batchVolume: number | null,
+  sapColorGroup: string | null,
+  rules: SubstitutionRule[],
+): boolean {
+  return rules.some((rule) => {
+    if (!rule.enabled) return false;
+
+    // Match source (null = wildcard)
+    if (rule.sourceResourceId !== null && rule.sourceResourceId !== sourceResourceId) {
+      return false;
+    }
+    // Match target (null = wildcard)
+    if (rule.targetResourceId !== null && rule.targetResourceId !== targetResourceId) {
+      return false;
+    }
+    // Volume conditions
+    if (rule.conditions && batchVolume != null) {
+      if (rule.conditions.maxVolume != null && batchVolume > rule.conditions.maxVolume) {
+        return false;
+      }
+      if (rule.conditions.minVolume != null && batchVolume < rule.conditions.minVolume) {
+        return false;
+      }
+    }
+    // Colour group conditions
+    if (
+      rule.conditions?.colorGroups &&
+      rule.conditions.colorGroups.length > 0 &&
+      sapColorGroup
+    ) {
+      if (!rule.conditions.colorGroups.includes(sapColorGroup)) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
+/**
+ * After SAP-based resource assignment, detects over-capacity (resource, date)
+ * cells and attempts to move excess batches to substitute resources on the
+ * **same date** using enabled substitution rules.
+ *
+ * Returns:
+ * - resolved: Map of sapOrder → new resourceId for batches that were moved
+ * - unresolved: Set of sapOrders that remain in conflict (no valid substitute)
+ */
+export function resolveConflictsWithSubstitutions(
+  assignments: Map<string, string>,
+  batches: ImportBatch[],
+  resources: Resource[],
+  substitutionRules: SubstitutionRule[],
+): { resolved: Map<string, string>; unresolved: Set<string> } {
+  const resolved = new Map<string, string>();
+  const unresolved = new Set<string>();
+
+  const activeResources = resources.filter((r) => r.active);
+  const resourceMap = new Map(activeResources.map((r) => [r.id, r]));
+  const batchMap = new Map(batches.map((b) => [b.sapOrder, b]));
+
+  // Build group membership: groupName → resourceIds[]
+  const groupMembers = new Map<string, string[]>();
+  for (const r of activeResources) {
+    if (r.groupName) {
+      const members = groupMembers.get(r.groupName) ?? [];
+      members.push(r.id);
+      groupMembers.set(r.groupName, members);
+    }
+  }
+
+  // Build daily slots: resourceId → date → sapOrder[]
+  const dailySlots = new Map<string, Map<string, string[]>>();
+  for (const [sapOrder, resourceId] of assignments) {
+    const batch = batchMap.get(sapOrder);
+    if (!batch?.planDate) continue;
+    if (!dailySlots.has(resourceId)) {
+      dailySlots.set(resourceId, new Map());
+    }
+    const dateMap = dailySlots.get(resourceId)!;
+    const orders = dateMap.get(batch.planDate) ?? [];
+    orders.push(sapOrder);
+    dateMap.set(batch.planDate, orders);
+  }
+
+  // Helper: count batches across a group for a date
+  function getGroupDayCount(groupName: string, date: string): number {
+    const members = groupMembers.get(groupName) ?? [];
+    let total = 0;
+    for (const memberId of members) {
+      total += dailySlots.get(memberId)?.get(date)?.length ?? 0;
+    }
+    return total;
+  }
+
+  // Helper: check if a resource has spare capacity on a date
+  function hasDailyRoom(resource: Resource, date: string): boolean {
+    if (resource.groupName && resource.groupCapacity != null) {
+      return getGroupDayCount(resource.groupName, date) < resource.groupCapacity;
+    }
+    const count = dailySlots.get(resource.id)?.get(date)?.length ?? 0;
+    return count < resource.maxBatchesPerDay;
+  }
+
+  // Helper: add an order to dailySlots
+  function addToSlots(resourceId: string, date: string, sapOrder: string) {
+    if (!dailySlots.has(resourceId)) {
+      dailySlots.set(resourceId, new Map());
+    }
+    const dateMap = dailySlots.get(resourceId)!;
+    const orders = dateMap.get(date) ?? [];
+    orders.push(sapOrder);
+    dateMap.set(date, orders);
+  }
+
+  // Helper: remove an order from dailySlots
+  function removeFromSlots(resourceId: string, date: string, sapOrder: string) {
+    const orders = dailySlots.get(resourceId)?.get(date);
+    if (!orders) return;
+    const idx = orders.indexOf(sapOrder);
+    if (idx !== -1) orders.splice(idx, 1);
+  }
+
+  // Process each over-capacity cell
+  for (const [resourceId, dateMap] of dailySlots) {
+    const resource = resourceMap.get(resourceId);
+    if (!resource) continue;
+
+    for (const [date, orderList] of dateMap) {
+      // Determine effective limit
+      let limit: number;
+      let currentCount: number;
+      if (resource.groupName && resource.groupCapacity != null) {
+        limit = resource.groupCapacity;
+        currentCount = getGroupDayCount(resource.groupName, date);
+      } else {
+        limit = resource.maxBatchesPerDay;
+        currentCount = orderList.length;
+      }
+
+      if (currentCount <= limit) continue;
+
+      // Sort excess batches by volume ascending (smaller = easier to relocate)
+      const excessCount = currentCount - limit;
+      const sortedOrders = [...orderList].sort((a, b) => {
+        const volA = batchMap.get(a)?.batchVolume ?? 0;
+        const volB = batchMap.get(b)?.batchVolume ?? 0;
+        return volA - volB;
+      });
+      const excessOrders = sortedOrders.slice(0, excessCount);
+
+      for (const sapOrder of excessOrders) {
+        const batch = batchMap.get(sapOrder);
+        if (!batch) {
+          unresolved.add(sapOrder);
+          continue;
+        }
+
+        // Find candidate substitute resources
+        const candidates = activeResources
+          .filter((r) => {
+            if (r.id === resourceId) return false;
+            if (r.resourceType !== resource.resourceType) return false;
+            // Capacity check
+            if (batch.batchVolume != null) {
+              if (r.minCapacity != null && batch.batchVolume < r.minCapacity) return false;
+              if (r.maxCapacity != null && batch.batchVolume > r.maxCapacity) return false;
+            }
+            if (!hasDailyRoom(r, date)) return false;
+            if (!isSubstitutionAllowed(resourceId, r.id, batch.batchVolume, batch.sapColorGroup, substitutionRules)) return false;
+            return true;
+          })
+          .map((r) => ({
+            resource: r,
+            score: scoreResource(r, batch, resource.resourceType === "mixer" ? "mixer" : "disperser"),
+          }))
+          .sort((a, b) => b.score - a.score);
+
+        if (candidates.length > 0) {
+          const best = candidates[0]!.resource;
+          // Move batch to substitute
+          assignments.set(sapOrder, best.id);
+          resolved.set(sapOrder, best.id);
+          removeFromSlots(resourceId, date, sapOrder);
+          addToSlots(best.id, date, sapOrder);
+        } else {
+          unresolved.add(sapOrder);
+        }
+      }
+    }
+  }
+
+  return { resolved, unresolved };
 }
 
 /**

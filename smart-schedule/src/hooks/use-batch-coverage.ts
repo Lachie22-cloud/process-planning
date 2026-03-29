@@ -23,7 +23,7 @@ export function useBatchCoverage(batchId: string | null) {
         .eq("site_id", site.id);
       if (error) throw error;
 
-      const items = (data ?? []).map((row: never) => mapBatchCoverageItem(row));
+      const items = (data ?? []).map((row) => mapBatchCoverageItem(row as Parameters<typeof mapBatchCoverageItem>[0]));
 
       // Sort worst coverage first
       const order: Record<string, number> = {
