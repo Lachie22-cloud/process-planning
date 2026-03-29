@@ -1751,6 +1751,17 @@ export function useImport() {
             .map((r: Record<string, unknown>) => [r.sap_order as string, r.id as string]),
         );
 
+        // Build a site-wide SAP order→batchId map so NextPO values can resolve
+        // to any batch on the schedule (not just the ones being imported)
+        const allOrderToBatchId = new Map(
+          (await supabase
+            .from("batches")
+            .select("id, sap_order")
+            .eq("site_id", site.id)
+            .then((r) => r.data ?? []))
+            .map((r: Record<string, unknown>) => [r.sap_order as string, r.id as string]),
+        );
+
         // Build bulkCode→batchId and materialCode→batchId lookups
         const bulkToBatchIds = new Map<string, string[]>();
         const matToBatchIds = new Map<string, string[]>();
@@ -1810,13 +1821,15 @@ export function useImport() {
           const forecastM0 = parseFloat(String(fcstCol ? row[fcstCol] ?? "0" : "0")) || 0;
           const nextPoOrder = nextPoCol ? String(row[nextPoCol] ?? "") || null : null;
 
-          // Classify coverage level based on stock cover days
-          // Stock Out only flags when a fill order (NextPO) exists in ZP40
+          // Classify coverage level based on available stock
+          // OOS = available stock is 0 AND a fill order (NextPO) exists in ZP40
+          // Critical = available stock < 15
+          // Low = available stock < 30
           let level: string;
-          if (stockCover <= 0 && nextPoOrder) level = "Stock Out";
-          else if (stockCover <= 0) level = "Critical";
-          else if (stockCover < 15) level = "Critical";
-          else if (stockCover < 30) level = "Low";
+          if (availableStock === 0 && nextPoOrder) level = "Stock Out";
+          else if (availableStock === 0) level = "Critical";
+          else if (availableStock < 15) level = "Critical";
+          else if (availableStock < 30) level = "Low";
           else level = "Good";
 
           // Cross-reference PO data
@@ -1833,6 +1846,39 @@ export function useImport() {
                 for (const bId of bIds) matchedBatchIds.add(bId);
               }
             }
+          }
+
+          // For OOS items with NextPO, align the coverage item to the batch
+          // whose SAP order matches the NextPO (the fill batch)
+          if (level === "Stock Out" && nextPoOrder) {
+            const fillBatchId = allOrderToBatchId.get(nextPoOrder);
+            if (fillBatchId) {
+              // Link directly to the fill batch
+              const itemKey = `${fillBatchId}|${planningMaterial}|${plant}`;
+              if (!lockedOosKeys.has(itemKey)) {
+                coverageRows.push({
+                  site_id: site.id,
+                  batch_id: fillBatchId,
+                  planning_material: planningMaterial,
+                  material: material || null,
+                  description: description || null,
+                  plant: plant || null,
+                  available_stock: availableStock,
+                  stock_cover: stockCover,
+                  safety_stock: safetyStock,
+                  forecast_m0: forecastM0,
+                  po_date: po?.poDate ?? null,
+                  po_quantity: po?.poQuantity ?? 0,
+                  level,
+                  next_po_order: nextPoOrder,
+                  oos_locked: true,
+                });
+              }
+              // Skip the normal material-based matching for this OOS row
+              // since it's now aligned to the fill batch
+              continue;
+            }
+            // NextPO didn't match any batch — fall through to normal matching
           }
 
           for (const batchId of matchedBatchIds) {

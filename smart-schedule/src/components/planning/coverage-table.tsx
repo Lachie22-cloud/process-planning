@@ -34,15 +34,15 @@ interface CoverageRow {
 }
 
 function classifyCoverage(
-  _availableStock: number,
-  stockCover: number,
+  availableStock: number,
+  _stockCover: number,
   nextPoOrder?: string | null,
 ): CoverageRow["level"] {
-  // Classification based on stock cover days from ZP40
-  if (stockCover <= 0 && nextPoOrder) return "Stock Out";
-  if (stockCover <= 0) return "Critical";
-  if (stockCover < 15) return "Critical";
-  if (stockCover < 30) return "Low";
+  // Classification based on available stock from ZP40
+  if (availableStock === 0 && nextPoOrder) return "Stock Out";
+  if (availableStock === 0) return "Critical";
+  if (availableStock < 15) return "Critical";
+  if (availableStock < 30) return "Low";
   return "Good";
 }
 
