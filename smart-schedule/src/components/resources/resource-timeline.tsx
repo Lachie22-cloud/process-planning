@@ -20,11 +20,12 @@ import { useCurrentSite } from "@/hooks/use-current-site";
 import { useScheduleRules, useSubstitutionRules } from "@/hooks/use-rules";
 import { useColourGroups, useColourTransitions } from "@/hooks/use-colour-groups";
 import { evaluateDropTarget } from "@/lib/utils/rule-evaluator";
-import type { Batch } from "@/types/batch";
+import type { Batch, CoverageLevel } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import type { ResourceBlock } from "@/types/site";
 import type { DayBlock } from "@/hooks/use-day-blocks";
 import { useSpotlight } from "@/contexts/spotlight-context";
+import { useBatchesCoverage } from "@/hooks/use-batch-coverage";
 
 
 type ResourceTab = "mixers" | "dispersers" | "all";
@@ -143,6 +144,20 @@ export function ResourceTimeline({
   );
 
   const canSchedule = hasPermission("batches.schedule");
+
+  // Coverage levels for batch card pills
+  const batchIds = useMemo(() => batches.map((b) => b.id), [batches]);
+  const { data: coverageMap } = useBatchesCoverage(batchIds);
+  const coverageLevels = useMemo(() => {
+    const levels = new Map<string, CoverageLevel>();
+    if (!coverageMap) return levels;
+    for (const [batchId, items] of coverageMap) {
+      if (items.length > 0 && items[0]!.level !== "Good") {
+        levels.set(batchId, items[0]!.level);
+      }
+    }
+    return levels;
+  }, [coverageMap]);
 
   // Movement directions — fetched for every viewed week
   const weekStartStr = useMemo(() => format(weekStart, "yyyy-MM-dd"), [weekStart]);
@@ -903,6 +918,7 @@ export function ResourceTimeline({
                 dropTargets={dropTargets}
                 canDrag={canSchedule}
                 canSchedule={canSchedule}
+                coverageLevels={coverageLevels}
                 onBatchClick={onBatchClick}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
@@ -926,6 +942,7 @@ export function ResourceTimeline({
                 dropTargets={dropTargets}
                 canDrag={canSchedule}
                 canSchedule={canSchedule}
+                coverageLevels={coverageLevels}
                 onBatchClick={onBatchClick}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}

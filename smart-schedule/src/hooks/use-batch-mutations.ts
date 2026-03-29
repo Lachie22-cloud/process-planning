@@ -146,7 +146,14 @@ export function usePurgeSiteData() {
         throw new Error("Only site admins can purge data");
       }
 
-      // Delete linked fill orders first (FK dependency)
+      // Delete coverage items first (FK dependency)
+      const { error: covErr } = await supabase
+        .from("batch_coverage_items")
+        .delete()
+        .eq("site_id", site.id);
+      if (covErr) throw covErr;
+
+      // Delete linked fill orders (FK dependency)
       const { error: fillErr } = await supabase
         .from("linked_fill_orders")
         .delete()
@@ -173,6 +180,7 @@ export function usePurgeSiteData() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["batches"] });
       queryClient.invalidateQueries({ queryKey: ["linked-fill-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["batch_coverage_items"] });
       toast.success("All batches and linked fill orders have been purged");
     },
     onError: (err) => {

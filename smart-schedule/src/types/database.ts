@@ -392,6 +392,24 @@ export interface DatabaseRow {
     override_comment: string | null;
     created_at: string;
   };
+  batch_coverage_items: {
+    id: string;
+    site_id: string;
+    batch_id: string;
+    planning_material: string;
+    material: string | null;
+    description: string | null;
+    plant: string | null;
+    available_stock: number;
+    stock_cover: number;
+    safety_stock: number;
+    forecast_m0: number;
+    po_date: string | null;
+    po_quantity: number;
+    level: 'Stock Out' | 'Critical' | 'Low' | 'Good';
+    next_po_order: string | null;
+    created_at: string;
+  };
   rule_exceptions: {
     id: string;
     site_id: string;

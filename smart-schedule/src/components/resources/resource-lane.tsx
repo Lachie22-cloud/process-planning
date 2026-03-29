@@ -8,7 +8,7 @@ import { cn } from "@/lib/ui/cn";
 import { ArrowLeftFromLine, ArrowRightFromLine } from "lucide-react";
 import { BatchCard } from "./batch-card";
 import { BlockedOverlay } from "./blocked-overlay";
-import type { Batch } from "@/types/batch";
+import type { Batch, CoverageLevel } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import type { ResourceBlock } from "@/types/site";
 import type { MovementInfo } from "@/hooks/use-schedule-movements";
@@ -36,6 +36,7 @@ interface ResourceLaneProps {
   dropTargets?: Map<string, DropTarget>;
   canDrag?: boolean;
   canSchedule?: boolean;
+  coverageLevels?: Map<string, CoverageLevel>;
   onBatchClick?: (batch: Batch) => void;
   onDragStart?: (batch: Batch, e: React.DragEvent) => void;
   onDragEnd?: () => void;
@@ -65,6 +66,7 @@ export function ResourceLane({
   dropTargets,
   canDrag = false,
   canSchedule = false,
+  coverageLevels,
   onBatchClick,
   onDragStart,
   onDragEnd,
@@ -260,6 +262,7 @@ export function ResourceLane({
                     draggable={canDrag}
                     canSchedule={canSchedule}
                     isConflict={dayBatches.length > (resource.groupCapacity ?? resource.maxBatchesPerDay)}
+                    coverageLevel={coverageLevels?.get(batch.id)}
                     onClick={onBatchClick}
                     onDragStart={onDragStart}
                     onDragEnd={onDragEnd}

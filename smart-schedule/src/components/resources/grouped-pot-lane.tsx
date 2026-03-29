@@ -2,7 +2,7 @@ import { useMemo, useCallback } from "react";
 import { cn } from "@/lib/ui/cn";
 import { BatchCard } from "./batch-card";
 import type { DropTarget } from "./resource-lane";
-import type { Batch } from "@/types/batch";
+import type { Batch, CoverageLevel } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 
 interface GroupedPotLaneProps {
@@ -17,6 +17,7 @@ interface GroupedPotLaneProps {
   dropTargets?: Map<string, DropTarget>;
   canDrag?: boolean;
   canSchedule?: boolean;
+  coverageLevels?: Map<string, CoverageLevel>;
   onBatchClick?: (batch: Batch) => void;
   onDragStart?: (batch: Batch, e: React.DragEvent) => void;
   onDragEnd?: () => void;
@@ -37,6 +38,7 @@ export function GroupedPotLane({
   dropTargets,
   canDrag = false,
   canSchedule = false,
+  coverageLevels,
   onBatchClick,
   onDragStart,
   onDragEnd,
@@ -242,6 +244,7 @@ export function GroupedPotLane({
                           ? dayBatches.length > resources[0].groupCapacity
                           : dayBatches.length > (batchResource?.maxBatchesPerDay ?? resources[0]?.maxBatchesPerDay ?? Infinity)
                       }
+                      coverageLevel={coverageLevels?.get(batch.id)}
                       onClick={onBatchClick}
                       onDragStart={onDragStart}
                       onDragEnd={onDragEnd}

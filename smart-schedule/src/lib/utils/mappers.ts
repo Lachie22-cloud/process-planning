@@ -1,5 +1,5 @@
 import type { DatabaseRow } from "@/types/database";
-import type { Batch, LinkedFillOrder, BatchStatus, VettingStatus } from "@/types/batch";
+import type { Batch, LinkedFillOrder, BatchStatus, VettingStatus, BatchCoverageItem, CoverageLevel } from "@/types/batch";
 import type { Resource, ResourceType } from "@/types/resource";
 import type { Site, ResourceBlock } from "@/types/site";
 import type { User, UserRole, UserPreferences } from "@/types/user";
@@ -226,6 +226,25 @@ export function mapMaterialShortage(row: DatabaseRow["material_shortages"]): Mat
     overrideComment: row.override_comment,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+export function mapBatchCoverageItem(row: DatabaseRow["batch_coverage_items"]): BatchCoverageItem {
+  return {
+    id: row.id,
+    batchId: row.batch_id,
+    planningMaterial: row.planning_material,
+    material: row.material,
+    description: row.description,
+    plant: row.plant,
+    availableStock: Number(row.available_stock),
+    stockCover: Number(row.stock_cover),
+    safetyStock: Number(row.safety_stock),
+    forecastM0: Number(row.forecast_m0),
+    poDate: row.po_date,
+    poQuantity: Number(row.po_quantity),
+    level: row.level as CoverageLevel,
+    nextPoOrder: row.next_po_order,
   };
 }
 

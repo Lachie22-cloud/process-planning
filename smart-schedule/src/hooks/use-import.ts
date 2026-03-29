@@ -1665,6 +1665,149 @@ export function useImport() {
           console.warn("Shortage records found but no batch shortage rows were generated. batchShortageDetailsState size:", batchShortageDetailsState.size);
         }
       }
+      // ---- Persist per-plant ZP40 coverage items ----
+      const zp40File = files.find((f) => f.type === "zp40");
+      if (zp40File && importedBatchIds.length > 0) {
+        // Delete existing coverage items for these batches
+        await supabase
+          .from("batch_coverage_items")
+          .delete()
+          .eq("site_id", site.id)
+          .in("batch_id", importedBatchIds);
+
+        // Build order→batchId map if not already available
+        const covOrderToBatchId = orderToBatchId.size > 0
+          ? orderToBatchId
+          : new Map(
+              (await supabase
+                .from("batches")
+                .select("id, sap_order, bulk_code, material_code")
+                .eq("site_id", site.id)
+                .in("sap_order", data.map((b) => b.sapOrder))
+                .then((r) => r.data ?? []))
+                .map((r: Record<string, unknown>) => [r.sap_order as string, r.id as string]),
+            );
+
+        // Build bulkCode→batchId and materialCode→batchId lookups
+        const bulkToBatchIds = new Map<string, string[]>();
+        const matToBatchIds = new Map<string, string[]>();
+        for (const b of data) {
+          const batchId = covOrderToBatchId.get(b.sapOrder);
+          if (!batchId) continue;
+          const bulk = b.bulkCode ?? b.materialCode?.split("-")[0] ?? "";
+          if (bulk) {
+            const arr = bulkToBatchIds.get(bulk) ?? [];
+            arr.push(batchId);
+            bulkToBatchIds.set(bulk, arr);
+          }
+          if (b.materialCode) {
+            const arr = matToBatchIds.get(b.materialCode) ?? [];
+            arr.push(batchId);
+            matToBatchIds.set(b.materialCode, arr);
+          }
+        }
+
+        const zp40Headers = zp40File.headers;
+        const zp40Lower = zp40Headers.map((h) => h.toLowerCase().trim());
+
+        const planMatCol = findColumn(zp40Headers, "planning material", "planning mat");
+        const matCol = findColumn(zp40Headers, "material");
+        const descCol = findColumn(zp40Headers, "material description", "material desc", "description");
+        const plantCol = findColumn(zp40Headers, "plant", "plnt");
+        const availCol = findColumn(zp40Headers, "available stock", "available");
+        const coverCol = findColumn(zp40Headers, "stock cover", "cover");
+        const safetyCol = findColumn(zp40Headers, "safety stock");
+        const fcstCol = findColumn(zp40Headers, "current month", "forecast");
+        const nextPoCol = findColumn(zp40Headers, "nextpo", "next po", "next_po", "nextorder", "next order");
+
+        // Also build PO lookup from ZW04 for coverage items
+        const covPoLookup = new Map<string, { poDate: string | null; poQuantity: number }>();
+        const zw04File = files.find((f) => f.type === "zw04");
+        if (zw04File) {
+          for (const row of zw04File.rows) {
+            const mat = rowValue(row, zw04File.headers, "material");
+            if (!mat) continue;
+            const dateRaw = rowRawValue(row, zw04File.headers, "po.deliv.dt", "delivery date", "del. date");
+            const poDate = excelDateToISO(dateRaw);
+            const qty = rowNumeric(row, zw04File.headers, "remain.qty", "remain. qty", "remaining", "order quantity") ?? 0;
+            if (!covPoLookup.has(mat)) {
+              covPoLookup.set(mat, { poDate, poQuantity: qty });
+            }
+          }
+        }
+
+        const coverageRows: Record<string, unknown>[] = [];
+        for (const row of zp40File.rows) {
+          const planningMaterial = planMatCol ? String(row[planMatCol] ?? "") : "";
+          const material = matCol ? String(row[matCol] ?? "") : "";
+          const description = descCol ? String(row[descCol] ?? "") : "";
+          const plant = plantCol ? String(row[plantCol] ?? "") : "";
+          const availableStock = parseFloat(String(availCol ? row[availCol] ?? "0" : "0")) || 0;
+          const stockCover = parseFloat(String(coverCol ? row[coverCol] ?? "0" : "0")) || 0;
+          const safetyStock = parseFloat(String(safetyCol ? row[safetyCol] ?? "0" : "0")) || 0;
+          const forecastM0 = parseFloat(String(fcstCol ? row[fcstCol] ?? "0" : "0")) || 0;
+          const nextPoOrder = nextPoCol ? String(row[nextPoCol] ?? "") || null : null;
+
+          // Classify coverage level based on available stock
+          let level: string;
+          if (availableStock <= 0) level = "Stock Out";
+          else if (availableStock < 15) level = "Critical";
+          else if (availableStock < 30) level = "Low";
+          else level = "Good";
+
+          // Cross-reference PO data
+          const po = covPoLookup.get(planningMaterial) ?? covPoLookup.get(material);
+
+          // Find which batches this ZP40 row applies to
+          const matchedBatchIds = new Set<string>();
+          for (const bId of bulkToBatchIds.get(planningMaterial) ?? []) matchedBatchIds.add(bId);
+          for (const bId of matToBatchIds.get(material) ?? []) matchedBatchIds.add(bId);
+          // Also try partial match on planning material against bulk codes
+          if (planningMaterial) {
+            for (const [bulk, bIds] of bulkToBatchIds) {
+              if (planningMaterial.includes(bulk) || bulk.includes(planningMaterial)) {
+                for (const bId of bIds) matchedBatchIds.add(bId);
+              }
+            }
+          }
+
+          for (const batchId of matchedBatchIds) {
+            coverageRows.push({
+              site_id: site.id,
+              batch_id: batchId,
+              planning_material: planningMaterial,
+              material: material || null,
+              description: description || null,
+              plant: plant || null,
+              available_stock: availableStock,
+              stock_cover: stockCover,
+              safety_stock: safetyStock,
+              forecast_m0: forecastM0,
+              po_date: po?.poDate ?? null,
+              po_quantity: po?.poQuantity ?? 0,
+              level,
+              next_po_order: nextPoOrder,
+            });
+          }
+        }
+
+        if (coverageRows.length > 0) {
+          // Insert in chunks to stay within Supabase limits
+          const chunkSize = 500;
+          for (let i = 0; i < coverageRows.length; i += chunkSize) {
+            const chunk = coverageRows.slice(i, i + chunkSize);
+            const { error: covError } = await supabase
+              .from("batch_coverage_items")
+              .insert(chunk as never);
+            if (covError) {
+              console.error("Failed to insert batch_coverage_items:", covError);
+              break;
+            }
+          }
+          console.log("[Import] Inserted %d batch_coverage_items rows", coverageRows.length);
+        }
+      }
+
       return { mode };
     },
     onSuccess: (result) => {
@@ -1682,6 +1825,7 @@ export function useImport() {
       queryClient.invalidateQueries({ queryKey: ["batches"] });
       queryClient.invalidateQueries({ queryKey: ["material_shortages"] });
       queryClient.invalidateQueries({ queryKey: ["batch_material_shortages"] });
+      queryClient.invalidateQueries({ queryKey: ["batch_coverage_items"] });
       queryClient.invalidateQueries({ queryKey: ["fill_orders_week"] });
       clearFiles();
     },

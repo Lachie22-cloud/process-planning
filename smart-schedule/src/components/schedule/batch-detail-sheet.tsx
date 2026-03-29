@@ -40,6 +40,7 @@ import type { BatchStatus, Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
 import { useBatchShortages, useOverrideBatchShortage, useUpdateBatchShortageEta } from "@/hooks/use-material-shortages";
+import { useBatchCoverage } from "@/hooks/use-batch-coverage";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -440,15 +441,180 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
 
 
 function CoverageSection({ batch }: { batch: Batch }) {
-  const hasData = batch.stockCover != null || batch.safetyStock != null || batch.forecast != null;
-  if (!hasData) return null;
+  const { data: coverageItems = [], isLoading } = useBatchCoverage(batch.id);
 
-  // Visual coverage bar
+  // Fallback to legacy aggregated view if no per-plant items exist
+  const hasLegacyData = batch.stockCover != null || batch.safetyStock != null || batch.forecast != null;
+  if (!isLoading && coverageItems.length === 0 && !hasLegacyData) return null;
+
+  // Per-plant breakdown
+  if (coverageItems.length > 0) {
+    const oosCount = coverageItems.filter((i) => i.level === "Stock Out").length;
+    const critCount = coverageItems.filter((i) => i.level === "Critical").length;
+    const lowCount = coverageItems.filter((i) => i.level === "Low").length;
+    const goodCount = coverageItems.filter((i) => i.level === "Good").length;
+    const total = coverageItems.length;
+
+    // Overall level = worst item
+    const overallLevel = coverageItems[0]!.level;
+    const isOos = overallLevel === "Stock Out";
+    const isCrit = overallLevel === "Critical";
+    const isLow = overallLevel === "Low";
+
+    // Attention items: OOS and Critical
+    const attentionItems = coverageItems.filter(
+      (i) => i.level === "Stock Out" || i.level === "Critical" || i.level === "Low",
+    );
+
+    const overallColor = isOos
+      ? "bg-red-50 border-red-200"
+      : isCrit
+        ? "bg-orange-50 border-orange-200"
+        : isLow
+          ? "bg-amber-50 border-amber-200"
+          : "bg-green-50 border-green-200";
+
+    const overallDot = isOos
+      ? "bg-red-500"
+      : isCrit
+        ? "bg-orange-500"
+        : isLow
+          ? "bg-amber-500"
+          : "bg-emerald-500";
+
+    const overallText = isOos
+      ? "text-red-700"
+      : isCrit
+        ? "text-orange-700"
+        : isLow
+          ? "text-amber-700"
+          : "text-green-700";
+
+    const overallLabel = isOos
+      ? "Stock Out"
+      : isCrit
+        ? "Critical"
+        : isLow
+          ? "Low Coverage"
+          : "Good";
+
+    return (
+      <div className={`space-y-3 rounded-lg border p-3 ${overallColor}`}>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${isOos || isCrit ? "bg-red-100 text-red-700" : isLow ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+              COV
+            </span>
+            <h3 className="text-sm font-semibold">Coverage Profile</h3>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className={`inline-block h-2 w-2 rounded-full ${overallDot}`} />
+            <span className={`text-xs font-semibold ${overallText}`}>
+              {overallLabel}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              ({total} FG{total !== 1 ? "s" : ""})
+            </span>
+          </div>
+        </div>
+
+        {/* Stacked bar */}
+        <div className="flex h-7 w-full overflow-hidden rounded-md">
+          {goodCount > 0 && (
+            <div
+              className="flex items-center justify-center bg-green-200 text-[10px] font-semibold text-green-800 transition-all"
+              style={{ width: `${(goodCount / total) * 100}%` }}
+            >
+              {goodCount} Good
+            </div>
+          )}
+          {lowCount > 0 && (
+            <div
+              className="flex items-center justify-center bg-amber-200 text-[10px] font-semibold text-amber-800 transition-all"
+              style={{ width: `${(lowCount / total) * 100}%` }}
+            >
+              {lowCount} Low
+            </div>
+          )}
+          {critCount > 0 && (
+            <div
+              className="flex items-center justify-center bg-orange-200 text-[10px] font-semibold text-orange-800 transition-all"
+              style={{ width: `${(critCount / total) * 100}%` }}
+            >
+              {critCount} Crit
+            </div>
+          )}
+          {oosCount > 0 && (
+            <div
+              className="flex items-center justify-center bg-red-200 text-[10px] font-semibold text-red-800 transition-all"
+              style={{ width: `${(oosCount / total) * 100}%` }}
+            >
+              {oosCount} Stock Out
+            </div>
+          )}
+        </div>
+
+        {/* Attention Required */}
+        {attentionItems.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+              Attention Required
+            </p>
+            {attentionItems.map((item, i) => {
+              const isItemOos = item.level === "Stock Out";
+              const isItemCrit = item.level === "Critical";
+              return (
+                <div
+                  key={`${item.planningMaterial}-${item.plant}-${i}`}
+                  className="flex items-center gap-2 rounded border bg-white/80 px-2 py-1.5 text-xs"
+                >
+                  <span
+                    className={`inline-block h-2 w-2 shrink-0 rounded-full ${
+                      isItemOos ? "bg-red-500" : isItemCrit ? "bg-orange-500" : "bg-amber-500"
+                    }`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-semibold">
+                        {item.material || item.planningMaterial}
+                      </span>
+                      <span className="truncate text-muted-foreground">
+                        {item.description}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3 text-right tabular-nums">
+                    {item.plant && (
+                      <span className="text-muted-foreground">{item.plant}</span>
+                    )}
+                    <span className={isItemOos ? "font-semibold text-red-700" : isItemCrit ? "font-semibold text-orange-700" : "font-semibold text-amber-700"}>
+                      {item.stockCover.toFixed(0)}d
+                    </span>
+                    <span className="text-muted-foreground">
+                      {item.availableStock.toLocaleString()} units
+                    </span>
+                  </div>
+                  {isItemOos && item.nextPoOrder && (
+                    <span className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-700">
+                      PO: {item.nextPoOrder}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Legacy fallback (no per-plant data)
   const coverWeeks = batch.stockCover ?? 0;
-  const maxWeeks = 52; // scale
+  const maxWeeks = 52;
   const pct = Math.min(100, (coverWeeks / maxWeeks) * 100);
   const isStockOut = coverWeeks <= 0;
-  const isLow = coverWeeks > 0 && coverWeeks < 4;
+  const isLowLegacy = coverWeeks > 0 && coverWeeks < 4;
 
   return (
     <div className="space-y-2">
@@ -460,13 +626,13 @@ function CoverageSection({ batch }: { batch: Batch }) {
             Stock Out
           </span>
         )}
-        {isLow && !isStockOut && (
+        {isLowLegacy && !isStockOut && (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
             Low Cover
           </span>
         )}
-        {!isStockOut && !isLow && (
+        {!isStockOut && !isLowLegacy && (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
             Good
@@ -474,13 +640,12 @@ function CoverageSection({ batch }: { batch: Batch }) {
         )}
       </div>
 
-      {/* Visual bar */}
       <div className="h-5 w-full overflow-hidden rounded-full bg-muted">
         <div
           className={`h-full rounded-full transition-all ${
             isStockOut
               ? "bg-red-400"
-              : isLow
+              : isLowLegacy
                 ? "bg-amber-400"
                 : "bg-emerald-400"
           }`}

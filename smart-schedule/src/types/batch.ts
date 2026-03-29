@@ -130,3 +130,23 @@ export interface LinkedFillOrder {
 export interface BatchWithFillOrders extends Batch {
   linkedFillOrders: LinkedFillOrder[];
 }
+
+export type CoverageLevel = "Stock Out" | "Critical" | "Low" | "Good";
+
+/** Per-plant ZP40 coverage row for a batch */
+export interface BatchCoverageItem {
+  id: string;
+  batchId: string;
+  planningMaterial: string;
+  material: string | null;
+  description: string | null;
+  plant: string | null;
+  availableStock: number;
+  stockCover: number;
+  safetyStock: number;
+  forecastM0: number;
+  poDate: string | null;
+  poQuantity: number;
+  level: CoverageLevel;
+  nextPoOrder: string | null;
+}

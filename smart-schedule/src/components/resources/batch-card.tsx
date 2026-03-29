@@ -6,7 +6,7 @@ import {
 import { cn } from "@/lib/ui/cn";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
 import { Eye, Move, CalendarClock } from "lucide-react";
-import type { Batch } from "@/types/batch";
+import type { Batch, CoverageLevel } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 /** Derive fill requirement label from fillRequirement field or ipt fallback */
 function getFillLabel(batch: Batch): string {
@@ -26,6 +26,7 @@ interface BatchCardProps {
   draggable?: boolean;
   canSchedule?: boolean;
   isConflict?: boolean;
+  coverageLevel?: CoverageLevel | null;
   onClick?: (batch: Batch) => void;
   onDragStart?: (batch: Batch, e: React.DragEvent) => void;
   onDragEnd?: () => void;
@@ -79,6 +80,7 @@ export function BatchCard({
   draggable = false,
   canSchedule = false,
   isConflict = false,
+  coverageLevel,
   onClick,
   onDragStart,
   onDragEnd,
@@ -299,6 +301,23 @@ export function BatchCard({
         {batch.ebrBatch && (
           <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200">
             EBR
+          </span>
+        )}
+
+        {/* Coverage pills */}
+        {coverageLevel === "Stock Out" && (
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200">
+            OOS
+          </span>
+        )}
+        {coverageLevel === "Critical" && (
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200">
+            CRIT
+          </span>
+        )}
+        {coverageLevel === "Low" && (
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200">
+            LOW COV
           </span>
         )}
       </div>
