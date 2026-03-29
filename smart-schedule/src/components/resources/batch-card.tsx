@@ -6,6 +6,7 @@ import {
 import { cn } from "@/lib/ui/cn";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
 import { COLOR_GROUPS } from "@/lib/constants/color-groups";
+import { useColourGroups } from "@/hooks/use-colour-groups";
 import { Eye, Move, CalendarClock } from "lucide-react";
 import type { Batch, CoverageLevel } from "@/types/batch";
 import type { Resource } from "@/types/resource";
@@ -94,6 +95,7 @@ export function BatchCard({
     resource.maxCapacity != null &&
     batch.batchVolume > resource.maxCapacity;
 
+  const { data: colourGroups } = useColourGroups();
   const cardStyle = getCardStyle(batch);
   const statusCfg = BATCH_STATUSES[batch.status];
 
@@ -183,15 +185,20 @@ export function BatchCard({
         {batch.materialDescription ?? "\u2014"}
       </div>
 
-      {/* Row 3: Color group */}
-      {batch.sapColorGroup && (
-        <div
-          className="mt-0.5 text-[10px] font-medium uppercase"
-          style={{ color: COLOR_GROUPS[batch.sapColorGroup]?.color ?? "#1f2937" }}
-        >
-          {COLOR_GROUPS[batch.sapColorGroup]?.name ?? batch.sapColorGroup}
-        </div>
-      )}
+      {/* Row 3: Color group — prefer database-driven groups, fall back to hardcoded */}
+      {batch.sapColorGroup && (() => {
+        const dbGroup = colourGroups?.find((g) => g.code === batch.sapColorGroup);
+        const colour = dbGroup?.hexColour ?? COLOR_GROUPS[batch.sapColorGroup]?.color ?? "#1f2937";
+        const name = dbGroup?.name ?? COLOR_GROUPS[batch.sapColorGroup]?.name ?? batch.sapColorGroup;
+        return (
+          <div
+            className="mt-0.5 text-[10px] font-medium uppercase"
+            style={{ color: colour }}
+          >
+            {name}
+          </div>
+        );
+      })()}
 
       {/* Row 4: Volume + resource + pack size */}
       <div className="mt-0.5 flex items-baseline justify-between gap-2">

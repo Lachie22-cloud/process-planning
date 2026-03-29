@@ -667,8 +667,6 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     const zp40 = lookupByMaterial(zp40Data, materialCode, bulkCode);
     const stockCover = zp40?.stockCover ?? null;
     const forecast = zp40?.forecast ?? null;
-    const _availableStock = zp40?.availableStock ?? null;
-
     // Cross-reference with ZW04 purchase order data
     const zw04 = lookupByMaterial(zw04Data, materialCode, bulkCode);
     const poDate = zw04?.poDate ?? null;
