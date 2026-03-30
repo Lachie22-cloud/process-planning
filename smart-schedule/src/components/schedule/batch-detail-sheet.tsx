@@ -173,22 +173,23 @@ function BulkAlertBanner({
         return (
           <div
             key={alert.id}
-            className="rounded-lg border-2 border-orange-400 bg-orange-100 p-3 dark:border-orange-700 dark:bg-orange-950/40"
+            className="rounded-lg border border-border bg-white p-3 dark:bg-gray-900"
+            style={{ borderLeftWidth: 4, borderLeftColor: "#f97316" }}
           >
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 h-5 w-5 text-orange-600 shrink-0" />
+                <AlertTriangle className="mt-0.5 h-4 w-4 text-orange-500 shrink-0" strokeWidth={2.5} />
                 <div>
-                  <p className="text-sm font-extrabold text-orange-900 dark:text-orange-100">
+                  <p className="text-sm font-bold text-foreground">
                     BULK ALERT
                   </p>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <p className="text-sm text-foreground">
                     {alert.message}
                   </p>
-                  <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-700 dark:text-gray-300">
+                  <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                     {alert.createdByName && (
                       <span>
-                        Raised by: <strong>{alert.createdByName}</strong>
+                        Raised by: <strong className="text-foreground">{alert.createdByName}</strong>
                       </span>
                     )}
                     {alert.startDate && alert.endDate && (
@@ -198,13 +199,13 @@ function BulkAlertBanner({
                       </span>
                     )}
                     <span>
-                      Batches affected: <strong>{affectedCount}</strong>
+                      Batches affected: <strong className="text-foreground">{affectedCount}</strong>
                     </span>
                   </p>
                 </div>
               </div>
               {alert.bulkCode && (
-                <span className="font-mono text-sm font-bold text-gray-900 dark:text-gray-100 shrink-0">
+                <span className="font-mono text-sm font-bold text-foreground shrink-0">
                   {alert.bulkCode}
                 </span>
               )}
