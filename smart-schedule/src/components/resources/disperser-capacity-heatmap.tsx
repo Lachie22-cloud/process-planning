@@ -262,7 +262,13 @@ export function DisperserCapacityHeatmap({
   const dispersers = useMemo(
     () =>
       resources
-        .filter((r) => r.resourceType === "disperser" && r.active)
+        .filter(
+          (r) =>
+            r.resourceType === "disperser" &&
+            r.active &&
+            // Exclude virtual catch-all buckets (e.g. "Straight Mixes", "Intermediates")
+            r.maxBatchesPerDay < 99,
+        )
         .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)),
     [resources],
   );
