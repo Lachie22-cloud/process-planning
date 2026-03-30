@@ -424,7 +424,7 @@ export function DisperserCapacityHeatmap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, dispersers, heatData]);
 
-  // --- Resource groups for Resource Group view ---
+  // --- Resource groups for Resource Group view (grouped by chemicalBase) ---
   const resourceGroups = useMemo(() => {
     type GroupEntry = {
       name: string;
@@ -435,43 +435,49 @@ export function DisperserCapacityHeatmap({
       pct: number;
     };
     const dk = selectedDate;
-    const grouped = new Map<string, GroupEntry>();
-    const ungrouped: GroupEntry[] = [];
+    const groups = new Map<string, GroupEntry>();
 
     for (const d of dispersers) {
-      if (d.groupName) {
-        let entry = grouped.get(d.groupName);
-        if (!entry) {
-          // Use group capacity from any member (they all share it)
-          const gCap = d.groupCapacity ?? d.maxBatchesPerDay;
-          entry = { name: d.groupName, members: [], pmc: 0, batch: 0, cap: gCap, pct: 0 };
-          grouped.set(d.groupName, entry);
+      const key = d.chemicalBase ?? d.displayName ?? d.resourceCode;
+      let entry = groups.get(key);
+      if (!entry) {
+        entry = { name: key, members: [], pmc: 0, batch: 0, cap: 0, pct: 0 };
+        groups.set(key, entry);
+      }
+      entry.members.push(d);
+      const c = getCell(d.id, dk);
+      entry.pmc += c.pmc;
+      entry.batch += c.batch;
+      // For groups with shared groupCapacity, use it once (not per member)
+      // Otherwise sum individual capacities
+      if (d.groupCapacity != null && d.groupName != null) {
+        // Only count group capacity once per groupName within this chemicalBase
+        if (!entry.members.slice(0, -1).some((m) => m.groupName === d.groupName)) {
+          entry.cap += d.groupCapacity;
         }
-        entry.members.push(d);
-        const c = getCell(d.id, dk);
-        entry.pmc += c.pmc;
-        entry.batch += c.batch;
       } else {
-        const c = getCell(d.id, dk);
-        ungrouped.push({
-          name: d.displayName ?? d.resourceCode,
-          members: [d],
-          pmc: c.pmc,
-          batch: c.batch,
-          cap: c.cap,
-          pct: c.pct,
-        });
+        entry.cap += d.maxBatchesPerDay;
       }
     }
 
-    // Calculate pct for groups using group-level PMC
-    for (const [groupName, entry] of grouped) {
-      const groupPmc = groupPmcByDate.get(groupName)?.get(dk) ?? entry.pmc;
-      entry.pct = entry.cap > 0 ? Math.round((groupPmc / entry.cap) * 100) : 0;
-      entry.pmc = groupPmc;
+    // Calculate pct for each group
+    for (const entry of groups.values()) {
+      // For members with shared group capacity, use groupPmcByDate for accurate PMC
+      let totalPmc = 0;
+      const countedGroupNames = new Set<string>();
+      for (const m of entry.members) {
+        if (m.groupName && m.groupCapacity != null && !countedGroupNames.has(m.groupName)) {
+          countedGroupNames.add(m.groupName);
+          totalPmc += groupPmcByDate.get(m.groupName)?.get(dk) ?? 0;
+        } else if (!m.groupName || m.groupCapacity == null) {
+          totalPmc += getCell(m.id, dk).pmc;
+        }
+      }
+      entry.pmc = totalPmc;
+      entry.pct = entry.cap > 0 ? Math.round((totalPmc / entry.cap) * 100) : 0;
     }
 
-    const all = [...grouped.values(), ...ungrouped];
+    const all = [...groups.values()];
     all.sort((a, b) => b.pct - a.pct);
     return all;
     // eslint-disable-next-line react-hooks/exhaustive-deps
