@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { BarChart3 } from "lucide-react";
 import type { Batch } from "@/types/batch";
 import type { ParsedFile } from "@/hooks/use-import";
+import { classifyCoverageLevel } from "@/lib/utils/coverage";
 
 interface CoveragePopupProps {
   batch: Batch;
@@ -97,12 +98,8 @@ export function CoveragePopup({ batch, zp40File, children }: CoveragePopupProps)
           ? String(row[rawHeaders[nextPoIdx] ?? ""] ?? "").trim() || null
           : null;
 
-        // OOS = available stock <= 0 AND fill order exists; Critical/Low = days cover
-        let level: CoverageItem["level"];
-        if (availableStock <= 0 && nextPoOrder) level = "Stock Out";
-        else if (stockCover < 15) level = "Critical";
-        else if (stockCover < 30) level = "Low";
-        else level = "Good";
+        // Classify using days cover from ZP40
+        const level: CoverageItem["level"] = classifyCoverageLevel(availableStock, stockCover, nextPoOrder);
 
         return { planningMaterial, material, description, availableStock, stockCover, level };
       })

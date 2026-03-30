@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { ParsedFile } from "@/hooks/use-import";
 import { excelDateToISO } from "@/lib/utils/excel-parser";
+import { classifyCoverageLevel } from "@/lib/utils/coverage";
 import type { Batch } from "@/types/batch";
 
 interface CoverageTableProps {
@@ -38,11 +39,7 @@ function classifyCoverage(
   stockCover: number,
   nextPoOrder?: string | null,
 ): CoverageRow["level"] {
-  // OOS = available stock <= 0 AND fill order exists; Critical/Low = days cover
-  if (availableStock <= 0 && nextPoOrder) return "Stock Out";
-  if (stockCover < 15) return "Critical";
-  if (stockCover < 30) return "Low";
-  return "Good";
+  return classifyCoverageLevel(availableStock, stockCover, nextPoOrder);
 }
 
 const LEVEL_STYLES: Record<

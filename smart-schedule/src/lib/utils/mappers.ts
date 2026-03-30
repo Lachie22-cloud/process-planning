@@ -1,5 +1,6 @@
 import type { DatabaseRow } from "@/types/database";
-import type { Batch, LinkedFillOrder, BatchStatus, VettingStatus, BatchCoverageItem, CoverageLevel } from "@/types/batch";
+import type { Batch, LinkedFillOrder, BatchStatus, VettingStatus, BatchCoverageItem } from "@/types/batch";
+import { classifyCoverageLevel } from "./coverage";
 import type { Resource, ResourceType } from "@/types/resource";
 import type { Site, ResourceBlock } from "@/types/site";
 import type { User, UserRole, UserPreferences } from "@/types/user";
@@ -232,6 +233,10 @@ export function mapMaterialShortage(row: DatabaseRow["material_shortages"]): Mat
 }
 
 export function mapBatchCoverageItem(row: DatabaseRow["batch_coverage_items"]): BatchCoverageItem {
+  const availableStock = Number(row.available_stock);
+  const stockCover = Number(row.stock_cover);
+  const nextPoOrder = row.next_po_order;
+
   return {
     id: row.id,
     batchId: row.batch_id,
@@ -239,14 +244,14 @@ export function mapBatchCoverageItem(row: DatabaseRow["batch_coverage_items"]): 
     material: row.material,
     description: row.description,
     plant: row.plant,
-    availableStock: Number(row.available_stock),
-    stockCover: Number(row.stock_cover),
+    availableStock,
+    stockCover,
     safetyStock: Number(row.safety_stock),
     forecastM0: Number(row.forecast_m0),
     poDate: row.po_date,
     poQuantity: Number(row.po_quantity),
-    level: row.level as CoverageLevel,
-    nextPoOrder: row.next_po_order,
+    level: classifyCoverageLevel(availableStock, stockCover, nextPoOrder),
+    nextPoOrder,
     oosLocked: row.oos_locked,
   };
 }

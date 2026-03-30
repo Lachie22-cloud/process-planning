@@ -6,6 +6,7 @@ import { useCurrentSite } from "./use-current-site";
 import { useResources } from "./use-resources";
 import { parseExcelFile, excelDateToISO, type ParsedRow } from "@/lib/utils/excel-parser";
 import { assignBatchesToResources, resolveConflictsWithSubstitutions } from "@/lib/utils/resource-assignment";
+import { classifyCoverageLevel } from "@/lib/utils/coverage";
 import { useSubstitutionRules } from "./use-rules";
 
 /** Recognised SAP file types */
@@ -1787,14 +1788,8 @@ export function useImport() {
           const forecastM0 = parseFloat(String(fcstCol ? row[fcstCol] ?? "0" : "0")) || 0;
           const nextPoOrder = nextPoCol ? String(row[nextPoCol] ?? "") || null : null;
 
-          // Classify coverage level:
-          // OOS = available stock <= 0 AND fill order exists (based on units)
-          // Critical / Low = based on days cover from ZP40
-          let level: string;
-          if (availableStock <= 0 && nextPoOrder) level = "Stock Out";
-          else if (stockCover < 15) level = "Critical";
-          else if (stockCover < 30) level = "Low";
-          else level = "Good";
+          // Classify coverage level using days cover from ZP40
+          const level = classifyCoverageLevel(availableStock, stockCover, nextPoOrder);
 
           // Cross-reference PO data
           const po = covPoLookup.get(planningMaterial) ?? covPoLookup.get(material);
