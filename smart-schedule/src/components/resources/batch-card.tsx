@@ -8,7 +8,7 @@ import { BATCH_STATUSES } from "@/lib/constants/statuses";
 import { parsePackSizeLitres } from "@/lib/utils/pack-size";
 import { COLOR_GROUPS } from "@/lib/constants/color-groups";
 import { useColourGroups } from "@/hooks/use-colour-groups";
-import { Eye, Move, CalendarClock } from "lucide-react";
+import { AlertTriangle, Eye, Move, CalendarClock } from "lucide-react";
 import type { Batch, CoverageLevel } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 /** Derive fill requirement label from fillRequirement field or ipt fallback */
@@ -30,6 +30,7 @@ interface BatchCardProps {
   canSchedule?: boolean;
   isConflict?: boolean;
   coverageLevel?: CoverageLevel | null;
+  hasAlert?: boolean;
   hasRedLid?: boolean;
   hasBlueLid?: boolean;
   onClick?: (batch: Batch) => void;
@@ -86,6 +87,7 @@ export function BatchCard({
   canSchedule = false,
   isConflict = false,
   coverageLevel,
+  hasAlert = false,
   hasRedLid = false,
   hasBlueLid = false,
   onClick,
@@ -177,6 +179,14 @@ export function BatchCard({
                 </button>
               </TooltipTrigger>
               <TooltipContent>Move to best placement</TooltipContent>
+            </Tooltip>
+          )}
+          {hasAlert && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+              </TooltipTrigger>
+              <TooltipContent>Bulk alert active</TooltipContent>
             </Tooltip>
           )}
           <span className="font-mono text-[13px] font-extrabold tracking-tight text-black">

@@ -128,7 +128,9 @@ export function mapLinkedFillOrder(row: DatabaseRow["linked_fill_orders"]): Link
   };
 }
 
-export function mapBulkAlert(row: DatabaseRow["bulk_alerts"]): BulkAlert {
+export function mapBulkAlert(
+  row: DatabaseRow["bulk_alerts"] & { site_users?: { display_name: string } | null },
+): BulkAlert {
   return {
     id: row.id,
     siteId: row.site_id,
@@ -138,6 +140,7 @@ export function mapBulkAlert(row: DatabaseRow["bulk_alerts"]): BulkAlert {
     startDate: row.start_date,
     endDate: row.end_date,
     createdBy: row.created_by,
+    createdByName: row.site_users?.display_name ?? null,
     createdAt: row.created_at,
   };
 }

@@ -7,5 +7,6 @@ export interface BulkAlert {
   startDate: string | null;
   endDate: string | null;
   createdBy: string | null;
+  createdByName: string | null;
   createdAt: string;
 }

@@ -39,6 +39,7 @@ interface ResourceLaneProps {
   canSchedule?: boolean;
   coverageLevels?: Map<string, CoverageLevel>;
   lidFlags?: Map<string, LidFlags>;
+  alertBatchIds?: Set<string>;
   onBatchClick?: (batch: Batch) => void;
   onDragStart?: (batch: Batch, e: React.DragEvent) => void;
   onDragEnd?: () => void;
@@ -70,6 +71,7 @@ export function ResourceLane({
   canSchedule = false,
   coverageLevels,
   lidFlags,
+  alertBatchIds,
   onBatchClick,
   onDragStart,
   onDragEnd,
@@ -266,6 +268,7 @@ export function ResourceLane({
                     canSchedule={canSchedule}
                     isConflict={dayBatches.length > (resource.groupCapacity ?? resource.maxBatchesPerDay)}
                     coverageLevel={coverageLevels?.get(batch.id)}
+                    hasAlert={alertBatchIds?.has(batch.id)}
                     hasRedLid={lidFlags?.get(batch.id)?.hasRedLid}
                     hasBlueLid={lidFlags?.get(batch.id)?.hasBlueLid}
                     onClick={onBatchClick}

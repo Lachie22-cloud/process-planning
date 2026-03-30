@@ -1,9 +1,11 @@
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
 import { useCurrentSite } from "./use-current-site";
 import { mapBulkAlert } from "@/lib/utils/mappers";
 import type { DatabaseRow } from "@/types/database";
 import type { BulkAlert } from "@/types/alert";
+import type { Batch } from "@/types/batch";
 import type { BulkAlertFormInput } from "@/lib/validators/alert";
 
 interface UseAlertsOptions {
@@ -37,12 +39,12 @@ export function useAlerts(options: UseAlertsOptions = {}) {
 
       const { data, error } = await supabase
         .from("bulk_alerts")
-        .select("*")
+        .select("*, site_users!created_by(display_name)")
         .eq("site_id", site.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      const mapped = (data as DatabaseRow["bulk_alerts"][]).map(mapBulkAlert);
+      const mapped = (data as (DatabaseRow["bulk_alerts"] & { site_users?: { display_name: string } | null })[]).map(mapBulkAlert);
       if (!activeOnly) return mapped;
 
       const todayISO = new Date().toISOString().slice(0, 10);
@@ -190,4 +192,47 @@ export function useDeleteAlert() {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
   });
+}
+
+/** Build a Map<batchId, BulkAlert[]> from active alerts for quick lookup */
+export function useAlertsByBatch(batches: Batch[]): Map<string, BulkAlert[]> {
+  const { data: alerts = [] } = useActiveAlerts();
+
+  return useMemo(() => {
+    const map = new Map<string, BulkAlert[]>();
+    for (const alert of alerts) {
+      // Direct batch match
+      if (alert.batchId) {
+        const existing = map.get(alert.batchId) ?? [];
+        existing.push(alert);
+        map.set(alert.batchId, existing);
+      }
+      // Bulk code match — affects all batches with that code
+      if (alert.bulkCode) {
+        for (const batch of batches) {
+          if (batch.bulkCode === alert.bulkCode) {
+            const existing = map.get(batch.id) ?? [];
+            if (!existing.some((a) => a.id === alert.id)) {
+              existing.push(alert);
+              map.set(batch.id, existing);
+            }
+          }
+        }
+      }
+    }
+    return map;
+  }, [alerts, batches]);
+}
+
+/** Get active alerts relevant to a specific batch (by ID or bulk code) */
+export function useAlertsForBatch(batchId: string | null, bulkCode: string | null) {
+  const { data: alerts = [] } = useActiveAlerts();
+  return useMemo(() => {
+    if (!batchId && !bulkCode) return [];
+    return alerts.filter(
+      (a) =>
+        (a.batchId && a.batchId === batchId) ||
+        (a.bulkCode && bulkCode && a.bulkCode === bulkCode),
+    );
+  }, [alerts, batchId, bulkCode]);
 }

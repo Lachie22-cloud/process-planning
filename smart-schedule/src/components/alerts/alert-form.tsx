@@ -8,7 +8,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +18,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Check, ChevronsUpDown, X } from "lucide-react";
+import { cn } from "@/lib/ui/cn";
 import { bulkAlertFormSchema, type BulkAlertFormInput } from "@/lib/validators/alert";
 import type { Batch } from "@/types/batch";
 import type { BulkAlert } from "@/types/alert";
@@ -61,6 +75,7 @@ export function AlertForm({
 }: AlertFormProps) {
   const [form, setForm] = useState<FormState>(() => buildInitialState(alert));
   const [error, setError] = useState<string | null>(null);
+  const [bulkCodeOpen, setBulkCodeOpen] = useState(false);
 
   useEffect(() => {
     setForm(buildInitialState(alert));
@@ -71,6 +86,23 @@ export function AlertForm({
     () => [...batches].sort((a, b) => a.sapOrder.localeCompare(b.sapOrder)),
     [batches],
   );
+
+  const bulkCodeOptions = useMemo(() => {
+    const codeMap = new Map<string, number>();
+    for (const b of batches) {
+      if (b.bulkCode) {
+        codeMap.set(b.bulkCode, (codeMap.get(b.bulkCode) ?? 0) + 1);
+      }
+    }
+    return [...codeMap.entries()]
+      .map(([code, count]) => ({ code, count }))
+      .sort((a, b) => a.code.localeCompare(b.code));
+  }, [batches]);
+
+  const filteredBatches = useMemo(() => {
+    if (!form.bulkCode) return sortedBatches;
+    return sortedBatches.filter((b) => b.bulkCode === form.bulkCode);
+  }, [sortedBatches, form.bulkCode]);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -127,18 +159,85 @@ export function AlertForm({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="alert-bulk-code">Bulk Code</Label>
-              <Input
-                id="alert-bulk-code"
-                value={form.bulkCode}
-                onChange={(e) => setField("bulkCode", e.target.value)}
-                placeholder="Optional"
-                disabled={isPending}
-              />
+              <Label>Bulk Code</Label>
+              <Popover open={bulkCodeOpen} onOpenChange={setBulkCodeOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={bulkCodeOpen}
+                    className="w-full justify-between font-normal"
+                    disabled={isPending}
+                  >
+                    {form.bulkCode ? (
+                      <span className="truncate font-mono">{form.bulkCode}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Type or select...</span>
+                    )}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[260px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search bulk code..." />
+                    <CommandList>
+                      <CommandEmpty>No matching code.</CommandEmpty>
+                      <CommandGroup>
+                        {form.bulkCode && (
+                          <CommandItem
+                            value="__clear__"
+                            onSelect={() => {
+                              setField("bulkCode", "");
+                              // Reset batch if it no longer matches
+                              if (form.batchId !== "none") {
+                                setField("batchId", "none");
+                              }
+                              setBulkCodeOpen(false);
+                            }}
+                          >
+                            <X className="mr-2 h-4 w-4 text-muted-foreground" />
+                            Clear selection
+                          </CommandItem>
+                        )}
+                        {bulkCodeOptions.map((opt) => (
+                          <CommandItem
+                            key={opt.code}
+                            value={opt.code}
+                            onSelect={() => {
+                              setField("bulkCode", opt.code);
+                              // Reset batch if it doesn't match the new bulk code
+                              if (form.batchId !== "none") {
+                                const matches = batches.some(
+                                  (b) => b.id === form.batchId && b.bulkCode === opt.code,
+                                );
+                                if (!matches) setField("batchId", "none");
+                              }
+                              setBulkCodeOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                form.bulkCode === opt.code ? "opacity-100" : "opacity-0",
+                              )}
+                            />
+                            <span className="font-mono">{opt.code}</span>
+                            <span className="ml-auto text-xs text-muted-foreground">
+                              {opt.count} batch{opt.count === 1 ? "" : "es"}
+                            </span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="alert-batch-id">Batch (optional)</Label>
+              <Label htmlFor="alert-batch-id">
+                Batch{form.bulkCode ? ` (${filteredBatches.length} matching)` : " (optional)"}
+              </Label>
               <Select
                 value={form.batchId}
                 onValueChange={(value) => setField("batchId", value)}
@@ -149,9 +248,9 @@ export function AlertForm({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">All batches</SelectItem>
-                  {sortedBatches.map((batch) => (
-                    <SelectItem key={batch.id} value={batch.id}>
-                      {batch.sapOrder}
+                  {filteredBatches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.sapOrder}{b.bulkBatchNumber ? ` — ${b.bulkBatchNumber}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

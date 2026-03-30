@@ -44,6 +44,9 @@ import { BATCH_STATUSES } from "@/lib/constants/statuses";
 import { useBatchShortages, useOverrideBatchShortage, useUpdateBatchShortageEta } from "@/hooks/use-material-shortages";
 import { fillOrderHasComponent, RED_LID_COMPONENT, BLUE_LID_COMPONENT } from "@/lib/utils/pack-size";
 import { useBatchCoverage } from "@/hooks/use-batch-coverage";
+import { useAlertsForBatch } from "@/hooks/use-alerts";
+import { useBatches } from "@/hooks/use-batches";
+import type { BulkAlert } from "@/types/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -147,6 +150,68 @@ function StatusAlertBanner({ batch }: { batch: Batch }) {
           {description}
         </p>
       </div>
+    </div>
+  );
+}
+
+function BulkAlertBanner({
+  alerts,
+  batches,
+}: {
+  alerts: BulkAlert[];
+  batches: Batch[];
+}) {
+  if (alerts.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      {alerts.map((alert) => {
+        const affectedCount = alert.bulkCode
+          ? batches.filter((b) => b.bulkCode === alert.bulkCode).length
+          : 1;
+
+        return (
+          <div
+            key={alert.id}
+            className="rounded-lg border border-orange-300 bg-orange-50 p-3 dark:border-orange-800 dark:bg-orange-950/30"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 text-orange-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-orange-800 dark:text-orange-200">
+                    BULK ALERT
+                  </p>
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
+                    {alert.message}
+                  </p>
+                  <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-orange-600 dark:text-orange-400">
+                    {alert.createdByName && (
+                      <span>
+                        Raised by: <strong>{alert.createdByName}</strong>
+                      </span>
+                    )}
+                    {alert.startDate && alert.endDate && (
+                      <span>
+                        Period: {format(new Date(alert.startDate), "yyyy-MM-dd")} &rarr;{" "}
+                        {format(new Date(alert.endDate), "yyyy-MM-dd")}
+                      </span>
+                    )}
+                    <span>
+                      Batches affected: <strong>{affectedCount}</strong>
+                    </span>
+                  </p>
+                </div>
+              </div>
+              {alert.bulkCode && (
+                <span className="font-mono text-xs font-semibold text-orange-700 dark:text-orange-300 shrink-0">
+                  {alert.bulkCode}
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -901,6 +966,13 @@ export function BatchDetailSheet({
   const { hasPermission } = usePermissions();
   const { user } = useCurrentSite();
 
+  // Bulk alerts for this batch
+  const alertsForBatch = useAlertsForBatch(
+    batch?.id ?? null,
+    batch?.bulkCode ?? null,
+  );
+  const { data: allBatches = [] } = useBatches();
+
   const canEditStatus = hasPermission("batches.status");
   const canEditSchedule = hasPermission("batches.schedule");
 
@@ -1071,6 +1143,9 @@ export function BatchDetailSheet({
             </SheetHeader>
 
             <div className="mt-4 space-y-5">
+              {/* Bulk alert banner */}
+              <BulkAlertBanner alerts={alertsForBatch} batches={allBatches} />
+
               {/* Status alert banner */}
               <StatusAlertBanner batch={batch} />
 

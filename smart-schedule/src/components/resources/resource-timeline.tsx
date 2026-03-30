@@ -27,6 +27,7 @@ import type { DayBlock } from "@/hooks/use-day-blocks";
 import { useSpotlight } from "@/contexts/spotlight-context";
 import { useBatchesCoverage } from "@/hooks/use-batch-coverage";
 import { useBatchLidFlags } from "@/hooks/use-batch-lid-flags";
+import { useAlertsByBatch } from "@/hooks/use-alerts";
 
 
 type ResourceTab = "mixers" | "dispersers" | "all";
@@ -162,6 +163,10 @@ export function ResourceTimeline({
 
   // Lid type flags (red lid / blue lid) for batch card pills
   const lidFlags = useBatchLidFlags(batchIds);
+
+  // Active bulk alert batch IDs for caution icon on cards
+  const alertMap = useAlertsByBatch(batches);
+  const alertBatchIds = useMemo(() => new Set(alertMap.keys()), [alertMap]);
 
   // Movement directions — fetched for every viewed week
   const weekStartStr = useMemo(() => format(weekStart, "yyyy-MM-dd"), [weekStart]);
@@ -924,6 +929,7 @@ export function ResourceTimeline({
                 canSchedule={canSchedule}
                 coverageLevels={coverageLevels}
                 lidFlags={lidFlags}
+                alertBatchIds={alertBatchIds}
                 onBatchClick={onBatchClick}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
@@ -949,6 +955,7 @@ export function ResourceTimeline({
                 canSchedule={canSchedule}
                 coverageLevels={coverageLevels}
                 lidFlags={lidFlags}
+                alertBatchIds={alertBatchIds}
                 onBatchClick={onBatchClick}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}

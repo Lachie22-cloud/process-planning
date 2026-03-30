@@ -20,6 +20,7 @@ interface GroupedPotLaneProps {
   canSchedule?: boolean;
   coverageLevels?: Map<string, CoverageLevel>;
   lidFlags?: Map<string, LidFlags>;
+  alertBatchIds?: Set<string>;
   onBatchClick?: (batch: Batch) => void;
   onDragStart?: (batch: Batch, e: React.DragEvent) => void;
   onDragEnd?: () => void;
@@ -42,6 +43,7 @@ export function GroupedPotLane({
   canSchedule = false,
   coverageLevels,
   lidFlags,
+  alertBatchIds,
   onBatchClick,
   onDragStart,
   onDragEnd,
@@ -248,6 +250,7 @@ export function GroupedPotLane({
                           : dayBatches.length > (batchResource?.maxBatchesPerDay ?? resources[0]?.maxBatchesPerDay ?? Infinity)
                       }
                       coverageLevel={coverageLevels?.get(batch.id)}
+                      hasAlert={alertBatchIds?.has(batch.id)}
                       hasRedLid={lidFlags?.get(batch.id)?.hasRedLid}
                       hasBlueLid={lidFlags?.get(batch.id)?.hasBlueLid}
                       onClick={onBatchClick}
