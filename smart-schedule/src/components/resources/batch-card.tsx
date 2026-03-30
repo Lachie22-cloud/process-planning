@@ -184,7 +184,9 @@ export function BatchCard({
           {hasAlert && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-amber-100 dark:bg-amber-900/40">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" fill="currentColor" strokeWidth={2.5} />
+                </span>
               </TooltipTrigger>
               <TooltipContent>Bulk alert active</TooltipContent>
             </Tooltip>

@@ -173,19 +173,19 @@ function BulkAlertBanner({
         return (
           <div
             key={alert.id}
-            className="rounded-lg border border-orange-300 bg-orange-50 p-3 dark:border-orange-800 dark:bg-orange-950/30"
+            className="rounded-lg border-2 border-orange-400 bg-orange-100 p-3 dark:border-orange-700 dark:bg-orange-950/40"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 h-4 w-4 text-orange-500 shrink-0" />
+                <AlertTriangle className="mt-0.5 h-5 w-5 text-orange-600 shrink-0" />
                 <div>
-                  <p className="text-sm font-bold text-orange-800 dark:text-orange-200">
+                  <p className="text-sm font-extrabold text-orange-900 dark:text-orange-100">
                     BULK ALERT
                   </p>
-                  <p className="text-sm text-orange-700 dark:text-orange-300">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                     {alert.message}
                   </p>
-                  <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-orange-600 dark:text-orange-400">
+                  <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-700 dark:text-gray-300">
                     {alert.createdByName && (
                       <span>
                         Raised by: <strong>{alert.createdByName}</strong>
@@ -193,8 +193,8 @@ function BulkAlertBanner({
                     )}
                     {alert.startDate && alert.endDate && (
                       <span>
-                        Period: {format(new Date(alert.startDate), "yyyy-MM-dd")} &rarr;{" "}
-                        {format(new Date(alert.endDate), "yyyy-MM-dd")}
+                        Period: {format(new Date(alert.startDate), "d MMM yyyy")} &rarr;{" "}
+                        {format(new Date(alert.endDate), "d MMM yyyy")}
                       </span>
                     )}
                     <span>
@@ -204,7 +204,7 @@ function BulkAlertBanner({
                 </div>
               </div>
               {alert.bulkCode && (
-                <span className="font-mono text-xs font-semibold text-orange-700 dark:text-orange-300 shrink-0">
+                <span className="font-mono text-sm font-bold text-gray-900 dark:text-gray-100 shrink-0">
                   {alert.bulkCode}
                 </span>
               )}
@@ -970,6 +970,7 @@ export function BatchDetailSheet({
   const alertsForBatch = useAlertsForBatch(
     batch?.id ?? null,
     batch?.bulkCode ?? null,
+    batch?.planDate ?? null,
   );
   const { data: allBatches = [] } = useBatches();
 

@@ -194,6 +194,17 @@ export function useDeleteAlert() {
   });
 }
 
+/** Check whether a batch's plan date falls within an alert's date range */
+function alertCoversDate(alert: BulkAlert, planDate: string | null): boolean {
+  // If alert has no date bounds, it applies to all dates
+  if (!alert.startDate && !alert.endDate) return true;
+  // If batch has no plan date, we can't filter by date — show the alert
+  if (!planDate) return true;
+  if (alert.startDate && planDate < alert.startDate) return false;
+  if (alert.endDate && planDate > alert.endDate) return false;
+  return true;
+}
+
 /** Build a Map<batchId, BulkAlert[]> from active alerts for quick lookup */
 export function useAlertsByBatch(batches: Batch[]): Map<string, BulkAlert[]> {
   const { data: alerts = [] } = useActiveAlerts();
@@ -201,16 +212,19 @@ export function useAlertsByBatch(batches: Batch[]): Map<string, BulkAlert[]> {
   return useMemo(() => {
     const map = new Map<string, BulkAlert[]>();
     for (const alert of alerts) {
-      // Direct batch match
+      // Direct batch match — still check date range
       if (alert.batchId) {
-        const existing = map.get(alert.batchId) ?? [];
-        existing.push(alert);
-        map.set(alert.batchId, existing);
+        const batch = batches.find((b) => b.id === alert.batchId);
+        if (alertCoversDate(alert, batch?.planDate ?? null)) {
+          const existing = map.get(alert.batchId) ?? [];
+          existing.push(alert);
+          map.set(alert.batchId, existing);
+        }
       }
-      // Bulk code match — affects all batches with that code
+      // Bulk code match — affects batches with that code whose plan date overlaps
       if (alert.bulkCode) {
         for (const batch of batches) {
-          if (batch.bulkCode === alert.bulkCode) {
+          if (batch.bulkCode === alert.bulkCode && alertCoversDate(alert, batch.planDate ?? null)) {
             const existing = map.get(batch.id) ?? [];
             if (!existing.some((a) => a.id === alert.id)) {
               existing.push(alert);
@@ -224,15 +238,20 @@ export function useAlertsByBatch(batches: Batch[]): Map<string, BulkAlert[]> {
   }, [alerts, batches]);
 }
 
-/** Get active alerts relevant to a specific batch (by ID or bulk code) */
-export function useAlertsForBatch(batchId: string | null, bulkCode: string | null) {
+/** Get active alerts relevant to a specific batch (by ID or bulk code + plan date) */
+export function useAlertsForBatch(
+  batchId: string | null,
+  bulkCode: string | null,
+  planDate?: string | null,
+) {
   const { data: alerts = [] } = useActiveAlerts();
   return useMemo(() => {
     if (!batchId && !bulkCode) return [];
     return alerts.filter(
       (a) =>
-        (a.batchId && a.batchId === batchId) ||
-        (a.bulkCode && bulkCode && a.bulkCode === bulkCode),
+        ((a.batchId && a.batchId === batchId) ||
+          (a.bulkCode && bulkCode && a.bulkCode === bulkCode)) &&
+        alertCoversDate(a, planDate ?? null),
     );
-  }, [alerts, batchId, bulkCode]);
+  }, [alerts, batchId, bulkCode, planDate]);
 }
