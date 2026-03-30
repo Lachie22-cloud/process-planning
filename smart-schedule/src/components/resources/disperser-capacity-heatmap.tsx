@@ -784,10 +784,11 @@ function WeekTimeline({
           { x: svgW, y: pts[pts.length - 1]?.y ?? chartH },
         ];
 
-        let path = `M ${allPts[0].x},${allPts[0].y}`;
+        const first = allPts[0]!;
+        let path = `M ${first.x},${first.y}`;
         for (let i = 1; i < allPts.length; i++) {
-          const prev = allPts[i - 1];
-          const curr = allPts[i];
+          const prev = allPts[i - 1]!;
+          const curr = allPts[i]!;
           const cpx1 = prev.x + (curr.x - prev.x) * 0.4;
           const cpx2 = prev.x + (curr.x - prev.x) * 0.6;
           path += ` C ${cpx1},${prev.y} ${cpx2},${curr.y} ${curr.x},${curr.y}`;
@@ -838,7 +839,9 @@ function WeekTimeline({
                 />
                 {/* Data dots */}
                 {pts.map((p, i) => {
-                  const c = getCell(resource.id, coreDates[i]);
+                  const dk = coreDates[i];
+                  if (!dk) return null;
+                  const c = getCell(resource.id, dk);
                   if (c.pct <= 0) return null;
                   const ct = getTier(c.pct);
                   return (
