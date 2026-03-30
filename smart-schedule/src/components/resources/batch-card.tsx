@@ -5,6 +5,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/ui/cn";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
+import { parsePackSizeLitres } from "@/lib/utils/pack-size";
 import { COLOR_GROUPS } from "@/lib/constants/color-groups";
 import { useColourGroups } from "@/hooks/use-colour-groups";
 import { Eye, Move, CalendarClock } from "lucide-react";
@@ -347,6 +348,26 @@ export function BatchCard({
             LOW COV
           </span>
         )}
+
+        {/* Pack size category pills */}
+        {(() => {
+          const litres = parsePackSizeLitres(batch.packSize);
+          if (litres === 0.5) {
+            return (
+              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200">
+                500ML
+              </span>
+            );
+          }
+          if (litres !== null && litres > 40) {
+            return (
+              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200">
+                MANUAL
+              </span>
+            );
+          }
+          return null;
+        })()}
       </div>
     </div>
   );

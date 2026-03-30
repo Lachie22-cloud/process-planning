@@ -7,6 +7,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/ui/cn";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
 import { mapLinkedFillOrder } from "@/lib/utils/mappers";
+import { parsePackSizeLitres } from "@/lib/utils/pack-size";
 import type { DatabaseRow } from "@/types/database";
 import { useBatch } from "@/hooks/use-batches";
 import type { LinkedFillOrder } from "@/types/batch";
@@ -1139,7 +1141,7 @@ export function BatchDetailSheet({
                         <InfoRow
                           label="Lid Type"
                           value={
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 flex-wrap justify-end">
                               {hasRedLid && (
                                 <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">
                                   Red Lid
@@ -1154,6 +1156,35 @@ export function BatchDetailSheet({
                           }
                         />
                       );
+                    })()}
+                    {/* Fill Category pills: 500ml / Manual */}
+                    {(() => {
+                      const litres = parsePackSizeLitres(batch.packSize);
+                      if (litres === 0.5) {
+                        return (
+                          <InfoRow
+                            label="Fill Category"
+                            value={
+                              <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                                500ml
+                              </span>
+                            }
+                          />
+                        );
+                      }
+                      if (litres !== null && litres > 40) {
+                        return (
+                          <InfoRow
+                            label="Fill Category"
+                            value={
+                              <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-950 dark:text-orange-300">
+                                Manual Fill
+                              </span>
+                            }
+                          />
+                        );
+                      }
+                      return null;
                     })()}
                     {(() => {
                       const fill = getFillLabel(batch);
