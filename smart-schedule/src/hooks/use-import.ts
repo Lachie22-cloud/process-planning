@@ -1821,14 +1821,14 @@ export function useImport() {
           const forecastM0 = parseFloat(String(fcstCol ? row[fcstCol] ?? "0" : "0")) || 0;
           const nextPoOrder = nextPoCol ? String(row[nextPoCol] ?? "") || null : null;
 
-          // Classify coverage level based on days coverage (DaysCov) from ZP40
-          // OOS = DaysCov < 0 AND a fill order (NextPO) exists in ZP40
-          // Critical = DaysCov < 15
-          // Low = DaysCov < 30
+          // Classify coverage level based on available stock from ZP40
+          // OOS = available stock is 0
+          // Critical = available stock < 15
+          // Low = available stock < 30
           let level: string;
-          if (stockCover < 0 && nextPoOrder) level = "Stock Out";
-          else if (stockCover < 15) level = "Critical";
-          else if (stockCover < 30) level = "Low";
+          if (availableStock <= 0) level = "Stock Out";
+          else if (availableStock < 15) level = "Critical";
+          else if (availableStock < 30) level = "Low";
           else level = "Good";
 
           // Cross-reference PO data
