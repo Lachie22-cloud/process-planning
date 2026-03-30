@@ -34,12 +34,12 @@ interface CoverageRow {
 }
 
 function classifyCoverage(
-  _availableStock: number,
+  availableStock: number,
   stockCover: number,
   nextPoOrder?: string | null,
 ): CoverageRow["level"] {
-  // Classification based on days coverage (DaysCov) from ZP40
-  if (stockCover < 0 && nextPoOrder) return "Stock Out";
+  // OOS = available stock <= 0 AND fill order exists; Critical/Low = days cover
+  if (availableStock <= 0 && nextPoOrder) return "Stock Out";
   if (stockCover < 15) return "Critical";
   if (stockCover < 30) return "Low";
   return "Good";

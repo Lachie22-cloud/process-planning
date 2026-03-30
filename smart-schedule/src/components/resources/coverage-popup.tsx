@@ -97,9 +97,9 @@ export function CoveragePopup({ batch, zp40File, children }: CoveragePopupProps)
           ? String(row[rawHeaders[nextPoIdx] ?? ""] ?? "").trim() || null
           : null;
 
-        // Classification based on days coverage (DaysCov) from ZP40
+        // OOS = available stock <= 0 AND fill order exists; Critical/Low = days cover
         let level: CoverageItem["level"];
-        if (stockCover < 0 && nextPoOrder) level = "Stock Out";
+        if (availableStock <= 0 && nextPoOrder) level = "Stock Out";
         else if (stockCover < 15) level = "Critical";
         else if (stockCover < 30) level = "Low";
         else level = "Good";

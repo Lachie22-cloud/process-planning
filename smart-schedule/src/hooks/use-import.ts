@@ -1692,53 +1692,12 @@ export function useImport() {
       // ---- Persist per-plant ZP40 coverage items ----
       const zp40File = files.find((f) => f.type === "zp40");
       if (zp40File && importedBatchIds.length > 0) {
-        // Fetch existing OOS-locked items for non-complete batches so they persist
-        const { data: lockedOosRows } = await supabase
+        // Delete ALL existing coverage items — always reflect current ZP40 state
+        await supabase
           .from("batch_coverage_items")
-          .select("*, batches!inner(status)")
+          .delete()
           .eq("site_id", site.id)
-          .in("batch_id", importedBatchIds)
-          .eq("level", "Stock Out")
-          .eq("oos_locked", true)
-          .neq("batches.status", "Job Complete");
-        // Build a set of locked OOS keys (batch_id + planning_material + plant) to preserve
-        const lockedOosKeys = new Set(
-          (lockedOosRows ?? []).map((r: Record<string, unknown>) =>
-            `${r.batch_id}|${r.planning_material}|${r.plant ?? ""}`),
-        );
-        // Also track which batch IDs have any locked OOS item
-        const batchesWithLockedOos = new Set(
-          (lockedOosRows ?? []).map((r: Record<string, unknown>) => r.batch_id as string),
-        );
-
-        // Delete existing coverage items EXCEPT OOS-locked ones for non-complete batches
-        if (batchesWithLockedOos.size > 0) {
-          // For batches with locked OOS: delete non-locked items only
-          const batchesWithLocked = [...batchesWithLockedOos];
-          const batchesWithoutLocked = importedBatchIds.filter((id) => !batchesWithLockedOos.has(id));
-          // Delete non-locked items for batches that have locked OOS
-          await supabase
-            .from("batch_coverage_items")
-            .delete()
-            .eq("site_id", site.id)
-            .in("batch_id", batchesWithLocked)
-            .eq("oos_locked", false);
-          // Delete all items for batches without locked OOS (normal behavior)
-          if (batchesWithoutLocked.length > 0) {
-            await supabase
-              .from("batch_coverage_items")
-              .delete()
-              .eq("site_id", site.id)
-              .in("batch_id", batchesWithoutLocked);
-          }
-        } else {
-          // No locked OOS items — delete all as before
-          await supabase
-            .from("batch_coverage_items")
-            .delete()
-            .eq("site_id", site.id)
-            .in("batch_id", importedBatchIds);
-        }
+          .in("batch_id", importedBatchIds);
 
         // Build order→batchId map for coverage linking
         const covOrderToBatchId = new Map(
@@ -1791,7 +1750,7 @@ export function useImport() {
         const coverCol = findColumn(zp40Headers, "stock cover", "cover");
         const safetyCol = findColumn(zp40Headers, "safety stock");
         const fcstCol = findColumn(zp40Headers, "current month", "forecast");
-        const nextPoCol = findColumn(zp40Headers, "nextpo", "next po", "next_po", "nextorder", "next order");
+        const nextPoCol = findColumn(zp40Headers, "nextpo", "next po", "next_po", "nextorder", "next order", "replen.order", "repl.order", "replenishment order", "fill order");
 
         // Also build PO lookup from ZW04 for coverage items
         const covPoLookup = new Map<string, { poDate: string | null; poQuantity: number }>();
@@ -1821,14 +1780,13 @@ export function useImport() {
           const forecastM0 = parseFloat(String(fcstCol ? row[fcstCol] ?? "0" : "0")) || 0;
           const nextPoOrder = nextPoCol ? String(row[nextPoCol] ?? "") || null : null;
 
-          // Classify coverage level based on available stock from ZP40
-          // OOS = available stock is 0
-          // Critical = available stock < 15
-          // Low = available stock < 30
+          // Classify coverage level:
+          // OOS = available stock <= 0 AND fill order exists (based on units)
+          // Critical / Low = based on days cover from ZP40
           let level: string;
-          if (availableStock <= 0) level = "Stock Out";
-          else if (availableStock < 15) level = "Critical";
-          else if (availableStock < 30) level = "Low";
+          if (availableStock <= 0 && nextPoOrder) level = "Stock Out";
+          else if (stockCover < 15) level = "Critical";
+          else if (stockCover < 30) level = "Low";
           else level = "Good";
 
           // Cross-reference PO data
@@ -1881,9 +1839,6 @@ export function useImport() {
           }
 
           for (const batchId of matchedBatchIds) {
-            const itemKey = `${batchId}|${planningMaterial}|${plant}`;
-            // Skip if this exact item is already preserved as a locked OOS row
-            if (lockedOosKeys.has(itemKey)) continue;
             coverageRows.push({
               site_id: site.id,
               batch_id: batchId,
@@ -1899,8 +1854,7 @@ export function useImport() {
               po_quantity: po?.poQuantity ?? 0,
               level,
               next_po_order: nextPoOrder,
-              // Lock OOS items so they persist across future re-imports
-              oos_locked: level === "Stock Out",
+              oos_locked: false,
             });
           }
         }
