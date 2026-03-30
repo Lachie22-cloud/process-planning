@@ -369,10 +369,6 @@ export function DisperserCapacityHeatmap({
   // --- Derived values ---
 
   const firstCoreDate = coreDates?.[0] ?? dates[0] ?? "";
-  const coreDateList = useMemo(
-    () => dates.filter((d) => !bookendDates.has(d)),
-    [dates, bookendDates],
-  );
   const selectedDate = dates[selectedDateIdx] ?? dates[0] ?? "";
 
   function getCell(disperserId: string, date: string): CellData {
@@ -428,15 +424,58 @@ export function DisperserCapacityHeatmap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, dispersers, heatData]);
 
-  // --- Sorted dispersers for week view (by peak) ---
-  const sortedByPeak = useMemo(() => {
-    return [...dispersers].sort((a, b) => {
-      const peakA = Math.max(0, ...coreDateList.map((d) => getCell(a.id, d).pct));
-      const peakB = Math.max(0, ...coreDateList.map((d) => getCell(b.id, d).pct));
-      return peakB - peakA;
-    });
+  // --- Resource groups for Resource Group view ---
+  const resourceGroups = useMemo(() => {
+    type GroupEntry = {
+      name: string;
+      members: Resource[];
+      pmc: number;
+      batch: number;
+      cap: number;
+      pct: number;
+    };
+    const dk = selectedDate;
+    const grouped = new Map<string, GroupEntry>();
+    const ungrouped: GroupEntry[] = [];
+
+    for (const d of dispersers) {
+      if (d.groupName) {
+        let entry = grouped.get(d.groupName);
+        if (!entry) {
+          // Use group capacity from any member (they all share it)
+          const gCap = d.groupCapacity ?? d.maxBatchesPerDay;
+          entry = { name: d.groupName, members: [], pmc: 0, batch: 0, cap: gCap, pct: 0 };
+          grouped.set(d.groupName, entry);
+        }
+        entry.members.push(d);
+        const c = getCell(d.id, dk);
+        entry.pmc += c.pmc;
+        entry.batch += c.batch;
+      } else {
+        const c = getCell(d.id, dk);
+        ungrouped.push({
+          name: d.displayName ?? d.resourceCode,
+          members: [d],
+          pmc: c.pmc,
+          batch: c.batch,
+          cap: c.cap,
+          pct: c.pct,
+        });
+      }
+    }
+
+    // Calculate pct for groups using group-level PMC
+    for (const [groupName, entry] of grouped) {
+      const groupPmc = groupPmcByDate.get(groupName)?.get(dk) ?? entry.pmc;
+      entry.pct = entry.cap > 0 ? Math.round((groupPmc / entry.cap) * 100) : 0;
+      entry.pmc = groupPmc;
+    }
+
+    const all = [...grouped.values(), ...ungrouped];
+    all.sort((a, b) => b.pct - a.pct);
+    return all;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispersers, coreDateList, heatData]);
+  }, [selectedDate, dispersers, heatData, groupPmcByDate]);
 
   if (dispersers.length === 0) return null;
 
@@ -688,14 +727,29 @@ export function DisperserCapacityHeatmap({
           </TabsContent>
 
           {/* ============================================================ */}
-          {/* VIEW 3: WEEK VIEW (wave chart timeline)                      */}
+          {/* VIEW 3: RESOURCE GROUP                                       */}
           {/* ============================================================ */}
           <TabsContent value="week" className="mt-0">
-            <WeekTimeline
-              coreDates={coreDateList}
-              sortedByPeak={sortedByPeak}
-              getCell={getCell}
-            />
+            <div className="py-3">
+              <DayPills
+                dates={dates}
+                bookendDates={bookendDates}
+                firstCoreDate={firstCoreDate}
+                selectedDate={selectedDate}
+                onSelect={setSelectedDateIdx}
+                getMaxPct={getMaxPctForDate}
+              />
+            </div>
+            <div className="px-4 pb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {resourceGroups.map((group) => (
+                  <ResourceGroupCard key={group.name} group={group} />
+                ))}
+              </div>
+              <div className="mt-4 border-t pt-3">
+                <HeatLegend />
+              </div>
+            </div>
           </TabsContent>
         </div>
       </Tabs>
@@ -728,159 +782,61 @@ function ControlCard({ resource, cell }: { resource: Resource; cell: CellData })
 }
 
 // ---------------------------------------------------------------------------
-// Week Timeline (wave/area chart per disperser)
+// Resource Group card
 // ---------------------------------------------------------------------------
 
-function WeekTimeline({
-  coreDates,
-  sortedByPeak,
-  getCell,
+function ResourceGroupCard({
+  group,
 }: {
-  coreDates: string[];
-  sortedByPeak: Resource[];
-  getCell: (id: string, date: string) => CellData;
+  group: {
+    name: string;
+    members: Resource[];
+    pmc: number;
+    batch: number;
+    cap: number;
+    pct: number;
+  };
 }) {
-  const todayStr = format(new Date(), "yyyy-MM-dd");
-  const chartH = 44;
+  const t = getTier(group.pct);
+  const isGroup = group.members.length > 1;
+  const isIdle = group.pct <= 0;
+
+  if (isIdle) {
+    return (
+      <div className="rounded-lg border bg-muted/30 p-4 opacity-50">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs font-semibold">{group.name}</span>
+          <span className="text-[10px] text-muted-foreground italic">idle</span>
+        </div>
+        {isGroup && (
+          <div className="text-[10px] text-muted-foreground mb-2">
+            {group.members.map((m) => m.displayName ?? m.resourceCode).join(", ")}
+          </div>
+        )}
+        <div className="text-[10px] text-muted-foreground">Cap {group.cap}</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="overflow-hidden">
-      {/* Day headers */}
-      <div className="flex items-end border-b" style={{ paddingLeft: 140, paddingRight: 56 }}>
-        <div className="flex flex-1">
-          {coreDates.map((dk, i) => {
-            const date = new Date(dk + "T12:00:00");
-            const isToday = dk === todayStr;
-            return (
-              <div
-                key={dk}
-                className={cn("flex-1 text-center py-2", i > 0 && "border-l")}
-              >
-                <span className={cn("text-[10px] font-semibold", isToday ? "text-blue-500 dark:text-blue-400" : "text-muted-foreground")}>
-                  {format(date, "EEE d")}
-                </span>
-                {isToday && (
-                  <span className="ml-1 text-[7px] text-blue-500 dark:text-blue-400">
-                    today
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
+    <div className={cn("rounded-lg border p-4 transition-colors hover:bg-muted/30", t.borderCls)}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-sm font-semibold">{group.name}</span>
+        <span className={cn("text-xl font-bold tabular-nums", t.textCls)}>{group.pct}%</span>
       </div>
-
-      {/* Disperser rows */}
-      {sortedByPeak.map((resource) => {
-        const name = resource.displayName ?? resource.resourceCode;
-        const vals = coreDates.map((dk) => getCell(resource.id, dk).pct);
-        const peakPct = Math.max(0, ...vals);
-        const peakTier = getTier(peakPct);
-
-        // SVG wave path
-        const svgW = 680;
-        const pts = vals.map((v, i) => ({
-          x: ((i + 0.5) / coreDates.length) * svgW,
-          y: chartH - 2 - (Math.min(v, 120) / 120) * (chartH - 8),
-        }));
-
-        const allPts = [
-          { x: 0, y: pts[0]?.y ?? chartH },
-          ...pts,
-          { x: svgW, y: pts[pts.length - 1]?.y ?? chartH },
-        ];
-
-        const first = allPts[0]!;
-        let path = `M ${first.x},${first.y}`;
-        for (let i = 1; i < allPts.length; i++) {
-          const prev = allPts[i - 1]!;
-          const curr = allPts[i]!;
-          const cpx1 = prev.x + (curr.x - prev.x) * 0.4;
-          const cpx2 = prev.x + (curr.x - prev.x) * 0.6;
-          path += ` C ${cpx1},${prev.y} ${cpx2},${curr.y} ${curr.x},${curr.y}`;
-        }
-        const fillPath = `${path} L ${svgW},${chartH} L 0,${chartH} Z`;
-
-        return (
-          <div
-            key={resource.id}
-            className="flex items-center border-b transition-colors hover:bg-muted/20"
-            style={{ minHeight: chartH + 16 }}
-          >
-            {/* Name */}
-            <div className="w-[140px] min-w-[140px] flex-shrink-0 border-r px-4">
-              <span className="text-xs font-semibold">{name}</span>
-            </div>
-
-            {/* Chart */}
-            <div className="flex-1 relative" style={{ height: chartH + 8, minWidth: svgW }}>
-              <svg
-                width="100%"
-                height={chartH + 8}
-                viewBox={`0 0 ${svgW} ${chartH}`}
-                preserveAspectRatio="none"
-                className="absolute top-1 left-0"
-              >
-                {/* Day dividers */}
-                {coreDates.slice(1).map((_, i) => (
-                  <line
-                    key={i}
-                    x1={(((i + 1)) / coreDates.length) * svgW}
-                    y1={0}
-                    x2={(((i + 1)) / coreDates.length) * svgW}
-                    y2={chartH}
-                    className="stroke-border"
-                    strokeWidth={0.5}
-                  />
-                ))}
-                {/* Area fill */}
-                <path d={fillPath} fill={peakTier.fill} />
-                {/* Line stroke */}
-                <path
-                  d={path}
-                  fill="none"
-                  stroke={peakTier.stroke}
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                />
-                {/* Data dots */}
-                {pts.map((p, i) => {
-                  const dk = coreDates[i];
-                  if (!dk) return null;
-                  const c = getCell(resource.id, dk);
-                  if (c.pct <= 0) return null;
-                  const ct = getTier(c.pct);
-                  return (
-                    <circle
-                      key={i}
-                      cx={p.x}
-                      cy={p.y}
-                      r={4}
-                      fill={ct.stroke}
-                      stroke="var(--color-card)"
-                      strokeWidth={2}
-                    />
-                  );
-                })}
-              </svg>
-            </div>
-
-            {/* Peak % */}
-            <div className="w-[56px] min-w-[56px] flex-shrink-0 text-right pr-4">
-              <span className={cn("text-xs font-bold tabular-nums", peakTier.textCls)}>
-                {peakPct}%
-              </span>
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Legend */}
-      <div className="flex items-center gap-4 px-4 py-2.5">
-        <HeatLegend />
-        <span className="ml-4 text-[10px] text-muted-foreground">
-          Colour based on peak utilisation. Dots show active days.
-        </span>
+      {isGroup && (
+        <div className="text-[10px] text-muted-foreground mb-2">
+          {group.members.map((m) => m.displayName ?? m.resourceCode).join(", ")}
+        </div>
+      )}
+      <div className="text-[10px] text-muted-foreground tabular-nums mb-2.5">
+        {group.pmc} PMC · {group.batch} Batch · {group.cap} Cap
+      </div>
+      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+        <div
+          className={cn("h-full rounded-full", t.barCls)}
+          style={{ width: `${Math.min(group.pct, 100)}%` }}
+        />
       </div>
     </div>
   );
