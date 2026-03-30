@@ -198,6 +198,43 @@ export function useOverrideBatchShortage() {
         performed_by: user?.id ?? null,
         performed_at: now,
       } as never);
+
+      // Recalculate batch rm_available / packaging_available based on remaining unresolved shortages
+      const { data: remaining } = await supabase
+        .from("batch_material_shortages")
+        .select("id, short_qty, planner_override, material_shortages(material_type, planner_override)")
+        .eq("batch_id", batchId)
+        .eq("site_id", site.id)
+        .lt("short_qty", 0);
+
+      const rows = (remaining ?? []) as Array<{
+        id: string;
+        short_qty: number;
+        planner_override: boolean;
+        material_shortages: { material_type: string; planner_override: boolean } | null;
+      }>;
+
+      const hasUnresolvedRm = rows.some(
+        (r) =>
+          r.material_shortages?.material_type === "RM" &&
+          !r.planner_override &&
+          !r.material_shortages.planner_override,
+      );
+      const hasUnresolvedPkg = rows.some(
+        (r) =>
+          r.material_shortages?.material_type === "PKG" &&
+          !r.planner_override &&
+          !r.material_shortages.planner_override,
+      );
+
+      await supabase
+        .from("batches")
+        .update({
+          rm_available: !hasUnresolvedRm,
+          packaging_available: !hasUnresolvedPkg,
+        } as never)
+        .eq("id", batchId)
+        .eq("site_id", site.id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["batch_material_shortages"] });

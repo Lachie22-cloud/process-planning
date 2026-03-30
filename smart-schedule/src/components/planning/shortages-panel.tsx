@@ -11,17 +11,38 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { PermissionGate } from "@/components/shared/permission-gate";
-import { ShieldCheck, CalendarCheck, ArrowUpDown } from "lucide-react";
+import { ShieldCheck, CalendarCheck, ArrowUpDown, Loader2 } from "lucide-react";
 import {
   useAllBatchShortages,
   useUpdateBatchShortageEta,
+  useOverrideBatchShortage,
 } from "@/hooks/use-material-shortages";
 import type { BatchShortageRow } from "@/hooks/use-material-shortages";
 
 type SortKey = "material" | "shortQty" | "planDate";
 type SortDir = "asc" | "desc";
+
+const OVERRIDE_REASONS = [
+  "SOH Check Completed",
+  "Stock in transit",
+  "Stock awaiting GR",
+  "Other",
+] as const;
+
+type OverrideReason = (typeof OVERRIDE_REASONS)[number];
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -61,9 +82,13 @@ function SortButton({
 function ShortageTable({
   rows,
   materialType,
+  overrideMode,
+  onOverride,
 }: {
   rows: BatchShortageRow[];
   materialType: "RM" | "PKG";
+  overrideMode: boolean;
+  onOverride: (row: BatchShortageRow) => void;
 }) {
   const updateEta = useUpdateBatchShortageEta();
 
@@ -215,7 +240,7 @@ function ShortageTable({
               </TableHead>
               <TableHead className="w-[40px] py-2 px-2">UOM</TableHead>
               <TableHead className="w-[110px] py-2 px-2">ETA</TableHead>
-              <TableHead className="w-[72px] py-2 px-2">Override</TableHead>
+              <TableHead className="w-[90px] py-2 px-2">Override</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -286,7 +311,7 @@ function ShortageTable({
                         />
                       </PermissionGate>
                     </TableCell>
-                    <TableCell className="py-1.5 px-2 w-[72px]">
+                    <TableCell className="py-1.5 px-2 w-[90px]">
                       {overrideActive ? (
                         <Badge
                           variant="secondary"
@@ -294,6 +319,15 @@ function ShortageTable({
                         >
                           <ShieldCheck className="h-3 w-3" />
                         </Badge>
+                      ) : overrideMode ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-[10px]"
+                          onClick={() => onOverride(row)}
+                        >
+                          Override
+                        </Button>
                       ) : (
                         <span className="text-muted-foreground/40 text-[10px]">—</span>
                       )}
@@ -311,12 +345,47 @@ function ShortageTable({
 
 export function ShortagesPanel() {
   const { data: rows = [], isLoading } = useAllBatchShortages();
+  const overrideMutation = useOverrideBatchShortage();
+
+  const [overrideMode, setOverrideMode] = useState(false);
+  const [overrideTarget, setOverrideTarget] = useState<BatchShortageRow | null>(null);
+  const [selectedReason, setSelectedReason] = useState<OverrideReason | "">("");
+  const [overrideComment, setOverrideComment] = useState("");
 
   const rmRows = useMemo(() => rows.filter((r) => r.materialType === "RM"), [rows]);
   const pkgRows = useMemo(() => rows.filter((r) => r.materialType === "PKG"), [rows]);
 
   const rmUnresolved = rmRows.filter((r) => !r.plannerOverride && !r.shortageOverride).length;
   const pkgUnresolved = pkgRows.filter((r) => !r.plannerOverride && !r.shortageOverride).length;
+  const totalUnresolved = rmUnresolved + pkgUnresolved;
+
+  const closeDialog = () => {
+    setOverrideTarget(null);
+    setSelectedReason("");
+    setOverrideComment("");
+  };
+
+  const handleReasonChange = (reason: OverrideReason) => {
+    setSelectedReason(reason);
+    if (reason === "Other") {
+      setOverrideComment("");
+    } else {
+      setOverrideComment(reason);
+    }
+  };
+
+  const handleConfirmOverride = () => {
+    if (!overrideTarget || !overrideComment.trim()) return;
+    overrideMutation.mutate(
+      {
+        batchShortageId: overrideTarget.id,
+        batchId: overrideTarget.batchId,
+        override: true,
+        comment: overrideComment,
+      },
+      { onSuccess: closeDialog },
+    );
+  };
 
   if (isLoading) return null;
   if (rows.length === 0) return null;
@@ -324,9 +393,25 @@ export function ShortagesPanel() {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold">Material Shortages</span>
-          <span className="text-xs text-muted-foreground">SOH insufficient for requirements</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Badge variant="destructive" className="px-2 py-0.5 text-xs font-bold">
+              {totalUnresolved} SHORTAGES
+            </Badge>
+            <span className="text-xs text-muted-foreground">SOH insufficient for requirements</span>
+          </div>
+          <PermissionGate permission="planning.vet">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="planner-override-toggle" className="text-xs text-muted-foreground">
+                Planner Override
+              </Label>
+              <Switch
+                id="planner-override-toggle"
+                checked={overrideMode}
+                onCheckedChange={setOverrideMode}
+              />
+            </div>
+          </PermissionGate>
         </div>
       </CardHeader>
       <CardContent>
@@ -351,13 +436,81 @@ export function ShortagesPanel() {
           </TabsList>
 
           <TabsContent value="rm">
-            <ShortageTable rows={rmRows} materialType="RM" />
+            <ShortageTable rows={rmRows} materialType="RM" overrideMode={overrideMode} onOverride={setOverrideTarget} />
           </TabsContent>
           <TabsContent value="pkg">
-            <ShortageTable rows={pkgRows} materialType="PKG" />
+            <ShortageTable rows={pkgRows} materialType="PKG" overrideMode={overrideMode} onOverride={setOverrideTarget} />
           </TabsContent>
         </Tabs>
       </CardContent>
+
+      {/* Override Dialog */}
+      <Dialog open={overrideTarget !== null} onOpenChange={(open) => { if (!open) closeDialog(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Override Shortage</DialogTitle>
+            <DialogDescription>
+              Override shortage for{" "}
+              <span className="font-medium">{overrideTarget?.materialCode ?? "—"}</span>{" "}
+              on batch <span className="font-medium">{overrideTarget?.sapOrder ?? "—"}</span>.
+              Short by{" "}
+              <span className="font-semibold text-red-600">
+                {overrideTarget?.shortQty.toLocaleString()} {overrideTarget?.uom}
+              </span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Reason</Label>
+              <div className="space-y-2">
+                {OVERRIDE_REASONS.map((reason) => (
+                  <label key={reason} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="override-reason"
+                      value={reason}
+                      checked={selectedReason === reason}
+                      onChange={() => handleReasonChange(reason)}
+                      className="accent-primary"
+                    />
+                    {reason}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="override-comment" className="text-xs">
+                Comment {selectedReason === "Other" && "(required)"}
+              </Label>
+              <Textarea
+                id="override-comment"
+                placeholder={
+                  selectedReason === "Other"
+                    ? "Enter override reason..."
+                    : "Add additional details (optional)..."
+                }
+                value={overrideComment}
+                onChange={(e) => setOverrideComment(e.target.value)}
+                rows={2}
+                className="text-xs"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
+            <Button
+              onClick={handleConfirmOverride}
+              disabled={!selectedReason || !overrideComment.trim() || overrideMutation.isPending}
+            >
+              {overrideMutation.isPending && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+              Confirm Override
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
