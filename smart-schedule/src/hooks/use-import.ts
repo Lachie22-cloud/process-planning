@@ -1811,26 +1811,23 @@ export function useImport() {
             const fillBatchId = allOrderToBatchId.get(nextPoOrder);
             if (fillBatchId) {
               // Link directly to the fill batch
-              const itemKey = `${fillBatchId}|${planningMaterial}|${plant}`;
-              if (!lockedOosKeys.has(itemKey)) {
-                coverageRows.push({
-                  site_id: site.id,
-                  batch_id: fillBatchId,
-                  planning_material: planningMaterial,
-                  material: material || null,
-                  description: description || null,
-                  plant: plant || null,
-                  available_stock: availableStock,
-                  stock_cover: stockCover,
-                  safety_stock: safetyStock,
-                  forecast_m0: forecastM0,
-                  po_date: po?.poDate ?? null,
-                  po_quantity: po?.poQuantity ?? 0,
-                  level,
-                  next_po_order: nextPoOrder,
-                  oos_locked: true,
-                });
-              }
+              coverageRows.push({
+                site_id: site.id,
+                batch_id: fillBatchId,
+                planning_material: planningMaterial,
+                material: material || null,
+                description: description || null,
+                plant: plant || null,
+                available_stock: availableStock,
+                stock_cover: stockCover,
+                safety_stock: safetyStock,
+                forecast_m0: forecastM0,
+                po_date: po?.poDate ?? null,
+                po_quantity: po?.poQuantity ?? 0,
+                level,
+                next_po_order: nextPoOrder,
+                oos_locked: false,
+              });
               // Skip the normal material-based matching for this OOS row
               // since it's now aligned to the fill batch
               continue;
