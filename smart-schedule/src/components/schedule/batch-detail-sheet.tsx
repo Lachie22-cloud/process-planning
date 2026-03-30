@@ -23,6 +23,7 @@ import {
   MapPin,
   CircleAlert,
   Loader2,
+  ShieldCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -193,11 +194,13 @@ function PhysicalLocationChips({
 function ShortageTable({
   shortages,
   canOverride,
-  onOverride: _onOverride,
+  overrideMode,
+  onOverride,
   onEtaChange,
 }: {
   shortages: (import("@/types/material-shortage").BatchMaterialShortage & { shortage: import("@/types/material-shortage").MaterialShortage })[];
   canOverride: boolean;
+  overrideMode: boolean;
   onOverride: (target: { id: string; materialCode: string; shortQty: number; uom: string }) => void;
   onEtaChange: (batchShortageId: string, value: string) => void;
 }) {
@@ -214,76 +217,124 @@ function ShortageTable({
             <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">Short</th>
             <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">UOM</th>
             <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">ETA</th>
+            <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground w-[80px]">Override</th>
           </tr>
         </thead>
         <tbody>
-          {shortages.map((bs) => (
-            <tr key={bs.id} className={`border-b last:border-0 ${bs.plannerOverride ? "bg-green-50/30" : "bg-red-50/30"}`}>
-              <td className="px-3 py-2">
-                <p className="font-mono text-xs font-semibold truncate max-w-[180px]">{bs.shortage.materialCode}</p>
-                {bs.shortage.materialDesc && (
-                  <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">{bs.shortage.materialDesc}</p>
-                )}
-              </td>
-              <td className="px-2 py-2">
-                <Badge
-                  variant={bs.shortage.materialType === "RM" ? "destructive" : "outline"}
-                  className="text-[10px]"
-                >
-                  {bs.shortage.materialType}
-                </Badge>
-              </td>
-              <td className="px-2 py-2 text-right font-mono text-xs tabular-nums">
-                {(bs.requiredQty > 0 ? bs.requiredQty : Math.abs(bs.shortQty)).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-              </td>
-              <td className="px-2 py-2 text-right font-mono text-xs tabular-nums font-bold text-red-600">
-                {bs.shortQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-              </td>
-              <td className="px-2 py-2 text-xs text-muted-foreground">
-                {bs.shortage.uom}
-              </td>
-              <td className="px-2 py-2">
-                {canOverride ? (
-                  <Input
-                    type="date"
-                    className="h-7 w-[110px] text-[11px] px-1"
-                    defaultValue={bs.eta ?? bs.shortage.eta ?? ""}
-                    onBlur={(e) => onEtaChange(bs.id, e.target.value)}
-                  />
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    {(bs.eta ?? bs.shortage.eta) ? format(new Date((bs.eta ?? bs.shortage.eta)!), "d MMM yyyy") : "—"}
-                  </span>
-                )}
-              </td>
-            </tr>
-          ))}
+          {shortages.map((bs) => {
+            const overrideActive = bs.plannerOverride || bs.shortage.plannerOverride;
+            return (
+              <tr key={bs.id} className={`border-b last:border-0 ${overrideActive ? "bg-green-50/30" : "bg-red-50/30"}`}>
+                <td className="px-3 py-2">
+                  <p className="font-mono text-xs font-semibold truncate max-w-[180px]">{bs.shortage.materialCode}</p>
+                  {bs.shortage.materialDesc && (
+                    <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">{bs.shortage.materialDesc}</p>
+                  )}
+                </td>
+                <td className="px-2 py-2">
+                  <Badge
+                    variant={bs.shortage.materialType === "RM" ? "destructive" : "outline"}
+                    className="text-[10px]"
+                  >
+                    {bs.shortage.materialType}
+                  </Badge>
+                </td>
+                <td className="px-2 py-2 text-right font-mono text-xs tabular-nums">
+                  {(bs.requiredQty > 0 ? bs.requiredQty : Math.abs(bs.shortQty)).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </td>
+                <td className="px-2 py-2 text-right font-mono text-xs tabular-nums font-bold text-red-600">
+                  {bs.shortQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </td>
+                <td className="px-2 py-2 text-xs text-muted-foreground">
+                  {bs.shortage.uom}
+                </td>
+                <td className="px-2 py-2">
+                  {canOverride ? (
+                    <Input
+                      type="date"
+                      className="h-7 w-[110px] text-[11px] px-1"
+                      defaultValue={bs.eta ?? bs.shortage.eta ?? ""}
+                      onBlur={(e) => onEtaChange(bs.id, e.target.value)}
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      {(bs.eta ?? bs.shortage.eta) ? format(new Date((bs.eta ?? bs.shortage.eta)!), "d MMM yyyy") : "—"}
+                    </span>
+                  )}
+                </td>
+                <td className="px-2 py-2">
+                  {overrideActive ? (
+                    <Badge
+                      variant="secondary"
+                      className="gap-1 text-[10px] bg-green-100 text-green-700 border-green-200"
+                    >
+                      <ShieldCheck className="h-3 w-3" />
+                    </Badge>
+                  ) : overrideMode ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => onOverride({
+                        id: bs.id,
+                        materialCode: bs.shortage.materialCode,
+                        shortQty: bs.shortQty,
+                        uom: bs.shortage.uom,
+                      })}
+                    >
+                      Override
+                    </Button>
+                  ) : (
+                    <span className="text-muted-foreground/40 text-[10px]">—</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
+const OVERRIDE_REASONS = [
+  "SOH Check Completed",
+  "Stock in transit",
+  "Stock awaiting GR",
+  "Other",
+] as const;
+
+type OverrideReason = (typeof OVERRIDE_REASONS)[number];
+
 function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; canOverride: boolean }) {
   const { data: batchShortages = [] } = useBatchShortages(batch.id);
   const overrideMutation = useOverrideBatchShortage();
   const etaMutation = useUpdateBatchShortageEta();
   const [overrideTarget, setOverrideTarget] = useState<{ id: string; materialCode: string; shortQty: number; uom: string } | null>(null);
+  const [selectedReason, setSelectedReason] = useState<OverrideReason | "">("");
   const [overrideComment, setOverrideComment] = useState("");
-  const [sohConfirmed, setSohConfirmed] = useState(false);
-  const [showOverrides, setShowOverrides] = useState(false);
+  const [overrideMode, setOverrideMode] = useState(false);
 
   const activeShortages = batchShortages.filter((bs) => bs.shortQty < 0 || bs.shortage.shortQty < 0);
-  const displayShortages = showOverrides ? activeShortages : activeShortages.filter((bs) => !bs.plannerOverride);
+  const unresolvedCount = activeShortages.filter((bs) => !bs.plannerOverride && !bs.shortage.plannerOverride).length;
 
   const closeDialog = () => {
     setOverrideTarget(null);
+    setSelectedReason("");
     setOverrideComment("");
-    setSohConfirmed(false);
+  };
+
+  const handleReasonChange = (reason: OverrideReason) => {
+    setSelectedReason(reason);
+    if (reason === "Other") {
+      setOverrideComment("");
+    } else {
+      setOverrideComment(reason);
+    }
   };
 
   const handleConfirm = () => {
-    if (!overrideTarget || !sohConfirmed || !overrideComment.trim()) return;
+    if (!overrideTarget || !overrideComment.trim()) return;
     overrideMutation.mutate(
       {
         batchShortageId: overrideTarget.id,
@@ -339,7 +390,7 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
           <div className="flex items-center justify-between rounded-t-md border border-b-0 border-red-200 bg-red-50/50 px-3 py-2">
             <div className="flex items-center gap-3">
               <Badge variant="destructive" className="px-2 py-0.5 text-xs font-bold">
-                {activeShortages.length} SHORTAGES
+                {unresolvedCount} SHORTAGES
               </Badge>
               <span className="text-xs text-muted-foreground">
                 SOH insufficient for requirements
@@ -352,15 +403,16 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
                 </Label>
                 <Switch
                   id="batch-planner-override-toggle"
-                  checked={showOverrides}
-                  onCheckedChange={setShowOverrides}
+                  checked={overrideMode}
+                  onCheckedChange={setOverrideMode}
                 />
               </div>
             )}
           </div>
           <ShortageTable
-            shortages={displayShortages}
+            shortages={activeShortages}
             canOverride={canOverride}
+            overrideMode={overrideMode}
             onOverride={setOverrideTarget}
             onEtaChange={handleEtaChange}
           />
@@ -386,7 +438,7 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
       <Dialog open={overrideTarget !== null} onOpenChange={(open) => { if (!open) closeDialog(); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Override Batch Shortage</DialogTitle>
+            <DialogTitle>Override Shortage</DialogTitle>
             <DialogDescription>
               Override shortage for{" "}
               <span className="font-medium">{overrideTarget?.materialCode ?? "—"}</span> on
@@ -398,25 +450,37 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3">
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={sohConfirmed}
-                onChange={(e) => setSohConfirmed(e.target.checked)}
-                className="mt-0.5 accent-primary"
-              />
-              <span>
-                I confirm SOH check has been completed, or stock is in transit to site.
-              </span>
-            </label>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Reason</Label>
+              <div className="space-y-2">
+                {OVERRIDE_REASONS.map((reason) => (
+                  <label key={reason} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="batch-override-reason"
+                      value={reason}
+                      checked={selectedReason === reason}
+                      onChange={() => handleReasonChange(reason)}
+                      className="accent-primary"
+                    />
+                    {reason}
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <div className="space-y-1">
               <Label htmlFor="batch-override-comment" className="text-xs">
-                Comment (required)
+                Comment {selectedReason === "Other" && "(required)"}
               </Label>
               <Textarea
                 id="batch-override-comment"
-                placeholder="e.g. SOH verified — stock in receiving bay..."
+                placeholder={
+                  selectedReason === "Other"
+                    ? "Enter override reason..."
+                    : "Add additional details (optional)..."
+                }
                 value={overrideComment}
                 onChange={(e) => setOverrideComment(e.target.value)}
                 rows={2}
@@ -429,7 +493,7 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
             <Button variant="outline" onClick={closeDialog}>Cancel</Button>
             <Button
               onClick={handleConfirm}
-              disabled={!sohConfirmed || !overrideComment.trim() || overrideMutation.isPending}
+              disabled={!selectedReason || !overrideComment.trim() || overrideMutation.isPending}
             >
               {overrideMutation.isPending && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
               Confirm Override
