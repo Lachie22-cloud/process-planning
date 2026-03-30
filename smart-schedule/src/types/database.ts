@@ -84,6 +84,8 @@ export interface DatabaseRow {
     fill_requirement: string | null;
     observation_required: boolean;
     ebr_batch: boolean;
+    observation_comment: string | null;
+    ebr_comment: string | null;
     physical_location: string | null;
     excess_paint_comment: string | null;
     bulk_off_comment: string | null;

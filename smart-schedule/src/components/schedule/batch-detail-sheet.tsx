@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Sheet,
   SheetContent,
@@ -681,11 +681,37 @@ function QcControlsSection({
   batch,
   canEdit,
   onUpdate,
+  onFieldUpdate,
 }: {
   batch: Batch;
   canEdit: boolean;
   onUpdate: (field: string, value: boolean) => void;
+  onFieldUpdate: (field: string, value: string | null) => void;
 }) {
+  const [obsComment, setObsComment] = useState(batch.observationComment ?? "");
+  const [ebrComment, setEbrComment] = useState(batch.ebrComment ?? "");
+  const obsTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const ebrTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Sync local state when batch data changes from server
+  useEffect(() => { setObsComment(batch.observationComment ?? ""); }, [batch.observationComment]);
+  useEffect(() => { setEbrComment(batch.ebrComment ?? ""); }, [batch.ebrComment]);
+
+  // Cleanup timers
+  useEffect(() => () => { clearTimeout(obsTimerRef.current); clearTimeout(ebrTimerRef.current); }, []);
+
+  const handleObsChange = (value: string) => {
+    setObsComment(value);
+    clearTimeout(obsTimerRef.current);
+    obsTimerRef.current = setTimeout(() => onFieldUpdate("observationComment", value || null), 500);
+  };
+
+  const handleEbrChange = (value: string) => {
+    setEbrComment(value);
+    clearTimeout(ebrTimerRef.current);
+    ebrTimerRef.current = setTimeout(() => onFieldUpdate("ebrComment", value || null), 500);
+  };
+
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold">QC / P&C Controls</h3>
@@ -698,6 +724,18 @@ function QcControlsSection({
             disabled={!canEdit}
           />
         </div>
+        {batch.observationRequired && (
+          <div className="ml-1 border-l-2 border-purple-200 pl-3">
+            <Textarea
+              placeholder="Enter observation details..."
+              value={obsComment}
+              onChange={(e) => handleObsChange(e.target.value)}
+              disabled={!canEdit}
+              rows={2}
+              className="text-xs"
+            />
+          </div>
+        )}
         <div className="flex items-center justify-between rounded-md border px-3 py-2">
           <span className="text-sm">EBR Batch</span>
           <Switch
@@ -706,6 +744,18 @@ function QcControlsSection({
             disabled={!canEdit}
           />
         </div>
+        {batch.ebrBatch && (
+          <div className="ml-1 border-l-2 border-indigo-200 pl-3">
+            <Textarea
+              placeholder="Enter EBR details..."
+              value={ebrComment}
+              onChange={(e) => handleEbrChange(e.target.value)}
+              disabled={!canEdit}
+              rows={2}
+              className="text-xs"
+            />
+          </div>
+        )}
       </div>
       {batch.qcObservedStage && (
         <div className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
@@ -1184,6 +1234,7 @@ export function BatchDetailSheet({
                 batch={batch}
                 canEdit={canEditStatus}
                 onUpdate={(field, value) => handleFieldUpdate(field, value)}
+                onFieldUpdate={(field, value) => handleFieldUpdate(field, value)}
               />
 
               {/* Vetting */}

@@ -107,6 +107,8 @@ export interface Batch {
   fillRequirement: string | null;
   observationRequired: boolean;
   ebrBatch: boolean;
+  observationComment: string | null;
+  ebrComment: string | null;
   physicalLocation: string | null;
   createdAt: string;
   updatedAt: string;

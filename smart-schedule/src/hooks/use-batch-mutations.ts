@@ -16,6 +16,8 @@ interface UpdateBatchInput {
     qcObservedBy?: string | null;
     observationRequired?: boolean;
     ebrBatch?: boolean;
+    observationComment?: string | null;
+    ebrComment?: string | null;
     physicalLocation?: string | null;
     excessPaintComment?: string | null;
     bulkOffComment?: string | null;
@@ -56,6 +58,10 @@ export function useUpdateBatch() {
         dbUpdates.observation_required = updates.observationRequired;
       if (updates.ebrBatch !== undefined)
         dbUpdates.ebr_batch = updates.ebrBatch;
+      if (updates.observationComment !== undefined)
+        dbUpdates.observation_comment = updates.observationComment;
+      if (updates.ebrComment !== undefined)
+        dbUpdates.ebr_comment = updates.ebrComment;
       if (updates.physicalLocation !== undefined)
         dbUpdates.physical_location = updates.physicalLocation;
       if (updates.excessPaintComment !== undefined)
