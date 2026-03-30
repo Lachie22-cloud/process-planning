@@ -196,12 +196,14 @@ function ShortageTable({
   canOverride,
   overrideMode,
   onOverride,
+  onRevert,
   onEtaChange,
 }: {
   shortages: (import("@/types/material-shortage").BatchMaterialShortage & { shortage: import("@/types/material-shortage").MaterialShortage })[];
   canOverride: boolean;
   overrideMode: boolean;
   onOverride: (target: { id: string; materialCode: string; shortQty: number; uom: string }) => void;
+  onRevert: (batchShortageId: string) => void;
   onEtaChange: (batchShortageId: string, value: string) => void;
 }) {
   if (shortages.length === 0) return null;
@@ -263,7 +265,16 @@ function ShortageTable({
                   )}
                 </td>
                 <td className="px-2 py-2">
-                  {overrideActive ? (
+                  {overrideActive && overrideMode ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] border-red-200 text-red-600 hover:bg-red-50"
+                      onClick={() => onRevert(bs.id)}
+                    >
+                      Undo
+                    </Button>
+                  ) : overrideActive ? (
                     <Badge
                       variant="secondary"
                       className="gap-1 text-[10px] bg-green-100 text-green-700 border-green-200"
@@ -346,6 +357,15 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
     );
   };
 
+  const handleRevert = (batchShortageId: string) => {
+    overrideMutation.mutate({
+      batchShortageId,
+      batchId: batch.id,
+      override: false,
+      comment: "",
+    });
+  };
+
   const handleEtaChange = (batchShortageId: string, value: string) => {
     etaMutation.mutate({ batchShortageId, eta: value || null });
   };
@@ -414,6 +434,7 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
             canOverride={canOverride}
             overrideMode={overrideMode}
             onOverride={setOverrideTarget}
+            onRevert={handleRevert}
             onEtaChange={handleEtaChange}
           />
         </div>
@@ -1030,7 +1051,7 @@ export function BatchDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto pb-16 sm:max-w-xl">
+      <SheetContent className="w-full overflow-y-auto pb-16 sm:max-w-3xl">
         {isLoading ? (
           <div className="space-y-4 pt-6">
             <Skeleton className="h-6 w-48" />

@@ -84,11 +84,13 @@ function ShortageTable({
   materialType,
   overrideMode,
   onOverride,
+  onRevert,
 }: {
   rows: BatchShortageRow[];
   materialType: "RM" | "PKG";
   overrideMode: boolean;
   onOverride: (row: BatchShortageRow) => void;
+  onRevert: (row: BatchShortageRow) => void;
 }) {
   const updateEta = useUpdateBatchShortageEta();
 
@@ -312,7 +314,16 @@ function ShortageTable({
                       </PermissionGate>
                     </TableCell>
                     <TableCell className="py-1.5 px-2 w-[90px]">
-                      {overrideActive ? (
+                      {overrideActive && overrideMode ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] border-red-200 text-red-600 hover:bg-red-50"
+                          onClick={() => onRevert(row)}
+                        >
+                          Undo
+                        </Button>
+                      ) : overrideActive ? (
                         <Badge
                           variant="secondary"
                           className="gap-1 text-[10px] bg-green-100 text-green-700 border-green-200"
@@ -387,6 +398,15 @@ export function ShortagesPanel() {
     );
   };
 
+  const handleRevert = (row: BatchShortageRow) => {
+    overrideMutation.mutate({
+      batchShortageId: row.id,
+      batchId: row.batchId,
+      override: false,
+      comment: "",
+    });
+  };
+
   if (isLoading) return null;
   if (rows.length === 0) return null;
 
@@ -436,10 +456,10 @@ export function ShortagesPanel() {
           </TabsList>
 
           <TabsContent value="rm">
-            <ShortageTable rows={rmRows} materialType="RM" overrideMode={overrideMode} onOverride={setOverrideTarget} />
+            <ShortageTable rows={rmRows} materialType="RM" overrideMode={overrideMode} onOverride={setOverrideTarget} onRevert={handleRevert} />
           </TabsContent>
           <TabsContent value="pkg">
-            <ShortageTable rows={pkgRows} materialType="PKG" overrideMode={overrideMode} onOverride={setOverrideTarget} />
+            <ShortageTable rows={pkgRows} materialType="PKG" overrideMode={overrideMode} onOverride={setOverrideTarget} onRevert={handleRevert} />
           </TabsContent>
         </Tabs>
       </CardContent>
