@@ -223,6 +223,21 @@ export function BatchCard({
 
       {/* Row 5: Pills — light bg + dark text, no border */}
       <div className="mt-1.5 flex items-center gap-1 flex-wrap">
+        {/* Status badge — always first */}
+        <span
+          className={cn(
+            "inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold leading-none uppercase",
+            statusCfg?.bgClass ?? "bg-muted",
+            statusCfg?.textClass ?? "text-muted-foreground",
+          )}
+        >
+          <span
+            className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
+            style={{ backgroundColor: statusCfg?.color }}
+          />
+          {statusCfg?.label ?? batch.status}
+        </span>
+
         {!batch.rmAvailable && (
           <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-200">
             WOM
@@ -245,21 +260,6 @@ export function BatchCard({
             BL
           </span>
         )}
-
-        {/* Status badge */}
-        <span
-          className={cn(
-            "inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold leading-none uppercase",
-            statusCfg?.bgClass ?? "bg-muted",
-            statusCfg?.textClass ?? "text-muted-foreground",
-          )}
-        >
-          <span
-            className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
-            style={{ backgroundColor: statusCfg?.color }}
-          />
-          {statusCfg?.label ?? batch.status}
-        </span>
 
         {(batch.status as string) === "Job Complete" && batch.excessPaintComment && (
           <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200">
