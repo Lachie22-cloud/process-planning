@@ -207,7 +207,7 @@ export function useOverrideBatchShortage() {
         .eq("site_id", site.id)
         .lt("short_qty", 0);
 
-      const rows = (remaining ?? []) as Array<{
+      const rows = (remaining ?? []) as unknown as Array<{
         id: string;
         short_qty: number;
         planner_override: boolean;
