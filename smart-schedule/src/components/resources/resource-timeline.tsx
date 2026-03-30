@@ -368,6 +368,12 @@ export function ResourceTimeline({
     return filteredResources;
   }, [tab, filteredResources, potGroups]);
 
+  // Find the "Straight Mixes" disperser resource (code MIX) for batches with no disperser
+  const straightMixResource = useMemo(
+    () => resources.find((r) => r.resourceType === "disperser" && r.resourceCode === "MIX"),
+    [resources],
+  );
+
   // Group batches by resource (including disperser assignments)
   const batchesByResource = useMemo(() => {
     const map = new Map<string, Batch[]>();
@@ -383,13 +389,17 @@ export function ResourceTimeline({
       if (batch.planDisperserId && map.has(batch.planDisperserId) && batch.planDisperserId !== batch.planResourceId) {
         map.get(batch.planDisperserId)!.push(batch);
       }
+      // No disperser assigned → show under "Straight Mixes" (MIX) on disperser tab
+      if (!batch.planDisperserId && straightMixResource && map.has(straightMixResource.id)) {
+        map.get(straightMixResource.id)!.push(batch);
+      }
       // Second disperser stage
       if (batch.planDisperser2Id && map.has(batch.planDisperser2Id) && batch.planDisperser2Id !== batch.planResourceId && batch.planDisperser2Id !== batch.planDisperserId) {
         map.get(batch.planDisperser2Id)!.push(batch);
       }
     }
     return map;
-  }, [batches, allVisibleResources]);
+  }, [batches, allVisibleResources, straightMixResource]);
 
   // Batches grouped by pot group (for grouped pot lanes)
   const batchesByPotGroup = useMemo(() => {
