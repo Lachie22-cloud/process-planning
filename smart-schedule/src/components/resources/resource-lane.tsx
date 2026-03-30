@@ -12,6 +12,7 @@ import type { Batch, CoverageLevel } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import type { ResourceBlock } from "@/types/site";
 import type { MovementInfo } from "@/hooks/use-schedule-movements";
+import type { LidFlags } from "@/hooks/use-batch-lid-flags";
 
 export interface DropTarget {
   resourceId: string;
@@ -37,6 +38,7 @@ interface ResourceLaneProps {
   canDrag?: boolean;
   canSchedule?: boolean;
   coverageLevels?: Map<string, CoverageLevel>;
+  lidFlags?: Map<string, LidFlags>;
   onBatchClick?: (batch: Batch) => void;
   onDragStart?: (batch: Batch, e: React.DragEvent) => void;
   onDragEnd?: () => void;
@@ -67,6 +69,7 @@ export function ResourceLane({
   canDrag = false,
   canSchedule = false,
   coverageLevels,
+  lidFlags,
   onBatchClick,
   onDragStart,
   onDragEnd,
@@ -263,6 +266,8 @@ export function ResourceLane({
                     canSchedule={canSchedule}
                     isConflict={dayBatches.length > (resource.groupCapacity ?? resource.maxBatchesPerDay)}
                     coverageLevel={coverageLevels?.get(batch.id)}
+                    hasRedLid={lidFlags?.get(batch.id)?.hasRedLid}
+                    hasBlueLid={lidFlags?.get(batch.id)?.hasBlueLid}
                     onClick={onBatchClick}
                     onDragStart={onDragStart}
                     onDragEnd={onDragEnd}

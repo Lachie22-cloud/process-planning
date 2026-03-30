@@ -40,6 +40,7 @@ import type { BatchStatus, Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import { BATCH_STATUSES } from "@/lib/constants/statuses";
 import { useBatchShortages, useOverrideBatchShortage, useUpdateBatchShortageEta } from "@/hooks/use-material-shortages";
+import { fillOrderHasComponent, RED_LID_COMPONENT, BLUE_LID_COMPONENT } from "@/lib/utils/pack-size";
 import { useBatchCoverage } from "@/hooks/use-batch-coverage";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -1116,10 +1117,43 @@ export function BatchDetailSheet({
                       />
                     )}
                     {(() => {
-                      const lidTypes = [...new Set(fillOrders.map((fo) => fo.lidType).filter(Boolean))];
-                      return lidTypes.length > 0 ? (
-                        <InfoRow label="Lid Type" value={lidTypes.join(", ")} />
-                      ) : null;
+                      const hasRedLid = fillOrders.some((fo) =>
+                        fillOrderHasComponent(
+                          { components: fo.components, fillMaterial: fo.fillMaterial, lidType: fo.lidType },
+                          RED_LID_COMPONENT,
+                        ),
+                      );
+                      const hasBlueLid = fillOrders.some((fo) =>
+                        fillOrderHasComponent(
+                          { components: fo.components, fillMaterial: fo.fillMaterial, lidType: fo.lidType },
+                          BLUE_LID_COMPONENT,
+                        ),
+                      );
+                      if (!hasRedLid && !hasBlueLid) {
+                        const lidTypes = [...new Set(fillOrders.map((fo) => fo.lidType).filter(Boolean))];
+                        return lidTypes.length > 0 ? (
+                          <InfoRow label="Lid Type" value={lidTypes.join(", ")} />
+                        ) : null;
+                      }
+                      return (
+                        <InfoRow
+                          label="Lid Type"
+                          value={
+                            <div className="flex items-center gap-1">
+                              {hasRedLid && (
+                                <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">
+                                  Red Lid
+                                </span>
+                              )}
+                              {hasBlueLid && (
+                                <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+                                  Blue Lid
+                                </span>
+                              )}
+                            </div>
+                          }
+                        />
+                      );
                     })()}
                     {(() => {
                       const fill = getFillLabel(batch);

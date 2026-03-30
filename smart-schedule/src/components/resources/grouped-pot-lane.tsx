@@ -4,6 +4,7 @@ import { BatchCard } from "./batch-card";
 import type { DropTarget } from "./resource-lane";
 import type { Batch, CoverageLevel } from "@/types/batch";
 import type { Resource } from "@/types/resource";
+import type { LidFlags } from "@/hooks/use-batch-lid-flags";
 
 interface GroupedPotLaneProps {
   groupName: string;
@@ -18,6 +19,7 @@ interface GroupedPotLaneProps {
   canDrag?: boolean;
   canSchedule?: boolean;
   coverageLevels?: Map<string, CoverageLevel>;
+  lidFlags?: Map<string, LidFlags>;
   onBatchClick?: (batch: Batch) => void;
   onDragStart?: (batch: Batch, e: React.DragEvent) => void;
   onDragEnd?: () => void;
@@ -39,6 +41,7 @@ export function GroupedPotLane({
   canDrag = false,
   canSchedule = false,
   coverageLevels,
+  lidFlags,
   onBatchClick,
   onDragStart,
   onDragEnd,
@@ -245,6 +248,8 @@ export function GroupedPotLane({
                           : dayBatches.length > (batchResource?.maxBatchesPerDay ?? resources[0]?.maxBatchesPerDay ?? Infinity)
                       }
                       coverageLevel={coverageLevels?.get(batch.id)}
+                      hasRedLid={lidFlags?.get(batch.id)?.hasRedLid}
+                      hasBlueLid={lidFlags?.get(batch.id)?.hasBlueLid}
                       onClick={onBatchClick}
                       onDragStart={onDragStart}
                       onDragEnd={onDragEnd}

@@ -29,6 +29,8 @@ interface BatchCardProps {
   canSchedule?: boolean;
   isConflict?: boolean;
   coverageLevel?: CoverageLevel | null;
+  hasRedLid?: boolean;
+  hasBlueLid?: boolean;
   onClick?: (batch: Batch) => void;
   onDragStart?: (batch: Batch, e: React.DragEvent) => void;
   onDragEnd?: () => void;
@@ -83,6 +85,8 @@ export function BatchCard({
   canSchedule = false,
   isConflict = false,
   coverageLevel,
+  hasRedLid = false,
+  hasBlueLid = false,
   onClick,
   onDragStart,
   onDragEnd,
@@ -227,6 +231,18 @@ export function BatchCard({
         {!batch.packagingAvailable && (
           <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
             WOP
+          </span>
+        )}
+
+        {/* Lid type pills */}
+        {hasRedLid && (
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200">
+            RL
+          </span>
+        )}
+        {hasBlueLid && (
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-200">
+            BL
           </span>
         )}
 
