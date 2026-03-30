@@ -457,7 +457,7 @@ export function DisperserCapacityHeatmap({
                 Planner
               </TabsTrigger>
               <TabsTrigger value="week" className="text-xs">
-                Week View
+                Resource Group
               </TabsTrigger>
             </TabsList>
           </div>
@@ -491,14 +491,14 @@ export function DisperserCapacityHeatmap({
                     <span className="text-sm text-muted-foreground">resource load</span>
                   </div>
                   <div className="text-xs text-muted-foreground tabular-nums">
-                    {dayStats.totalBatch} of {dayStats.totalCap} batch slots in use
+                    {dayStats.totalPmc} of {dayStats.totalCap} premix slots in use
                   </div>
                   <div className="mt-2 flex h-2 w-64 gap-0.5 overflow-hidden rounded-full">
                     {grouped.atCap.length > 0 && (
                       <div
                         className="h-full bg-red-500 rounded-full"
                         style={{
-                          width: `${(grouped.atCap.reduce((s, x) => s + x.c.batch, 0) / dayStats.totalCap) * 100}%`,
+                          width: `${(grouped.atCap.reduce((s, x) => s + x.c.pmc, 0) / dayStats.totalCap) * 100}%`,
                         }}
                       />
                     )}
@@ -506,7 +506,7 @@ export function DisperserCapacityHeatmap({
                       <div
                         className="h-full bg-yellow-500 rounded-full"
                         style={{
-                          width: `${(grouped.moderate.reduce((s, x) => s + x.c.batch, 0) / dayStats.totalCap) * 100}%`,
+                          width: `${(grouped.moderate.reduce((s, x) => s + x.c.pmc, 0) / dayStats.totalCap) * 100}%`,
                         }}
                       />
                     )}
