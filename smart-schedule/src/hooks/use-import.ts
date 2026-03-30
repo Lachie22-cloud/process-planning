@@ -1692,18 +1692,6 @@ export function useImport() {
       // ---- Persist per-plant ZP40 coverage items ----
       const zp40File = files.find((f) => f.type === "zp40");
       if (zp40File && importedBatchIds.length > 0) {
-        // Fetch existing OOS-locked keys before deleting so we don't re-create them
-        const { data: lockedRows } = await supabase
-          .from("batch_coverage_items")
-          .select("batch_id, planning_material, plant")
-          .eq("site_id", site.id)
-          .eq("oos_locked", true)
-          .in("batch_id", importedBatchIds);
-        const lockedOosKeys = new Set(
-          (lockedRows ?? []).map((r: Record<string, unknown>) =>
-            `${r.batch_id}|${r.planning_material}|${r.plant}`),
-        );
-
         // Delete ALL existing coverage items — always reflect current ZP40 state
         await supabase
           .from("batch_coverage_items")
