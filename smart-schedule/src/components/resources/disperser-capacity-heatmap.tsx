@@ -2,12 +2,7 @@ import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { cn } from "@/lib/ui/cn";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import type { Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 
@@ -374,8 +369,6 @@ export function DisperserCapacityHeatmap({
   );
   const selectedDate = dates[selectedDateIdx] ?? dates[0] ?? "";
 
-  if (dispersers.length === 0) return null;
-
   function getCell(disperserId: string, date: string): CellData {
     return (
       heatData.get(disperserId)?.get(date) ?? { pmc: 0, batch: 0, cap: 0, pct: 0 }
@@ -438,6 +431,8 @@ export function DisperserCapacityHeatmap({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispersers, coreDateList, heatData]);
+
+  if (dispersers.length === 0) return null;
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -691,10 +686,7 @@ export function DisperserCapacityHeatmap({
           {/* ============================================================ */}
           <TabsContent value="week" className="mt-0">
             <WeekTimeline
-              dispersers={dispersers}
               coreDates={coreDateList}
-              allDates={dates}
-              bookendDates={bookendDates}
               sortedByPeak={sortedByPeak}
               getCell={getCell}
             />
@@ -734,17 +726,11 @@ function ControlCard({ resource, cell }: { resource: Resource; cell: CellData })
 // ---------------------------------------------------------------------------
 
 function WeekTimeline({
-  dispersers,
   coreDates,
-  allDates,
-  bookendDates,
   sortedByPeak,
   getCell,
 }: {
-  dispersers: Resource[];
   coreDates: string[];
-  allDates: string[];
-  bookendDates: Set<string>;
   sortedByPeak: Resource[];
   getCell: (id: string, date: string) => CellData;
 }) {
