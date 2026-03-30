@@ -992,6 +992,13 @@ export function useImport() {
                   disperserAssignments.set(batch.sapOrder, disperserId);
                 }
               }
+              // If no disperser assigned, default to "Straight Mixes" (resource code MIX)
+              if (!disperserAssignments.has(batch.sapOrder)) {
+                const straightMixId = disperserCodeToId.get("MIX");
+                if (straightMixId) {
+                  disperserAssignments.set(batch.sapOrder, straightMixId);
+                }
+              }
               // --- Disperser 2 assignment (second dispersion stage) ---
               if (batch.sapDisperser2) {
                 const d2Code = batch.sapDisperser2.toUpperCase();
