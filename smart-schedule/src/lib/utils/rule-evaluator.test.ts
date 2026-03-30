@@ -46,6 +46,8 @@ function makeBatch(overrides: Partial<Batch> = {}): Batch {
     fillRequirement: null,
     observationRequired: false,
     ebrBatch: false,
+    observationComment: null,
+    ebrComment: null,
     physicalLocation: null,
     excessPaintComment: null,
     bulkOffComment: null,

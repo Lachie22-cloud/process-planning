@@ -690,8 +690,8 @@ function QcControlsSection({
 }) {
   const [obsComment, setObsComment] = useState(batch.observationComment ?? "");
   const [ebrComment, setEbrComment] = useState(batch.ebrComment ?? "");
-  const obsTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  const ebrTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const obsTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const ebrTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Sync local state when batch data changes from server
   useEffect(() => { setObsComment(batch.observationComment ?? ""); }, [batch.observationComment]);
