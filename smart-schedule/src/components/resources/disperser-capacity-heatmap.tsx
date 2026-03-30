@@ -25,6 +25,15 @@ interface CellData {
   pct: number;
 }
 
+interface GroupData {
+  name: string;
+  members: Resource[];
+  pmc: number;
+  batch: number;
+  cap: number;
+  pct: number;
+}
+
 interface HeatTier {
   textCls: string;
   borderCls: string;
@@ -377,65 +386,10 @@ export function DisperserCapacityHeatmap({
     );
   }
 
-  function getMaxPctForDate(date: string): number {
-    return Math.max(0, ...dispersers.map((d) => getCell(d.id, date).pct));
-  }
-
-  // --- Aggregate stats for selected day ---
-  const dayStats = useMemo(() => {
-    const dk = selectedDate;
-    let totalPmc = 0;
-    let totalBatch = 0;
-    let totalCap = 0;
-    for (const d of dispersers) {
-      const c = getCell(d.id, dk);
-      totalPmc += c.pmc;
-      totalBatch += c.batch;
-      totalCap += c.cap;
-    }
-    const totalFree = totalCap - totalPmc;
-    const pct = totalCap > 0 ? Math.round((totalPmc / totalCap) * 100) : 0;
-    return { totalPmc, totalBatch, totalCap, totalFree: Math.max(0, totalFree), pct };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, dispersers, heatData]);
-
-  // --- Group dispersers by severity for Control Room ---
-  const grouped = useMemo(() => {
-    const atCap: { d: Resource; c: CellData }[] = [];
-    const moderate: { d: Resource; c: CellData }[] = [];
-    const idle: { d: Resource; c: CellData }[] = [];
-    for (const d of dispersers) {
-      const c = getCell(d.id, selectedDate);
-      if (c.pct >= 80) atCap.push({ d, c });
-      else if (c.pct > 0) moderate.push({ d, c });
-      else idle.push({ d, c });
-    }
-    atCap.sort((a, b) => b.c.pct - a.c.pct);
-    moderate.sort((a, b) => b.c.pct - a.c.pct);
-    return { atCap, moderate, idle };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, dispersers, heatData]);
-
-  // --- Sorted dispersers for planner ---
-  const sortedByPct = useMemo(() => {
-    return [...dispersers].sort(
-      (a, b) => getCell(b.id, selectedDate).pct - getCell(a.id, selectedDate).pct,
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, dispersers, heatData]);
-
-  // --- Resource groups for Resource Group view (grouped by chemicalBase) ---
+  // --- Resource groups (by chemicalBase) — drives ALL views ---
   const resourceGroups = useMemo(() => {
-    type GroupEntry = {
-      name: string;
-      members: Resource[];
-      pmc: number;
-      batch: number;
-      cap: number;
-      pct: number;
-    };
     const dk = selectedDate;
-    const groups = new Map<string, GroupEntry>();
+    const groups = new Map<string, GroupData>();
 
     for (const d of dispersers) {
       const key = d.chemicalBase ?? d.displayName ?? d.resourceCode;
@@ -446,23 +400,16 @@ export function DisperserCapacityHeatmap({
       }
       entry.members.push(d);
       const c = getCell(d.id, dk);
-      entry.pmc += c.pmc;
       entry.batch += c.batch;
-      // For groups with shared groupCapacity, use it once (not per member)
-      // Otherwise sum individual capacities
-      if (d.groupCapacity != null && d.groupName != null) {
-        // Only count group capacity once per groupName within this chemicalBase
-        if (!entry.members.slice(0, -1).some((m) => m.groupName === d.groupName)) {
-          entry.cap += d.groupCapacity;
-        }
-      } else {
-        entry.cap += d.maxBatchesPerDay;
-      }
     }
 
-    // Calculate pct for each group
+    // Group capacity = max maxBatchesPerDay across members (shared pool)
+    // PMC = sum of individual PMCs across members
     for (const entry of groups.values()) {
-      // For members with shared group capacity, use groupPmcByDate for accurate PMC
+      entry.cap = Math.max(...entry.members.map((m) => m.groupCapacity ?? m.maxBatchesPerDay));
+
+      // Sum PMC across members, but for shared-capacity groups (groupName+groupCapacity)
+      // use groupPmcByDate to avoid double-counting
       let totalPmc = 0;
       const countedGroupNames = new Set<string>();
       for (const m of entry.members) {
@@ -482,6 +429,38 @@ export function DisperserCapacityHeatmap({
     return all;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, dispersers, heatData, groupPmcByDate]);
+
+  // --- Aggregate stats derived from resource groups ---
+  const dayStats = useMemo(() => {
+    let totalPmc = 0;
+    let totalBatch = 0;
+    let totalCap = 0;
+    for (const g of resourceGroups) {
+      totalPmc += g.pmc;
+      totalBatch += g.batch;
+      totalCap += g.cap;
+    }
+    const totalFree = totalCap - totalPmc;
+    const pct = totalCap > 0 ? Math.round((totalPmc / totalCap) * 100) : 0;
+    return { totalPmc, totalBatch, totalCap, totalFree: Math.max(0, totalFree), pct };
+  }, [resourceGroups]);
+
+  // --- Severity buckets for Control Room (group-level) ---
+  const grouped = useMemo(() => {
+    const atCap: GroupData[] = [];
+    const moderate: GroupData[] = [];
+    const idle: GroupData[] = [];
+    for (const g of resourceGroups) {
+      if (g.pct >= 80) atCap.push(g);
+      else if (g.pct > 0) moderate.push(g);
+      else idle.push(g);
+    }
+    return { atCap, moderate, idle };
+  }, [resourceGroups]);
+
+  function getMaxPctForDate(date: string): number {
+    return Math.max(0, ...dispersers.map((d) => getCell(d.id, date).pct));
+  }
 
   if (dispersers.length === 0) return null;
 
@@ -543,7 +522,7 @@ export function DisperserCapacityHeatmap({
                       <div
                         className="h-full bg-red-500 rounded-full"
                         style={{
-                          width: `${(grouped.atCap.reduce((s, x) => s + x.c.pmc, 0) / dayStats.totalCap) * 100}%`,
+                          width: `${(grouped.atCap.reduce((s, x) => s + x.pmc, 0) / dayStats.totalCap) * 100}%`,
                         }}
                       />
                     )}
@@ -551,7 +530,7 @@ export function DisperserCapacityHeatmap({
                       <div
                         className="h-full bg-yellow-500 rounded-full"
                         style={{
-                          width: `${(grouped.moderate.reduce((s, x) => s + x.c.pmc, 0) / dayStats.totalCap) * 100}%`,
+                          width: `${(grouped.moderate.reduce((s, x) => s + x.pmc, 0) / dayStats.totalCap) * 100}%`,
                         }}
                       />
                     )}
@@ -571,12 +550,12 @@ export function DisperserCapacityHeatmap({
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {grouped.atCap.length} disperser{grouped.atCap.length !== 1 ? "s" : ""}
+                      {grouped.atCap.length} group{grouped.atCap.length !== 1 ? "s" : ""}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {grouped.atCap.map(({ d, c }) => (
-                      <ControlCard key={d.id} resource={d} cell={c} />
+                    {grouped.atCap.map((g) => (
+                      <GroupCard key={g.name} group={g} />
                     ))}
                   </div>
                 </div>
@@ -593,12 +572,12 @@ export function DisperserCapacityHeatmap({
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {grouped.moderate.length} disperser{grouped.moderate.length !== 1 ? "s" : ""}
+                      {grouped.moderate.length} group{grouped.moderate.length !== 1 ? "s" : ""}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {grouped.moderate.map(({ d, c }) => (
-                      <ControlCard key={d.id} resource={d} cell={c} />
+                    {grouped.moderate.map((g) => (
+                      <GroupCard key={g.name} group={g} />
                     ))}
                   </div>
                 </div>
@@ -615,13 +594,13 @@ export function DisperserCapacityHeatmap({
                     <span className="text-xs text-muted-foreground">{grouped.idle.length}</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {grouped.idle.map(({ d }) => (
+                    {grouped.idle.map((g) => (
                       <span
-                        key={d.id}
+                        key={g.name}
                         className="rounded-md border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground"
                       >
-                        {d.displayName ?? d.resourceCode}
-                        <span className="ml-1 text-[10px]">Cap {d.maxBatchesPerDay}</span>
+                        {g.name}
+                        <span className="ml-1 text-[10px]">Cap {g.cap}</span>
                       </span>
                     ))}
                   </div>
@@ -677,25 +656,23 @@ export function DisperserCapacityHeatmap({
 
               {/* Waffle cards */}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {sortedByPct.map((d) => {
-                  const c = getCell(d.id, selectedDate);
-                  const t = getTier(c.pct);
-                  const isIdle = c.pct <= 0;
-                  const name = d.displayName ?? d.resourceCode;
+                {resourceGroups.map((g) => {
+                  const t = getTier(g.pct);
+                  const isIdle = g.pct <= 0;
 
                   if (isIdle) {
                     return (
                       <div
-                        key={d.id}
+                        key={g.name}
                         className="rounded-lg border bg-muted/30 p-3.5 opacity-50"
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold">{name}</span>
+                          <span className="text-xs font-semibold">{g.name}</span>
                           <span className="text-[10px] text-muted-foreground italic">idle</span>
                         </div>
-                        <WaffleSquares used={0} cap={c.cap} tier={t} />
+                        <WaffleSquares used={0} cap={g.cap} tier={t} />
                         <div className="text-[10px] text-muted-foreground mt-2">
-                          Cap {c.cap}
+                          Cap {g.cap}
                         </div>
                       </div>
                     );
@@ -703,23 +680,23 @@ export function DisperserCapacityHeatmap({
 
                   return (
                     <div
-                      key={d.id}
+                      key={g.name}
                       className={cn(
                         "rounded-lg border p-3.5 transition-colors hover:bg-muted/30",
                         t.borderCls,
                       )}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold">{name}</span>
+                        <span className="text-xs font-semibold">{g.name}</span>
                         <span className={cn("text-lg font-bold tabular-nums", t.textCls)}>
-                          {c.pct}%
+                          {g.pct}%
                         </span>
                       </div>
                       <div className="mb-2">
-                        <WaffleSquares used={c.batch} cap={c.cap} tier={t} />
+                        <WaffleSquares used={g.pmc} cap={g.cap} tier={t} />
                       </div>
                       <div className="text-[10px] text-muted-foreground tabular-nums">
-                        {c.pmc} PMC · {c.batch} Batch · {c.cap} Cap
+                        {g.pmc} PMC · {g.batch} Batch · {g.cap} Cap
                       </div>
                     </div>
                   );
@@ -749,7 +726,7 @@ export function DisperserCapacityHeatmap({
             <div className="px-4 pb-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {resourceGroups.map((group) => (
-                  <ResourceGroupCard key={group.name} group={group} />
+                  <GroupCard key={group.name} group={group} />
                 ))}
               </div>
               <div className="mt-4 border-t pt-3">
@@ -764,81 +741,26 @@ export function DisperserCapacityHeatmap({
 }
 
 // ---------------------------------------------------------------------------
-// Control Room card
+// Group card (used by Control Room and Resource Group views)
 // ---------------------------------------------------------------------------
 
-function ControlCard({ resource, cell }: { resource: Resource; cell: CellData }) {
-  const t = getTier(cell.pct);
-  const name = resource.displayName ?? resource.resourceCode;
+function GroupCard({ group }: { group: GroupData }) {
+  const t = getTier(group.pct);
+  const isMulti = group.members.length > 1;
+
   return (
     <div className={cn("rounded-lg border p-3.5 transition-colors hover:bg-muted/30", t.borderCls)}>
-      <div className="text-xs font-semibold mb-1">{name}</div>
-      <div className={cn("text-2xl font-bold tabular-nums mb-1", t.textCls)}>{cell.pct}%</div>
-      <div className="text-[10px] text-muted-foreground tabular-nums mb-2.5">
-        {cell.pmc} PMC · {cell.batch} Batch · {cell.cap} Cap
-      </div>
-      <div className="h-1 rounded-full bg-muted overflow-hidden">
-        <div
-          className={cn("h-full rounded-full", t.barCls)}
-          style={{ width: `${Math.min(cell.pct, 100)}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Resource Group card
-// ---------------------------------------------------------------------------
-
-function ResourceGroupCard({
-  group,
-}: {
-  group: {
-    name: string;
-    members: Resource[];
-    pmc: number;
-    batch: number;
-    cap: number;
-    pct: number;
-  };
-}) {
-  const t = getTier(group.pct);
-  const isGroup = group.members.length > 1;
-  const isIdle = group.pct <= 0;
-
-  if (isIdle) {
-    return (
-      <div className="rounded-lg border bg-muted/30 p-4 opacity-50">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-semibold">{group.name}</span>
-          <span className="text-[10px] text-muted-foreground italic">idle</span>
-        </div>
-        {isGroup && (
-          <div className="text-[10px] text-muted-foreground mb-2">
-            {group.members.map((m) => m.displayName ?? m.resourceCode).join(", ")}
-          </div>
-        )}
-        <div className="text-[10px] text-muted-foreground">Cap {group.cap}</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={cn("rounded-lg border p-4 transition-colors hover:bg-muted/30", t.borderCls)}>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-sm font-semibold">{group.name}</span>
-        <span className={cn("text-xl font-bold tabular-nums", t.textCls)}>{group.pct}%</span>
-      </div>
-      {isGroup && (
-        <div className="text-[10px] text-muted-foreground mb-2">
+      <div className="text-xs font-semibold mb-1">{group.name}</div>
+      {isMulti && (
+        <div className="text-[10px] text-muted-foreground mb-1">
           {group.members.map((m) => m.displayName ?? m.resourceCode).join(", ")}
         </div>
       )}
+      <div className={cn("text-2xl font-bold tabular-nums mb-1", t.textCls)}>{group.pct}%</div>
       <div className="text-[10px] text-muted-foreground tabular-nums mb-2.5">
         {group.pmc} PMC · {group.batch} Batch · {group.cap} Cap
       </div>
-      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+      <div className="h-1 rounded-full bg-muted overflow-hidden">
         <div
           className={cn("h-full rounded-full", t.barCls)}
           style={{ width: `${Math.min(group.pct, 100)}%` }}
