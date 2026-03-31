@@ -681,37 +681,46 @@ function ControlRoomGroupCard({ group }: { group: ResourceGroupData }) {
   const t = getTier(group.pct);
   return (
     <div className={cn("rounded-lg border p-4 transition-colors hover:bg-muted/30", t.borderCls)}>
-      <div className="flex items-center gap-3 mb-4">
+      {/* Group header */}
+      <div className="flex items-center gap-3 mb-1">
         <div className="flex-shrink-0">
           <RingGauge pct={group.pct} size={44} />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="text-sm font-bold">{group.groupName}</div>
           <div className="text-xs text-muted-foreground tabular-nums">
-            {group.totalPmc} / {group.groupCapacity} slots · {group.members.length} resources
+            {group.totalPmc} premixes · {group.totalBatch} batches · {group.groupCapacity} capacity
           </div>
         </div>
       </div>
+
+      {/* Divider */}
+      <div className="border-t my-3" />
+
+      {/* Individual resources */}
       <div className="space-y-3">
         {group.members.map(({ resource, cell }) => {
-          const mt = getTier(cell.pct);
+          const ownCap = resource.maxBatchesPerDay;
+          const ownPct = ownCap > 0 ? Math.round((cell.batch / ownCap) * 100) : 0;
+          const mt = getTier(ownPct);
           return (
             <div key={resource.id}>
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-0.5">
                 <span className="text-sm font-semibold">
                   {resource.displayName ?? resource.resourceCode}
                 </span>
-                <div className="flex items-center gap-3 flex-shrink-0 tabular-nums">
-                  <span className={cn("text-sm font-bold", mt.textCls)}>{cell.pct}%</span>
-                  <span className="text-xs text-muted-foreground">
-                    {cell.pmc}p / {cell.batch}b / {cell.cap}c
-                  </span>
-                </div>
+                <span className={cn("text-sm font-bold tabular-nums", mt.textCls)}>
+                  {ownPct}%
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground tabular-nums mb-1">
+                <span>{cell.pmc} premixes · {cell.batch} batches</span>
+                <span>{cell.batch} / {ownCap} capacity</span>
               </div>
               <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
                   className={cn("h-full rounded-full", mt.barCls)}
-                  style={{ width: `${Math.min(cell.pct, 100)}%` }}
+                  style={{ width: `${Math.min(ownPct, 100)}%` }}
                 />
               </div>
             </div>
@@ -733,7 +742,7 @@ function CompactGroupCard({ group }: { group: ResourceGroupData }) {
         <div className="min-w-0">
           <div className="text-sm font-bold">{group.groupName}</div>
           <div className="text-xs text-muted-foreground tabular-nums">
-            {group.totalPmc} / {group.groupCapacity} slots
+            {group.totalPmc} premixes · {group.totalBatch} batches · {group.groupCapacity} cap
           </div>
         </div>
       </div>
