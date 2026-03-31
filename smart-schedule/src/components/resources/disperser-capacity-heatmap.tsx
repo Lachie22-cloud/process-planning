@@ -454,7 +454,7 @@ export function DisperserCapacityHeatmap({
           {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground">
-              Disperser Capacity Heat Map
+              Resource Capacity Overview
             </h3>
             <TabsList>
               <TabsTrigger value="control" className="text-xs">
