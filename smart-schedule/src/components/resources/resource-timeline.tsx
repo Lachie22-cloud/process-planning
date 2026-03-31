@@ -11,6 +11,7 @@ import { ResourceLane, type DropTarget } from "./resource-lane";
 import { GroupedPotLane } from "./grouped-pot-lane";
 import { PlacementOverlay } from "./placement-overlay";
 import { DisperserCapacityHeatmap } from "./disperser-capacity-heatmap";
+import { MixerCapacityHeatmap } from "./mixer-capacity-heatmap";
 import { RescheduleDialog } from "./reschedule-dialog";
 import { MoveReasonModal } from "@/components/shared/move-reason-modal";
 import { useUpdateBatch, useAddAuditEntry } from "@/hooks/use-batch-mutations";
@@ -807,6 +808,17 @@ export function ResourceTimeline({
           )}
         </div>
       </div>
+
+      {/* Mixer capacity heatmap — shown on mixers tab */}
+      {tab === "mixers" && (
+        <MixerCapacityHeatmap
+          batches={batches}
+          resources={resources}
+          dates={dates}
+          bookendDates={bookendDates}
+          coreDates={coreDates}
+        />
+      )}
 
       {/* Disperser capacity heatmap — shown on dispersers tab */}
       {tab === "dispersers" && (
