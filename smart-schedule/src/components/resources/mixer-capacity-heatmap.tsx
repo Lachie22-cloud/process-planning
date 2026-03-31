@@ -252,11 +252,11 @@ export function MixerCapacityHeatmap({
 
   const [collapsed, setCollapsed] = useState(false);
 
-  // --- Filter to active mixers ---
+  // --- Filter to active mixers + pots ---
   const mixers = useMemo(
     () =>
       resources
-        .filter((r) => r.resourceType === "mixer" && r.active)
+        .filter((r) => (r.resourceType === "mixer" || r.resourceType === "pot") && r.active)
         .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)),
     [resources],
   );
@@ -458,22 +458,55 @@ export function MixerCapacityHeatmap({
                 </div>
               </div>
 
-              {/* Trunk group cards (2+ members) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
-                {trunkGroups
-                  .filter((g) => g.members.length >= 2)
-                  .map((g) => (
-                    <TrunkGroupCard key={g.trunkName} group={g} />
-                  ))}
-              </div>
+              {/* Trunk overview cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-3">
+                {trunkGroups.map((g) => {
+                  const gt = getTier(g.pct);
+                  const isIdle = g.pct <= 0 && g.totalItems === 0;
 
-              {/* Small trunk groups (1 member) */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-                {trunkGroups
-                  .filter((g) => g.members.length < 2)
-                  .map((g) => (
-                    <CompactTrunkCard key={g.trunkName} group={g} />
-                  ))}
+                  if (isIdle) {
+                    return (
+                      <div
+                        key={g.trunkName}
+                        className="rounded-lg border bg-muted/30 p-3.5 opacity-50"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold">{g.trunkName}</span>
+                          <span className="text-[10px] text-muted-foreground italic">idle</span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {g.members.length} {g.members.length === 1 ? "mixer" : "mixers"} · {formatLitres(g.totalCapacity)}L cap
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={g.trunkName}
+                      className={cn(
+                        "rounded-lg border p-3.5 transition-colors hover:bg-muted/30",
+                        gt.borderCls,
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-bold">{g.trunkName}</span>
+                        <span className={cn("text-lg font-bold tabular-nums", gt.textCls)}>
+                          {g.pct}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted overflow-hidden mb-2">
+                        <div
+                          className={cn("h-full rounded-full", gt.barCls)}
+                          style={{ width: `${Math.min(g.pct, 100)}%` }}
+                        />
+                      </div>
+                      <div className="text-[10px] text-muted-foreground tabular-nums">
+                        {formatLitres(g.totalLitres)}L · {g.totalItems} items · {formatLitres(g.totalCapacity)}L cap
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Legend */}
@@ -593,7 +626,7 @@ export function MixerCapacityHeatmap({
             <div className="px-4 pb-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {trunkGroups.map((group) => (
-                  <TrunkGroupCard key={group.trunkName} group={group} />
+                  <TrunkDetailCard key={group.trunkName} group={group} />
                 ))}
               </div>
               <div className="mt-4 border-t pt-3">
@@ -613,7 +646,7 @@ export function MixerCapacityHeatmap({
 // Trunk group cards
 // ---------------------------------------------------------------------------
 
-function TrunkGroupCard({ group }: { group: TrunkGroupData }) {
+function TrunkDetailCard({ group }: { group: TrunkGroupData }) {
   const t = getTier(group.pct);
   return (
     <div className={cn("rounded-lg border p-4 transition-colors hover:bg-muted/30", t.borderCls)}>
@@ -672,21 +705,3 @@ function TrunkGroupCard({ group }: { group: TrunkGroupData }) {
   );
 }
 
-function CompactTrunkCard({ group }: { group: TrunkGroupData }) {
-  const t = getTier(group.pct);
-  return (
-    <div className={cn("rounded-lg border p-3.5 transition-colors hover:bg-muted/30", t.borderCls)}>
-      <div className="flex items-center gap-3">
-        <div className="flex-shrink-0">
-          <RingGauge pct={group.pct} size={36} />
-        </div>
-        <div className="min-w-0">
-          <div className="text-sm font-bold">{group.trunkName}</div>
-          <div className="text-xs text-muted-foreground tabular-nums">
-            {formatLitres(group.totalLitres)}L · {group.totalItems} items · {formatLitres(group.totalCapacity)}L cap
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
