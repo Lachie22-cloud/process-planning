@@ -496,7 +496,7 @@ export function DisperserCapacityHeatmap({
                     <span className={cn("text-2xl font-bold tabular-nums", getTier(groupStats.pct).textCls)}>
                       {groupStats.pct}%
                     </span>
-                    <span className="text-sm text-muted-foreground">fleet load</span>
+                    <span className="text-sm text-muted-foreground">resource capacity</span>
                   </div>
                   <div className="text-xs text-muted-foreground tabular-nums">
                     {groupStats.totalPmc} of {groupStats.totalCap} slots in use across {resourceGroups.length} groups
@@ -681,9 +681,9 @@ function ControlRoomGroupCard({ group }: { group: ResourceGroupData }) {
   const t = getTier(group.pct);
   return (
     <div className={cn("rounded-lg border p-4 transition-colors hover:bg-muted/30", t.borderCls)}>
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-3 mb-4">
         <div className="flex-shrink-0">
-          <RingGauge pct={group.pct} size={40} />
+          <RingGauge pct={group.pct} size={44} />
         </div>
         <div className="min-w-0">
           <div className="text-sm font-bold">{group.groupName}</div>
@@ -692,19 +692,27 @@ function ControlRoomGroupCard({ group }: { group: ResourceGroupData }) {
           </div>
         </div>
       </div>
-      <div className="space-y-1">
+      <div className="space-y-3">
         {group.members.map(({ resource, cell }) => {
           const mt = getTier(cell.pct);
           return (
-            <div key={resource.id} className="flex items-center justify-between text-xs">
-              <span className="font-medium truncate mr-2">
-                {resource.displayName ?? resource.resourceCode}
-              </span>
-              <div className="flex items-center gap-2 flex-shrink-0 tabular-nums">
-                <span className={cn("font-bold", mt.textCls)}>{cell.pct}%</span>
-                <span className="text-[10px] text-muted-foreground">
-                  {cell.pmc}p / {cell.batch}b / {cell.cap}c
+            <div key={resource.id}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-semibold">
+                  {resource.displayName ?? resource.resourceCode}
                 </span>
+                <div className="flex items-center gap-3 flex-shrink-0 tabular-nums">
+                  <span className={cn("text-sm font-bold", mt.textCls)}>{cell.pct}%</span>
+                  <span className="text-xs text-muted-foreground">
+                    {cell.pmc}p / {cell.batch}b / {cell.cap}c
+                  </span>
+                </div>
+              </div>
+              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={cn("h-full rounded-full", mt.barCls)}
+                  style={{ width: `${Math.min(cell.pct, 100)}%` }}
+                />
               </div>
             </div>
           );
