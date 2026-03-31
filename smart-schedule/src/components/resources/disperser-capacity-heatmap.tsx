@@ -707,7 +707,12 @@ function ControlRoomGroupCard({ group }: { group: ResourceGroupData }) {
           <RingGauge pct={group.pct} size={44} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-bold">{group.groupName}</div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold">{group.groupName}</span>
+            <span className={cn("text-sm font-bold tabular-nums", t.textCls)}>
+              {group.pct}%
+            </span>
+          </div>
           <div className="text-xs text-muted-foreground tabular-nums">
             {group.totalPmc} premixes · {group.totalBatch} batches · {group.groupCapacity} capacity
           </div>

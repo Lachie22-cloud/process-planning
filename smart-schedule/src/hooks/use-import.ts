@@ -1330,11 +1330,11 @@ export function useImport() {
         const { error } = await supabase.from("batches").insert(rows as never);
         if (error) throw error;
       } else if (mode === "merge") {
-        // Merge: fetch existing to preserve vetting state, insert new with defaults
+        // Merge: fetch existing to preserve workflow state & comments, insert new with defaults
         const sapOrders = data.map((b) => b.sapOrder);
         const { data: existingRows } = await supabase
           .from("batches")
-          .select("sap_order, status, vetting_status, vetted_by, vetted_at, vetting_comment")
+          .select("sap_order, status, status_comment, status_changed_at, status_changed_by, vetting_status, vetted_by, vetted_at, vetting_comment, qc_observed_stage, qc_observed_at, qc_observed_by, job_location, observation_comment, ebr_comment, excess_paint_comment, bulk_off_comment")
           .eq("site_id", site.id)
           .in("sap_order", sapOrders);
 
@@ -1343,10 +1343,21 @@ export function useImport() {
             r.sap_order as string,
             {
               status: r.status as string,
+              status_comment: r.status_comment as string | null,
+              status_changed_at: r.status_changed_at as string | null,
+              status_changed_by: r.status_changed_by as string | null,
               vetting_status: r.vetting_status as string,
               vetted_by: r.vetted_by as string | null,
               vetted_at: r.vetted_at as string | null,
               vetting_comment: r.vetting_comment as string | null,
+              qc_observed_stage: r.qc_observed_stage as string | null,
+              qc_observed_at: r.qc_observed_at as string | null,
+              qc_observed_by: r.qc_observed_by as string | null,
+              job_location: r.job_location as string | null,
+              observation_comment: r.observation_comment as string | null,
+              ebr_comment: r.ebr_comment as string | null,
+              excess_paint_comment: r.excess_paint_comment as string | null,
+              bulk_off_comment: r.bulk_off_comment as string | null,
             },
           ]),
         );
@@ -1355,12 +1366,23 @@ export function useImport() {
           const existing = existingMap.get(b.sapOrder);
           return {
             ...buildSapFields(b),
-            // Preserve workflow fields for existing rows, derive from SAP for new
+            // Preserve all workflow fields & comments for existing rows, derive from SAP for new
             status: existing?.status ?? "Planned",
+            status_comment: existing?.status_comment ?? null,
+            status_changed_at: existing?.status_changed_at ?? null,
+            status_changed_by: existing?.status_changed_by ?? null,
             vetting_status: existing?.vetting_status ?? deriveVettingStatus(b),
             vetted_by: existing?.vetted_by ?? null,
             vetted_at: existing?.vetted_at ?? null,
             vetting_comment: existing?.vetting_comment ?? null,
+            qc_observed_stage: existing?.qc_observed_stage ?? null,
+            qc_observed_at: existing?.qc_observed_at ?? null,
+            qc_observed_by: existing?.qc_observed_by ?? null,
+            job_location: existing?.job_location ?? null,
+            observation_comment: existing?.observation_comment ?? null,
+            ebr_comment: existing?.ebr_comment ?? null,
+            excess_paint_comment: existing?.excess_paint_comment ?? null,
+            bulk_off_comment: existing?.bulk_off_comment ?? null,
           };
         });
 
@@ -1369,11 +1391,11 @@ export function useImport() {
           .upsert(rows as never, { onConflict: "site_id,sap_order" });
         if (error) throw error;
       } else {
-        // Update: only update existing rows, preserve vetting state
+        // Update: only update existing rows, preserve all workflow state & comments
         const sapOrders = data.map((b) => b.sapOrder);
         const { data: existingRows } = await supabase
           .from("batches")
-          .select("sap_order, status, vetting_status, vetted_by, vetted_at, vetting_comment")
+          .select("sap_order, status, status_comment, status_changed_at, status_changed_by, vetting_status, vetted_by, vetted_at, vetting_comment, qc_observed_stage, qc_observed_at, qc_observed_by, job_location, observation_comment, ebr_comment, excess_paint_comment, bulk_off_comment")
           .eq("site_id", site.id)
           .in("sap_order", sapOrders);
 
@@ -1382,10 +1404,21 @@ export function useImport() {
             r.sap_order as string,
             {
               status: r.status as string,
+              status_comment: r.status_comment as string | null,
+              status_changed_at: r.status_changed_at as string | null,
+              status_changed_by: r.status_changed_by as string | null,
               vetting_status: r.vetting_status as string,
               vetted_by: r.vetted_by as string | null,
               vetted_at: r.vetted_at as string | null,
               vetting_comment: r.vetting_comment as string | null,
+              qc_observed_stage: r.qc_observed_stage as string | null,
+              qc_observed_at: r.qc_observed_at as string | null,
+              qc_observed_by: r.qc_observed_by as string | null,
+              job_location: r.job_location as string | null,
+              observation_comment: r.observation_comment as string | null,
+              ebr_comment: r.ebr_comment as string | null,
+              excess_paint_comment: r.excess_paint_comment as string | null,
+              bulk_off_comment: r.bulk_off_comment as string | null,
             },
           ]),
         );
@@ -1398,12 +1431,23 @@ export function useImport() {
             .from("batches")
             .update({
               ...buildSapFields(b),
-              // Preserve existing workflow fields
+              // Preserve all existing workflow fields & comments
               status: existing.status,
+              status_comment: existing.status_comment,
+              status_changed_at: existing.status_changed_at,
+              status_changed_by: existing.status_changed_by,
               vetting_status: existing.vetting_status,
               vetted_by: existing.vetted_by,
               vetted_at: existing.vetted_at,
               vetting_comment: existing.vetting_comment,
+              qc_observed_stage: existing.qc_observed_stage,
+              qc_observed_at: existing.qc_observed_at,
+              qc_observed_by: existing.qc_observed_by,
+              job_location: existing.job_location,
+              observation_comment: existing.observation_comment,
+              ebr_comment: existing.ebr_comment,
+              excess_paint_comment: existing.excess_paint_comment,
+              bulk_off_comment: existing.bulk_off_comment,
             } as never)
             .eq("site_id", site.id)
             .eq("sap_order", b.sapOrder);
