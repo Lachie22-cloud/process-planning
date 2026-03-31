@@ -25,14 +25,34 @@ interface CellData {
   pct: number;
 }
 
-interface GroupData {
-  name: string;
-  members: Resource[];
-  pmc: number;
-  batch: number;
-  cap: number;
+// ---------------------------------------------------------------------------
+// Resource group configuration
+// ---------------------------------------------------------------------------
+
+interface ResourceGroupConfig {
+  id: string;
+  displayName: string;
+  memberCodes: string[];
+  groupCapacity: number;
+}
+
+interface ResourceGroupData {
+  config: ResourceGroupConfig;
+  members: { resource: Resource; cell: CellData }[];
+  totalPmc: number;
+  totalBatch: number;
   pct: number;
 }
+
+const RESOURCE_GROUPS: ResourceGroupConfig[] = [
+  { id: "mills", displayName: "Mills", memberCodes: ["BUEHLER2", "ABI", "SUS", "BUEHLER"], groupCapacity: 6 },
+  { id: "ons-duo", displayName: "ONS / DUO", memberCodes: ["ONS", "DUO"], groupCapacity: 3 },
+  { id: "ntzch", displayName: "NTZCH", memberCodes: ["NTZ1", "NTZ2"], groupCapacity: 5 },
+  { id: "hsds", displayName: "HSDs", memberCodes: ["HSD", "HSD5", "HSD2"], groupCapacity: 6 },
+  { id: "ystral", displayName: "Ystral", memberCodes: ["YSTRAL"], groupCapacity: 1 },
+  { id: "ons2", displayName: "ONS 2", memberCodes: ["ONS2"], groupCapacity: 2 },
+  { id: "vsm", displayName: "VSM", memberCodes: ["VSM"], groupCapacity: 1 },
+];
 
 interface HeatTier {
   textCls: string;
@@ -386,77 +406,51 @@ export function DisperserCapacityHeatmap({
     );
   }
 
-  // --- Resource groups (by chemicalBase) — drives ALL views ---
+  // --- Fixed resource groups for Control Room ---
   const resourceGroups = useMemo(() => {
-    const dk = selectedDate;
-    const groups = new Map<string, GroupData>();
-
-    for (const d of dispersers) {
-      const key = d.chemicalBase ?? d.displayName ?? d.resourceCode;
-      let entry = groups.get(key);
-      if (!entry) {
-        entry = { name: key, members: [], pmc: 0, batch: 0, cap: 0, pct: 0 };
-        groups.set(key, entry);
-      }
-      entry.members.push(d);
-      const c = getCell(d.id, dk);
-      entry.batch += c.batch;
-    }
-
-    // Group capacity = max maxBatchesPerDay across members (shared pool)
-    // PMC = sum of individual PMCs across members
-    for (const entry of groups.values()) {
-      entry.cap = Math.max(...entry.members.map((m) => m.groupCapacity ?? m.maxBatchesPerDay));
-
-      // Sum PMC across members, but for shared-capacity groups (groupName+groupCapacity)
-      // use groupPmcByDate to avoid double-counting
-      let totalPmc = 0;
-      const countedGroupNames = new Set<string>();
-      for (const m of entry.members) {
-        if (m.groupName && m.groupCapacity != null && !countedGroupNames.has(m.groupName)) {
-          countedGroupNames.add(m.groupName);
-          totalPmc += groupPmcByDate.get(m.groupName)?.get(dk) ?? 0;
-        } else if (!m.groupName || m.groupCapacity == null) {
-          totalPmc += getCell(m.id, dk).pmc;
-        }
-      }
-      entry.pmc = totalPmc;
-      entry.pct = entry.cap > 0 ? Math.round((totalPmc / entry.cap) * 100) : 0;
-    }
-
-    const all = [...groups.values()];
-    all.sort((a, b) => b.pct - a.pct);
-    return all;
+    const codeToResource = new Map(dispersers.map((d) => [d.resourceCode, d]));
+    const groups: ResourceGroupData[] = RESOURCE_GROUPS.map((cfg) => {
+      const members = cfg.memberCodes
+        .map((code) => {
+          const resource = codeToResource.get(code);
+          if (!resource) return null;
+          const cell = getCell(resource.id, selectedDate);
+          return { resource, cell };
+        })
+        .filter((m): m is { resource: Resource; cell: CellData } => m !== null);
+      const totalPmc = members.reduce((s, m) => s + m.cell.pmc, 0);
+      const totalBatch = members.reduce((s, m) => s + m.cell.batch, 0);
+      const pct = cfg.groupCapacity > 0 ? Math.round((totalPmc / cfg.groupCapacity) * 100) : 0;
+      return { config: cfg, members, totalPmc, totalBatch, pct };
+    });
+    return groups.sort((a, b) => b.pct - a.pct);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, dispersers, heatData, groupPmcByDate]);
+  }, [selectedDate, dispersers, heatData]);
 
-  // --- Aggregate stats derived from resource groups ---
+  // --- Aggregate stats from fixed resource groups ---
+  const groupStats = useMemo(() => {
+    const totalCap = RESOURCE_GROUPS.reduce((s, g) => s + g.groupCapacity, 0);
+    const totalPmc = resourceGroups.reduce((s, g) => s + g.totalPmc, 0);
+    const pct = totalCap > 0 ? Math.round((totalPmc / totalCap) * 100) : 0;
+    return { totalCap, totalPmc, pct };
+  }, [resourceGroups]);
+
+  // --- Planner waffle stats (individual dispersers) ---
   const dayStats = useMemo(() => {
     let totalPmc = 0;
     let totalBatch = 0;
     let totalCap = 0;
-    for (const g of resourceGroups) {
-      totalPmc += g.pmc;
-      totalBatch += g.batch;
-      totalCap += g.cap;
+    for (const d of dispersers) {
+      const c = getCell(d.id, selectedDate);
+      totalPmc += c.pmc;
+      totalBatch += c.batch;
+      totalCap += c.cap;
     }
     const totalFree = totalCap - totalPmc;
     const pct = totalCap > 0 ? Math.round((totalPmc / totalCap) * 100) : 0;
     return { totalPmc, totalBatch, totalCap, totalFree: Math.max(0, totalFree), pct };
-  }, [resourceGroups]);
-
-  // --- Severity buckets for Control Room (group-level) ---
-  const grouped = useMemo(() => {
-    const atCap: GroupData[] = [];
-    const moderate: GroupData[] = [];
-    const idle: GroupData[] = [];
-    for (const g of resourceGroups) {
-      if (g.pct >= 80) atCap.push(g);
-      else if (g.pct > 0) moderate.push(g);
-      else idle.push(g);
-    }
-    return { atCap, moderate, idle };
-  }, [resourceGroups]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, dispersers, heatData]);
 
   function getMaxPctForDate(date: string): number {
     return Math.max(0, ...dispersers.map((d) => getCell(d.id, date).pct));
@@ -503,109 +497,58 @@ export function DisperserCapacityHeatmap({
 
             <div className="px-4 pb-4">
               {/* Fleet summary */}
+              {/* Fleet summary */}
               <div className="flex items-center gap-6 mb-5">
                 <div className="flex-shrink-0">
-                  <RingGauge pct={dayStats.pct} size={72} />
+                  <RingGauge pct={groupStats.pct} size={72} />
                 </div>
                 <div>
                   <div className="flex items-baseline gap-2">
-                    <span className={cn("text-2xl font-bold tabular-nums", getTier(dayStats.pct).textCls)}>
-                      {dayStats.pct}%
+                    <span className={cn("text-2xl font-bold tabular-nums", getTier(groupStats.pct).textCls)}>
+                      {groupStats.pct}%
                     </span>
-                    <span className="text-sm text-muted-foreground">resource load</span>
+                    <span className="text-sm text-muted-foreground">fleet load</span>
                   </div>
                   <div className="text-xs text-muted-foreground tabular-nums">
-                    {dayStats.totalPmc} of {dayStats.totalCap} premix slots in use
+                    {groupStats.totalPmc} of {groupStats.totalCap} slots in use across {resourceGroups.length} groups
                   </div>
                   <div className="mt-2 flex h-2 w-64 gap-0.5 overflow-hidden rounded-full">
-                    {grouped.atCap.length > 0 && (
-                      <div
-                        className="h-full bg-red-500 rounded-full"
-                        style={{
-                          width: `${(grouped.atCap.reduce((s, x) => s + x.pmc, 0) / dayStats.totalCap) * 100}%`,
-                        }}
-                      />
-                    )}
-                    {grouped.moderate.length > 0 && (
-                      <div
-                        className="h-full bg-yellow-500 rounded-full"
-                        style={{
-                          width: `${(grouped.moderate.reduce((s, x) => s + x.pmc, 0) / dayStats.totalCap) * 100}%`,
-                        }}
-                      />
-                    )}
+                    {(() => {
+                      const atCapPmc = resourceGroups.filter((g) => g.pct >= 80).reduce((s, g) => s + g.totalPmc, 0);
+                      const moderatePmc = resourceGroups.filter((g) => g.pct > 0 && g.pct < 80).reduce((s, g) => s + g.totalPmc, 0);
+                      return (
+                        <>
+                          {atCapPmc > 0 && (
+                            <div className="h-full bg-red-500 rounded-full" style={{ width: `${(atCapPmc / groupStats.totalCap) * 100}%` }} />
+                          )}
+                          {moderatePmc > 0 && (
+                            <div className="h-full bg-yellow-500 rounded-full" style={{ width: `${(moderatePmc / groupStats.totalCap) * 100}%` }} />
+                          )}
+                        </>
+                      );
+                    })()}
                     <div className="h-full flex-1 rounded-full bg-muted" />
                   </div>
                 </div>
               </div>
 
-              {/* At Capacity */}
-              {grouped.atCap.length > 0 && (
-                <div className="mb-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-red-500" />
-                      <span className="text-sm font-semibold text-red-600 dark:text-red-400">
-                        At Capacity
-                      </span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {grouped.atCap.length} group{grouped.atCap.length !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {grouped.atCap.map((g) => (
-                      <GroupCard key={g.name} group={g} />
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Large groups (2+ members) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
+                {resourceGroups
+                  .filter((g) => g.members.length >= 2)
+                  .map((g) => (
+                    <ControlRoomGroupCard key={g.config.id} group={g} />
+                  ))}
+              </div>
 
-              {/* Moderate */}
-              {grouped.moderate.length > 0 && (
-                <div className="mb-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-yellow-500" />
-                      <span className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">
-                        Moderate Load
-                      </span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {grouped.moderate.length} group{grouped.moderate.length !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {grouped.moderate.map((g) => (
-                      <GroupCard key={g.name} group={g} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Idle */}
-              {grouped.idle.length > 0 && (
-                <div className="mb-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />
-                      <span className="text-sm font-semibold text-muted-foreground">Idle</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{grouped.idle.length}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {grouped.idle.map((g) => (
-                      <span
-                        key={g.name}
-                        className="rounded-md border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground"
-                      >
-                        {g.name}
-                        <span className="ml-1 text-[10px]">Cap {g.cap}</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Small groups (1 member) */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                {resourceGroups
+                  .filter((g) => g.members.length < 2)
+                  .map((g) => (
+                    <CompactGroupCard key={g.config.id} group={g} />
+                  ))}
+              </div>
 
               {/* Legend */}
               <div className="mt-4 border-t pt-3">
@@ -659,20 +602,21 @@ export function DisperserCapacityHeatmap({
                 {resourceGroups.map((g) => {
                   const t = getTier(g.pct);
                   const isIdle = g.pct <= 0;
+                  const cap = g.config.groupCapacity;
 
                   if (isIdle) {
                     return (
                       <div
-                        key={g.name}
+                        key={g.config.id}
                         className="rounded-lg border bg-muted/30 p-3.5 opacity-50"
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold">{g.name}</span>
+                          <span className="text-xs font-semibold">{g.config.displayName}</span>
                           <span className="text-[10px] text-muted-foreground italic">idle</span>
                         </div>
-                        <WaffleSquares used={0} cap={g.cap} tier={t} />
+                        <WaffleSquares used={0} cap={cap} tier={t} />
                         <div className="text-[10px] text-muted-foreground mt-2">
-                          Cap {g.cap}
+                          Cap {cap}
                         </div>
                       </div>
                     );
@@ -680,23 +624,23 @@ export function DisperserCapacityHeatmap({
 
                   return (
                     <div
-                      key={g.name}
+                      key={g.config.id}
                       className={cn(
                         "rounded-lg border p-3.5 transition-colors hover:bg-muted/30",
                         t.borderCls,
                       )}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold">{g.name}</span>
+                        <span className="text-xs font-semibold">{g.config.displayName}</span>
                         <span className={cn("text-lg font-bold tabular-nums", t.textCls)}>
                           {g.pct}%
                         </span>
                       </div>
                       <div className="mb-2">
-                        <WaffleSquares used={g.pmc} cap={g.cap} tier={t} />
+                        <WaffleSquares used={g.totalPmc} cap={cap} tier={t} />
                       </div>
                       <div className="text-[10px] text-muted-foreground tabular-nums">
-                        {g.pmc} PMC · {g.batch} Batch · {g.cap} Cap
+                        {g.totalPmc} PMC · {g.totalBatch} Batch · {cap} Cap
                       </div>
                     </div>
                   );
@@ -726,7 +670,7 @@ export function DisperserCapacityHeatmap({
             <div className="px-4 pb-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {resourceGroups.map((group) => (
-                  <GroupCard key={group.name} group={group} />
+                  <ControlRoomGroupCard key={group.config.id} group={group} />
                 ))}
               </div>
               <div className="mt-4 border-t pt-3">
@@ -741,30 +685,60 @@ export function DisperserCapacityHeatmap({
 }
 
 // ---------------------------------------------------------------------------
-// Group card (used by Control Room and Resource Group views)
+// Control Room group cards
 // ---------------------------------------------------------------------------
 
-function GroupCard({ group }: { group: GroupData }) {
+function ControlRoomGroupCard({ group }: { group: ResourceGroupData }) {
   const t = getTier(group.pct);
-  const isMulti = group.members.length > 1;
+  return (
+    <div className={cn("rounded-lg border p-4 transition-colors hover:bg-muted/30", t.borderCls)}>
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex-shrink-0">
+          <RingGauge pct={group.pct} size={40} />
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-bold">{group.config.displayName}</div>
+          <div className="text-xs text-muted-foreground tabular-nums">
+            {group.totalPmc} / {group.config.groupCapacity} slots · {group.members.length} resources
+          </div>
+        </div>
+      </div>
+      <div className="space-y-1">
+        {group.members.map(({ resource, cell }) => {
+          const mt = getTier(cell.pct);
+          return (
+            <div key={resource.id} className="flex items-center justify-between text-xs">
+              <span className="font-medium truncate mr-2">
+                {resource.displayName ?? resource.resourceCode}
+              </span>
+              <div className="flex items-center gap-2 flex-shrink-0 tabular-nums">
+                <span className={cn("font-bold", mt.textCls)}>{cell.pct}%</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {cell.pmc}p / {cell.batch}b / {cell.cap}c
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
+function CompactGroupCard({ group }: { group: ResourceGroupData }) {
+  const t = getTier(group.pct);
   return (
     <div className={cn("rounded-lg border p-3.5 transition-colors hover:bg-muted/30", t.borderCls)}>
-      <div className="text-xs font-semibold mb-1">{group.name}</div>
-      {isMulti && (
-        <div className="text-[10px] text-muted-foreground mb-1">
-          {group.members.map((m) => m.displayName ?? m.resourceCode).join(", ")}
+      <div className="flex items-center gap-3">
+        <div className="flex-shrink-0">
+          <RingGauge pct={group.pct} size={36} />
         </div>
-      )}
-      <div className={cn("text-2xl font-bold tabular-nums mb-1", t.textCls)}>{group.pct}%</div>
-      <div className="text-[10px] text-muted-foreground tabular-nums mb-2.5">
-        {group.pmc} PMC · {group.batch} Batch · {group.cap} Cap
-      </div>
-      <div className="h-1 rounded-full bg-muted overflow-hidden">
-        <div
-          className={cn("h-full rounded-full", t.barCls)}
-          style={{ width: `${Math.min(group.pct, 100)}%` }}
-        />
+        <div className="min-w-0">
+          <div className="text-sm font-bold">{group.config.displayName}</div>
+          <div className="text-xs text-muted-foreground tabular-nums">
+            {group.totalPmc} / {group.config.groupCapacity} slots
+          </div>
+        </div>
       </div>
     </div>
   );
