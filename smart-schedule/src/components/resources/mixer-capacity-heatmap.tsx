@@ -349,6 +349,16 @@ export function MixerCapacityHeatmap({
     return { totalCap, totalLitres, totalItems, pct };
   }, [trunkGroups]);
 
+  // --- Planner summary stats ---
+  const plannerStats = useMemo(() => {
+    const totalCap = trunkGroups.reduce((s, g) => s + g.totalCapacity, 0);
+    const totalLitres = trunkGroups.reduce((s, g) => s + g.totalLitres, 0);
+    const totalItems = trunkGroups.reduce((s, g) => s + g.totalItems, 0);
+    const freeLitres = Math.max(0, totalCap - totalLitres);
+    const pct = totalCap > 0 ? Math.round((totalLitres / totalCap) * 100) : 0;
+    return { totalCap, totalLitres, totalItems, freeLitres, pct };
+  }, [trunkGroups]);
+
   function getMaxPctForDate(date: string): number {
     let maxPct = 0;
     for (const m of mixers) {
@@ -385,8 +395,11 @@ export function MixerCapacityHeatmap({
                 <TabsTrigger value="control" className="text-xs">
                   Control Room
                 </TabsTrigger>
+                <TabsTrigger value="planner" className="text-xs">
+                  Planner
+                </TabsTrigger>
                 <TabsTrigger value="trunk" className="text-xs">
-                  Trunk View
+                  Trunk Group
                 </TabsTrigger>
               </TabsList>
             )}
@@ -471,7 +484,100 @@ export function MixerCapacityHeatmap({
           </TabsContent>
 
           {/* ============================================================ */}
-          {/* VIEW 2: TRUNK VIEW                                           */}
+          {/* VIEW 2: PLANNER                                              */}
+          {/* ============================================================ */}
+          <TabsContent value="planner" className="mt-0">
+            <div className="py-3">
+              <DayPills
+                dates={dates}
+                bookendDates={bookendDates}
+                firstCoreDate={firstCoreDate}
+                selectedDate={selectedDate}
+                onSelect={setSelectedDateIdx}
+                getMaxPct={getMaxPctForDate}
+              />
+            </div>
+
+            <div className="px-4 pb-4">
+              {/* Summary stats */}
+              <div className="flex items-center justify-center gap-8 mb-5">
+                <div className="text-center">
+                  <div className="text-2xl font-bold tabular-nums">{formatLitres(plannerStats.totalLitres)}L</div>
+                  <div className="text-[11px] text-muted-foreground">Litres Planned</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold tabular-nums text-green-600 dark:text-green-400">
+                    {formatLitres(plannerStats.freeLitres)}L
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">Available</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold tabular-nums text-muted-foreground">
+                    {formatLitres(plannerStats.totalCap)}L
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">Capacity</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold tabular-nums">{plannerStats.totalItems}</div>
+                  <div className="text-[11px] text-muted-foreground">Total Items</div>
+                </div>
+              </div>
+
+              {/* Trunk cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {trunkGroups.map((g) => {
+                  const t = getTier(g.pct);
+                  const isIdle = g.pct <= 0 && g.totalItems === 0;
+
+                  if (isIdle) {
+                    return (
+                      <div
+                        key={g.trunkName}
+                        className="rounded-lg border bg-muted/30 p-3.5 opacity-50"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold">{g.trunkName}</span>
+                          <span className="text-[10px] text-muted-foreground italic">idle</span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {g.members.length} mixers · {formatLitres(g.totalCapacity)}L cap
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={g.trunkName}
+                      className={cn(
+                        "rounded-lg border p-3.5 transition-colors hover:bg-muted/30",
+                        t.borderCls,
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold">{g.trunkName}</span>
+                        <span className={cn("text-lg font-bold tabular-nums", t.textCls)}>
+                          {g.pct}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted overflow-hidden mb-2">
+                        <div
+                          className={cn("h-full rounded-full", t.barCls)}
+                          style={{ width: `${Math.min(g.pct, 100)}%` }}
+                        />
+                      </div>
+                      <div className="text-[10px] text-muted-foreground tabular-nums">
+                        {formatLitres(g.totalLitres)}L · {g.totalItems} items · {formatLitres(g.totalCapacity)}L cap
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ============================================================ */}
+          {/* VIEW 3: TRUNK GROUP                                          */}
           {/* ============================================================ */}
           <TabsContent value="trunk" className="mt-0">
             <div className="py-3">
