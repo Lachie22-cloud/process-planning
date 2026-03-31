@@ -26,33 +26,17 @@ interface CellData {
 }
 
 // ---------------------------------------------------------------------------
-// Resource group configuration
+// Resource group data (driven by groupName + groupCapacity on each resource)
 // ---------------------------------------------------------------------------
 
-interface ResourceGroupConfig {
-  id: string;
-  displayName: string;
-  memberCodes: string[];
-  groupCapacity: number;
-}
-
 interface ResourceGroupData {
-  config: ResourceGroupConfig;
+  groupName: string;
+  groupCapacity: number;
   members: { resource: Resource; cell: CellData }[];
   totalPmc: number;
   totalBatch: number;
   pct: number;
 }
-
-const RESOURCE_GROUPS: ResourceGroupConfig[] = [
-  { id: "mills", displayName: "Mills", memberCodes: ["BUEHLER2", "ABI", "SUS", "BUEHLER"], groupCapacity: 6 },
-  { id: "ons-duo", displayName: "ONS / DUO", memberCodes: ["ONS", "DUO"], groupCapacity: 3 },
-  { id: "ntzch", displayName: "NTZCH", memberCodes: ["NTZ1", "NTZ2"], groupCapacity: 5 },
-  { id: "hsds", displayName: "HSDs", memberCodes: ["HSD", "HSD5", "HSD2"], groupCapacity: 6 },
-  { id: "ystral", displayName: "Ystral", memberCodes: ["YSTRAL"], groupCapacity: 1 },
-  { id: "ons2", displayName: "ONS 2", memberCodes: ["ONS2"], groupCapacity: 2 },
-  { id: "vsm", displayName: "VSM", memberCodes: ["VSM"], groupCapacity: 1 },
-];
 
 interface HeatTier {
   textCls: string;
@@ -406,30 +390,35 @@ export function DisperserCapacityHeatmap({
     );
   }
 
-  // --- Fixed resource groups for Control Room ---
+  // --- Resource groups from DB groupName + groupCapacity ---
   const resourceGroups = useMemo(() => {
-    const codeToResource = new Map(dispersers.map((d) => [d.resourceCode, d]));
-    const groups: ResourceGroupData[] = RESOURCE_GROUPS.map((cfg) => {
-      const members = cfg.memberCodes
-        .map((code) => {
-          const resource = codeToResource.get(code);
-          if (!resource) return null;
-          const cell = getCell(resource.id, selectedDate);
-          return { resource, cell };
-        })
-        .filter((m): m is { resource: Resource; cell: CellData } => m !== null);
-      const totalPmc = members.reduce((s, m) => s + m.cell.pmc, 0);
-      const totalBatch = members.reduce((s, m) => s + m.cell.batch, 0);
-      const pct = cfg.groupCapacity > 0 ? Math.round((totalPmc / cfg.groupCapacity) * 100) : 0;
-      return { config: cfg, members, totalPmc, totalBatch, pct };
-    });
-    return groups.sort((a, b) => b.pct - a.pct);
+    const groupMap = new Map<string, ResourceGroupData>();
+
+    for (const d of dispersers) {
+      const name = d.groupName ?? d.displayName ?? d.resourceCode;
+      const cap = d.groupCapacity ?? d.maxBatchesPerDay;
+      let entry = groupMap.get(name);
+      if (!entry) {
+        entry = { groupName: name, groupCapacity: cap, members: [], totalPmc: 0, totalBatch: 0, pct: 0 };
+        groupMap.set(name, entry);
+      }
+      const cell = getCell(d.id, selectedDate);
+      entry.members.push({ resource: d, cell });
+    }
+
+    for (const entry of groupMap.values()) {
+      entry.totalPmc = entry.members.reduce((s, m) => s + m.cell.pmc, 0);
+      entry.totalBatch = entry.members.reduce((s, m) => s + m.cell.batch, 0);
+      entry.pct = entry.groupCapacity > 0 ? Math.round((entry.totalPmc / entry.groupCapacity) * 100) : 0;
+    }
+
+    return [...groupMap.values()].sort((a, b) => b.pct - a.pct);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, dispersers, heatData]);
 
-  // --- Aggregate stats from fixed resource groups ---
+  // --- Aggregate stats from resource groups ---
   const groupStats = useMemo(() => {
-    const totalCap = RESOURCE_GROUPS.reduce((s, g) => s + g.groupCapacity, 0);
+    const totalCap = resourceGroups.reduce((s, g) => s + g.groupCapacity, 0);
     const totalPmc = resourceGroups.reduce((s, g) => s + g.totalPmc, 0);
     const pct = totalCap > 0 ? Math.round((totalPmc / totalCap) * 100) : 0;
     return { totalCap, totalPmc, pct };
@@ -537,7 +526,7 @@ export function DisperserCapacityHeatmap({
                 {resourceGroups
                   .filter((g) => g.members.length >= 2)
                   .map((g) => (
-                    <ControlRoomGroupCard key={g.config.id} group={g} />
+                    <ControlRoomGroupCard key={g.groupName} group={g} />
                   ))}
               </div>
 
@@ -546,7 +535,7 @@ export function DisperserCapacityHeatmap({
                 {resourceGroups
                   .filter((g) => g.members.length < 2)
                   .map((g) => (
-                    <CompactGroupCard key={g.config.id} group={g} />
+                    <CompactGroupCard key={g.groupName} group={g} />
                   ))}
               </div>
 
@@ -602,16 +591,16 @@ export function DisperserCapacityHeatmap({
                 {resourceGroups.map((g) => {
                   const t = getTier(g.pct);
                   const isIdle = g.pct <= 0;
-                  const cap = g.config.groupCapacity;
+                  const cap = g.groupCapacity;
 
                   if (isIdle) {
                     return (
                       <div
-                        key={g.config.id}
+                        key={g.groupName}
                         className="rounded-lg border bg-muted/30 p-3.5 opacity-50"
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold">{g.config.displayName}</span>
+                          <span className="text-xs font-semibold">{g.groupName}</span>
                           <span className="text-[10px] text-muted-foreground italic">idle</span>
                         </div>
                         <WaffleSquares used={0} cap={cap} tier={t} />
@@ -624,14 +613,14 @@ export function DisperserCapacityHeatmap({
 
                   return (
                     <div
-                      key={g.config.id}
+                      key={g.groupName}
                       className={cn(
                         "rounded-lg border p-3.5 transition-colors hover:bg-muted/30",
                         t.borderCls,
                       )}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold">{g.config.displayName}</span>
+                        <span className="text-xs font-semibold">{g.groupName}</span>
                         <span className={cn("text-lg font-bold tabular-nums", t.textCls)}>
                           {g.pct}%
                         </span>
@@ -670,7 +659,7 @@ export function DisperserCapacityHeatmap({
             <div className="px-4 pb-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {resourceGroups.map((group) => (
-                  <ControlRoomGroupCard key={group.config.id} group={group} />
+                  <ControlRoomGroupCard key={group.groupName} group={group} />
                 ))}
               </div>
               <div className="mt-4 border-t pt-3">
@@ -697,9 +686,9 @@ function ControlRoomGroupCard({ group }: { group: ResourceGroupData }) {
           <RingGauge pct={group.pct} size={40} />
         </div>
         <div className="min-w-0">
-          <div className="text-sm font-bold">{group.config.displayName}</div>
+          <div className="text-sm font-bold">{group.groupName}</div>
           <div className="text-xs text-muted-foreground tabular-nums">
-            {group.totalPmc} / {group.config.groupCapacity} slots · {group.members.length} resources
+            {group.totalPmc} / {group.groupCapacity} slots · {group.members.length} resources
           </div>
         </div>
       </div>
@@ -734,9 +723,9 @@ function CompactGroupCard({ group }: { group: ResourceGroupData }) {
           <RingGauge pct={group.pct} size={36} />
         </div>
         <div className="min-w-0">
-          <div className="text-sm font-bold">{group.config.displayName}</div>
+          <div className="text-sm font-bold">{group.groupName}</div>
           <div className="text-xs text-muted-foreground tabular-nums">
-            {group.totalPmc} / {group.config.groupCapacity} slots
+            {group.totalPmc} / {group.groupCapacity} slots
           </div>
         </div>
       </div>
