@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -270,6 +271,8 @@ export function DisperserCapacityHeatmap({
     return idx >= 0 ? idx : 0;
   });
 
+  const [collapsed, setCollapsed] = useState(false);
+
   // --- Data computation memos (unchanged logic) ---
 
   const dispersers = useMemo(
@@ -453,22 +456,37 @@ export function DisperserCapacityHeatmap({
         <div className="rounded-lg border bg-card">
           {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground">
-              Resource Capacity Overview
-            </h3>
-            <TabsList>
-              <TabsTrigger value="control" className="text-xs">
-                Control Room
-              </TabsTrigger>
-              <TabsTrigger value="planner" className="text-xs">
-                Planner
-              </TabsTrigger>
-              <TabsTrigger value="week" className="text-xs">
-                Resource Group
-              </TabsTrigger>
-            </TabsList>
+            <button
+              onClick={() => setCollapsed((c) => !c)}
+              className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+            >
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                  collapsed && "-rotate-90",
+                )}
+              />
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground">
+                Resource Capacity Overview
+              </h3>
+            </button>
+            {!collapsed && (
+              <TabsList>
+                <TabsTrigger value="control" className="text-xs">
+                  Control Room
+                </TabsTrigger>
+                <TabsTrigger value="planner" className="text-xs">
+                  Planner
+                </TabsTrigger>
+                <TabsTrigger value="week" className="text-xs">
+                  Resource Group
+                </TabsTrigger>
+              </TabsList>
+            )}
           </div>
 
+          {!collapsed && (
+          <>
           {/* ============================================================ */}
           {/* VIEW 1: CONTROL ROOM                                         */}
           {/* ============================================================ */}
@@ -667,6 +685,8 @@ export function DisperserCapacityHeatmap({
               </div>
             </div>
           </TabsContent>
+          </>
+          )}
         </div>
       </Tabs>
     </TooltipProvider>
