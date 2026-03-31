@@ -701,7 +701,7 @@ function ControlRoomGroupCard({ group }: { group: ResourceGroupData }) {
       <div className="space-y-3">
         {group.members.map(({ resource, cell }) => {
           const ownCap = resource.maxBatchesPerDay;
-          const ownPct = ownCap > 0 ? Math.round((cell.batch / ownCap) * 100) : 0;
+          const ownPct = ownCap > 0 ? Math.round((cell.pmc / ownCap) * 100) : 0;
           const mt = getTier(ownPct);
           return (
             <div key={resource.id}>
@@ -715,7 +715,7 @@ function ControlRoomGroupCard({ group }: { group: ResourceGroupData }) {
               </div>
               <div className="flex items-center justify-between text-xs text-muted-foreground tabular-nums mb-1">
                 <span>{cell.pmc} premixes · {cell.batch} batches</span>
-                <span>{cell.batch} / {ownCap} capacity</span>
+                <span>{cell.pmc} / {ownCap} capacity</span>
               </div>
               <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
