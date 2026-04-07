@@ -75,6 +75,7 @@ const BASELINE_ROLE_PERMISSIONS: Record<string, Permission[]> = {
   ],
   production: [
     "batches.read",
+    "batches.schedule",
     "batches.status",
     "resources.read",
     "rules.read",

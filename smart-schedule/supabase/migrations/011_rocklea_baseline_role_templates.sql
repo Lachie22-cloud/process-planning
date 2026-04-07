@@ -84,8 +84,9 @@ WITH role_permissions_map AS (
       ('operational_lead', 'alerts.read'),
       ('operational_lead', 'alerts.acknowledge'),
 
-      -- Production (member baseline)
+      -- Production (member baseline + scheduling)
       ('production', 'batches.read'),
+      ('production', 'batches.schedule'),
       ('production', 'batches.status'),
       ('production', 'resources.read'),
       ('production', 'rules.read'),
@@ -183,6 +184,7 @@ role_permissions_map AS (
       ('operational_lead', 'alerts.read'),
       ('operational_lead', 'alerts.acknowledge'),
       ('production', 'batches.read'),
+      ('production', 'batches.schedule'),
       ('production', 'batches.status'),
       ('production', 'resources.read'),
       ('production', 'rules.read'),

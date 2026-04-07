@@ -53,6 +53,7 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   ],
   member: [
     "batches.read",
+    "batches.schedule",
     "batches.status",
     "resources.read",
     "rules.read",
