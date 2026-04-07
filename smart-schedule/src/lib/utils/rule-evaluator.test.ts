@@ -20,6 +20,7 @@ function makeBatch(overrides: Partial<Batch> = {}): Batch {
     status: "Planned",
     sapColorGroup: "WHITE",
     packSize: null,
+    packSizeSummary: null,
     rmAvailable: true,
     packagingAvailable: true,
     qcObservedStage: null,

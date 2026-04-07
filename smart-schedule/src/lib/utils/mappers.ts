@@ -76,6 +76,7 @@ export function mapBatch(row: DatabaseRow["batches"]): Batch {
     status: row.status as BatchStatus,
     sapColorGroup: row.sap_color_group,
     packSize: row.pack_size,
+    packSizeSummary: null,
     rmAvailable: row.rm_available,
     packagingAvailable: row.packaging_available,
     qcObservedStage: row.qc_observed_stage,

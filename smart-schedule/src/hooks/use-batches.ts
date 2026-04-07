@@ -5,6 +5,39 @@ import { mapBatch } from "@/lib/utils/mappers";
 import type { DatabaseRow } from "@/types/database";
 import type { Batch } from "@/types/batch";
 
+/** Build a pack-size summary string per batch from linked fill orders */
+async function enrichPackSizeSummaries(batches: Batch[], siteId: string): Promise<Batch[]> {
+  if (batches.length === 0) return batches;
+
+  const batchIds = batches.map((b) => b.id);
+  const { data: fillRows, error } = await supabase
+    .from("linked_fill_orders")
+    .select("batch_id, pack_size")
+    .eq("site_id", siteId)
+    .in("batch_id", batchIds);
+
+  if (error || !fillRows) return batches;
+
+  // Group unique pack sizes by batch_id
+  const summaryMap = new Map<string, Set<string>>();
+  for (const row of fillRows) {
+    if (!row.pack_size) continue;
+    let set = summaryMap.get(row.batch_id);
+    if (!set) {
+      set = new Set();
+      summaryMap.set(row.batch_id, set);
+    }
+    set.add(row.pack_size);
+  }
+
+  return batches.map((b) => {
+    const sizes = summaryMap.get(b.id);
+    return sizes && sizes.size > 0
+      ? { ...b, packSizeSummary: [...sizes].join(", ") }
+      : b;
+  });
+}
+
 interface UseBatchesOptions {
   weekStart?: string;
   weekEnding?: string;
@@ -45,7 +78,8 @@ export function useBatches(options: UseBatchesOptions = {}) {
       const { data, error } = await query;
       if (error) throw error;
 
-      return (data as DatabaseRow["batches"][]).map(mapBatch);
+      const batches = (data as DatabaseRow["batches"][]).map(mapBatch);
+      return enrichPackSizeSummaries(batches, site.id);
     },
     enabled: !!site,
   });

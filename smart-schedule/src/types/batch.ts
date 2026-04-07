@@ -79,6 +79,8 @@ export interface Batch {
   status: BatchStatus;
   sapColorGroup: string | null;
   packSize: string | null;
+  /** Comma-separated pack sizes derived from linked fill orders (e.g. "10L, 1L, 2L, 500ML") */
+  packSizeSummary: string | null;
   rmAvailable: boolean;
   packagingAvailable: boolean;
   qcObservedStage: string | null;

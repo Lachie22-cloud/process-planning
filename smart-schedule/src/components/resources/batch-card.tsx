@@ -226,8 +226,8 @@ export function BatchCard({
           {resource && (
             <span className="truncate max-w-[80px]">{resource.displayName ?? resource.resourceCode}</span>
           )}
-          {batch.packSize && (
-            <span>{batch.packSize}</span>
+          {(batch.packSizeSummary ?? batch.packSize) && (
+            <span>{batch.packSizeSummary ?? batch.packSize}</span>
           )}
         </div>
       </div>
@@ -359,24 +359,32 @@ export function BatchCard({
           </span>
         )}
 
-        {/* Pack size category pills */}
+        {/* Pack size category pills — check all pack sizes from linked fill orders */}
         {(() => {
-          const litres = parsePackSizeLitres(batch.packSize);
-          if (litres === 0.5) {
-            return (
-              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200">
-                500ML
-              </span>
-            );
-          }
-          if (litres !== null && litres > 40) {
-            return (
-              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200">
-                MANUAL
-              </span>
-            );
-          }
-          return null;
+          const sizesToCheck = batch.packSizeSummary
+            ? batch.packSizeSummary.split(",").map((s) => s.trim())
+            : batch.packSize
+              ? [batch.packSize]
+              : [];
+          const has500ml = sizesToCheck.some((s) => parsePackSizeLitres(s) === 0.5);
+          const hasManual = sizesToCheck.some((s) => {
+            const l = parsePackSizeLitres(s);
+            return l !== null && l > 40;
+          });
+          return (
+            <>
+              {has500ml && (
+                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200">
+                  500ML
+                </span>
+              )}
+              {hasManual && (
+                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200">
+                  MANUAL
+                </span>
+              )}
+            </>
+          );
         })()}
       </div>
     </div>
