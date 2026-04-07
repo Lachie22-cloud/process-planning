@@ -1,11 +1,13 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useCurrentSite } from "./use-current-site";
+import { usePermissions } from "./use-permissions";
 import {
   addDays,
   subDays,
   format,
   getDay,
   isSameWeek,
+  isAfter,
   isValid,
   parseISO,
   isWeekend,
@@ -27,7 +29,15 @@ const WEEK_STORAGE_KEY = "smart-schedule:selected-week";
  */
 export function useWeek() {
   const { site } = useCurrentSite();
+  const { hasPermission } = usePermissions();
   const weekEndDay = site?.weekEndDay ?? 5; // Friday
+
+  // Admin, Planner, QC/PC can view future weeks.
+  // Production, Operational Lead, Viewer are restricted to current + past.
+  const canViewFutureWeeks =
+    hasPermission("planning.vet") ||
+    hasPermission("alerts.write") ||
+    hasPermission("admin.settings");
 
   const getWeekEnding = useCallback(
     (date: Date): Date => {
@@ -70,9 +80,25 @@ export function useWeek() {
     [weekEnding, horizonDays],
   );
 
+  const currentWeekEnding = useMemo(
+    () => getWeekEnding(new Date()),
+    [getWeekEnding],
+  );
+
+  // Clamp weekEnding to current week when future access is restricted
+  useEffect(() => {
+    if (!canViewFutureWeeks && isAfter(weekEnding, currentWeekEnding)) {
+      setWeekEnding(currentWeekEnding);
+    }
+  }, [canViewFutureWeeks, weekEnding, currentWeekEnding]);
+
   const nextWeek = useCallback(() => {
-    setWeekEnding((prev) => addDays(prev, 7));
-  }, []);
+    setWeekEnding((prev) => {
+      const next = addDays(prev, 7);
+      if (!canViewFutureWeeks && isAfter(next, currentWeekEnding)) return prev;
+      return next;
+    });
+  }, [canViewFutureWeeks, currentWeekEnding]);
 
   const previousWeek = useCallback(() => {
     setWeekEnding((prev) => subDays(prev, 7));
@@ -84,9 +110,14 @@ export function useWeek() {
 
   const goToDate = useCallback(
     (date: Date) => {
-      setWeekEnding(getWeekEnding(date));
+      const target = getWeekEnding(date);
+      if (!canViewFutureWeeks && isAfter(target, currentWeekEnding)) {
+        setWeekEnding(currentWeekEnding);
+        return;
+      }
+      setWeekEnding(target);
     },
-    [getWeekEnding],
+    [getWeekEnding, canViewFutureWeeks, currentWeekEnding],
   );
 
   const isThisWeek = useMemo(
@@ -150,6 +181,7 @@ export function useWeek() {
     weekLabel,
     horizonDays,
     isThisWeek,
+    canViewFutureWeeks,
     nextWeek,
     previousWeek,
     goToThisWeek,

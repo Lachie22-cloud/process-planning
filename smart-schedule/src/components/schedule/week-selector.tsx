@@ -4,7 +4,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, Lock } from "lucide-react";
 import type { useWeek } from "@/hooks/use-week";
 
 type WeekState = ReturnType<typeof useWeek>;
@@ -14,6 +14,8 @@ interface WeekSelectorProps {
 }
 
 export function WeekSelector({ week }: WeekSelectorProps) {
+  const forwardBlocked = !week.canViewFutureWeeks && week.isThisWeek;
+
   return (
     <div className="flex items-center gap-1 rounded-lg border bg-card">
       <Tooltip>
@@ -44,13 +46,22 @@ export function WeekSelector({ week }: WeekSelectorProps) {
             variant="ghost"
             size="icon"
             className="h-9 w-9 rounded-l-none"
-            onClick={week.nextWeek}
+            onClick={forwardBlocked ? undefined : week.nextWeek}
+            disabled={forwardBlocked}
             aria-label="Next week"
           >
-            <ChevronRight className="h-4 w-4" />
+            {forwardBlocked ? (
+              <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Next week</TooltipContent>
+        <TooltipContent>
+          {forwardBlocked
+            ? "Future weeks are restricted for your role"
+            : "Next week"}
+        </TooltipContent>
       </Tooltip>
 
       {!week.isThisWeek && (
