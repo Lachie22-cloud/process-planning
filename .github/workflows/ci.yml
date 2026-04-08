@@ -92,7 +92,9 @@ jobs:
             git reset --hard origin/main
             cd smart-schedule/docker
             docker compose build --no-cache frontend ai-agent
-            docker compose up -d
+            # Start services — allow partial failures (e.g. ai-agent health check)
+            # so that migrations always run against the healthy postgres container.
+            docker compose up -d || echo "WARNING: docker compose up -d exited non-zero (a service may be unhealthy)"
             # Run pending migrations (idempotent — safe to re-run)
             docker compose exec -T postgres bash -c '
               DB_USER="${POSTGRES_USER:-supabase}"
