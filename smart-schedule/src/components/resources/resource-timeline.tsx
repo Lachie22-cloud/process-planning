@@ -590,6 +590,28 @@ export function ResourceTimeline({
       const oldResource = resources.find((r) => r.id === batch.planResourceId);
       const newResource = resources.find((r) => r.id === targetResourceId);
 
+      // Re-validate scheduling rules before executing the move.
+      // This catches moves from all paths (drag, move button, reschedule).
+      if (newResource && batch.planResourceId !== targetResourceId) {
+        const cellBatches = (batchesByResource.get(targetResourceId) ?? []).filter(
+          (b) => b.planDate === targetDate && b.id !== batch.id,
+        );
+        const evalResult = evaluateDropTarget({
+          batch,
+          targetResource: newResource,
+          targetDate,
+          existingBatches: cellBatches,
+          rules: enabledRules,
+          colourGroups,
+          colourTransitions,
+          substitutionRules,
+        });
+        if (!evalResult.valid) {
+          toast.error(`Move blocked: ${evalResult.warnings.join("; ")}`);
+          return;
+        }
+      }
+
       updateBatch.mutate(
         {
           batchId: batch.id,
@@ -652,7 +674,7 @@ export function ResourceTimeline({
         },
       );
     },
-    [resources, updateBatch, addAudit, recordMovement, user],
+    [resources, updateBatch, addAudit, recordMovement, user, batchesByResource, enabledRules, colourGroups, colourTransitions, substitutionRules],
   );
 
   const handleMoveConfirm = useCallback(
