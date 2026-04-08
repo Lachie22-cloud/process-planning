@@ -32,12 +32,9 @@ export function useWeek() {
   const { hasPermission } = usePermissions();
   const weekEndDay = site?.weekEndDay ?? 5; // Friday
 
-  // Admin, Planner, QC/PC can view future weeks.
-  // Production, Operational Lead, Viewer are restricted to current + past.
-  const canViewFutureWeeks =
-    hasPermission("planning.vet") ||
-    hasPermission("alerts.write") ||
-    hasPermission("admin.settings");
+  const canViewFutureWeeks = hasPermission("schedule.view_future");
+  const canViewCurrentWeek = hasPermission("schedule.view_current");
+  const canViewPastWeeks = hasPermission("schedule.view_past");
 
   const getWeekEnding = useCallback(
     (date: Date): Date => {
@@ -85,24 +82,55 @@ export function useWeek() {
     [getWeekEnding],
   );
 
-  // Clamp weekEnding to current week when future access is restricted
+  // Clamp weekEnding based on schedule view permissions
   useEffect(() => {
-    if (!canViewFutureWeeks && isAfter(weekEnding, currentWeekEnding)) {
+    const isFutureWeek = isAfter(weekEnding, currentWeekEnding);
+    const isPastWeek = !isSameWeek(weekEnding, currentWeekEnding, { weekStartsOn: 1 }) && !isFutureWeek;
+    const isCurrentWeek = isSameWeek(weekEnding, currentWeekEnding, { weekStartsOn: 1 });
+
+    if (isFutureWeek && !canViewFutureWeeks) {
+      setWeekEnding(currentWeekEnding);
+    } else if (isCurrentWeek && !canViewCurrentWeek) {
+      // If can't view current, try to go to past or future
+      if (canViewPastWeeks) {
+        setWeekEnding(subDays(currentWeekEnding, 7));
+      } else if (canViewFutureWeeks) {
+        setWeekEnding(addDays(currentWeekEnding, 7));
+      }
+    } else if (isPastWeek && !canViewPastWeeks) {
       setWeekEnding(currentWeekEnding);
     }
-  }, [canViewFutureWeeks, weekEnding, currentWeekEnding]);
+  }, [canViewFutureWeeks, canViewCurrentWeek, canViewPastWeeks, weekEnding, currentWeekEnding]);
 
   const nextWeek = useCallback(() => {
     setWeekEnding((prev) => {
       const next = addDays(prev, 7);
-      if (!canViewFutureWeeks && isAfter(next, currentWeekEnding)) return prev;
+      const nextIsFuture = isAfter(next, currentWeekEnding);
+      const nextIsCurrent = isSameWeek(next, currentWeekEnding, { weekStartsOn: 1 });
+      if (nextIsFuture && !canViewFutureWeeks) return prev;
+      if (nextIsCurrent && !canViewCurrentWeek) {
+        // Skip current week if not allowed, jump to future if permitted
+        if (canViewFutureWeeks) return addDays(next, 7);
+        return prev;
+      }
       return next;
     });
-  }, [canViewFutureWeeks, currentWeekEnding]);
+  }, [canViewFutureWeeks, canViewCurrentWeek, currentWeekEnding]);
 
   const previousWeek = useCallback(() => {
-    setWeekEnding((prev) => subDays(prev, 7));
-  }, []);
+    setWeekEnding((prev) => {
+      const previous = subDays(prev, 7);
+      const previousIsPast = !isSameWeek(previous, currentWeekEnding, { weekStartsOn: 1 }) && !isAfter(previous, currentWeekEnding);
+      const previousIsCurrent = isSameWeek(previous, currentWeekEnding, { weekStartsOn: 1 });
+      if (previousIsPast && !canViewPastWeeks) return prev;
+      if (previousIsCurrent && !canViewCurrentWeek) {
+        // Skip current week if not allowed, jump to past if permitted
+        if (canViewPastWeeks) return subDays(previous, 7);
+        return prev;
+      }
+      return previous;
+    });
+  }, [canViewPastWeeks, canViewCurrentWeek, currentWeekEnding]);
 
   const goToThisWeek = useCallback(() => {
     setWeekEnding(getWeekEnding(new Date()));
@@ -111,13 +139,24 @@ export function useWeek() {
   const goToDate = useCallback(
     (date: Date) => {
       const target = getWeekEnding(date);
-      if (!canViewFutureWeeks && isAfter(target, currentWeekEnding)) {
-        setWeekEnding(currentWeekEnding);
+      const targetIsFuture = isAfter(target, currentWeekEnding);
+      const targetIsCurrent = isSameWeek(target, currentWeekEnding, { weekStartsOn: 1 });
+      const targetIsPast = !targetIsCurrent && !targetIsFuture;
+
+      if (targetIsFuture && !canViewFutureWeeks) {
+        if (canViewCurrentWeek) setWeekEnding(currentWeekEnding);
+        return;
+      }
+      if (targetIsCurrent && !canViewCurrentWeek) {
+        return;
+      }
+      if (targetIsPast && !canViewPastWeeks) {
+        if (canViewCurrentWeek) setWeekEnding(currentWeekEnding);
         return;
       }
       setWeekEnding(target);
     },
-    [getWeekEnding, canViewFutureWeeks, currentWeekEnding],
+    [getWeekEnding, canViewFutureWeeks, canViewCurrentWeek, canViewPastWeeks, currentWeekEnding],
   );
 
   const isThisWeek = useMemo(
@@ -182,6 +221,8 @@ export function useWeek() {
     horizonDays,
     isThisWeek,
     canViewFutureWeeks,
+    canViewCurrentWeek,
+    canViewPastWeeks,
     nextWeek,
     previousWeek,
     goToThisWeek,

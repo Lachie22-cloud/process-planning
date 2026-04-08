@@ -100,7 +100,7 @@ export function CoverageTable({ files, batches }: CoverageTableProps) {
     const coverIdx = findColumnIdx(headers, "stock cover", "cover");
     const fcst0Idx = findColumnIdx(headers, "current month", "forecast");
     const nextPoIdx = headers.findIndex(
-      (h) => h.includes("nextpo") || h.includes("next po") || h.includes("next_po") || h.includes("nextorder"),
+      (h) => h.includes("nextpo") || h.includes("next po") || h.includes("next_po") || h.includes("next purchase order") || h.includes("nextorder"),
     );
 
     // Build ZW04 PO lookup by material

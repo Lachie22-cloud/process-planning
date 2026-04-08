@@ -14,7 +14,22 @@ interface WeekSelectorProps {
 }
 
 export function WeekSelector({ week }: WeekSelectorProps) {
-  const forwardBlocked = !week.canViewFutureWeeks && week.isThisWeek;
+  const forwardBlocked =
+    (!week.canViewFutureWeeks && week.isThisWeek) ||
+    (!week.canViewFutureWeeks && !week.canViewCurrentWeek);
+  const backwardBlocked = !week.canViewPastWeeks && week.isThisWeek;
+
+  const forwardTooltip = !week.canViewFutureWeeks
+    ? "Future weeks are restricted for your role"
+    : !week.canViewCurrentWeek
+      ? "Current week is restricted for your role"
+      : "Next week";
+
+  const backwardTooltip = !week.canViewPastWeeks
+    ? "Past weeks are restricted for your role"
+    : !week.canViewCurrentWeek
+      ? "Current week is restricted for your role"
+      : "Previous week";
 
   return (
     <div className="flex items-center gap-1 rounded-lg border bg-card">
@@ -24,13 +39,18 @@ export function WeekSelector({ week }: WeekSelectorProps) {
             variant="ghost"
             size="icon"
             className="h-9 w-9 rounded-r-none"
-            onClick={week.previousWeek}
+            onClick={backwardBlocked ? undefined : week.previousWeek}
+            disabled={backwardBlocked}
             aria-label="Previous week"
           >
-            <ChevronLeft className="h-4 w-4" />
+            {backwardBlocked ? (
+              <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Previous week</TooltipContent>
+        <TooltipContent>{backwardTooltip}</TooltipContent>
       </Tooltip>
 
       <div className="flex items-center gap-2 px-3">
@@ -57,14 +77,10 @@ export function WeekSelector({ week }: WeekSelectorProps) {
             )}
           </Button>
         </TooltipTrigger>
-        <TooltipContent>
-          {forwardBlocked
-            ? "Future weeks are restricted for your role"
-            : "Next week"}
-        </TooltipContent>
+        <TooltipContent>{forwardTooltip}</TooltipContent>
       </Tooltip>
 
-      {!week.isThisWeek && (
+      {!week.isThisWeek && week.canViewCurrentWeek && (
         <Button
           variant="outline"
           size="sm"

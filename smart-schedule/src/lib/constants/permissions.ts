@@ -20,6 +20,11 @@ export const PERMISSIONS = {
   "planning.export": "Export planning data (CSV/Excel)",
   "planning.ai": "Use AI-assisted scheduling tools",
 
+  // Schedule navigation
+  "schedule.view_past": "View past weeks",
+  "schedule.view_current": "View current week",
+  "schedule.view_future": "View future weeks",
+
   // Admin
   "admin.users": "Manage site users",
   "admin.settings": "Edit site settings",

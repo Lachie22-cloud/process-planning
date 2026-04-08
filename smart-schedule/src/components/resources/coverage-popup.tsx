@@ -64,7 +64,7 @@ export function CoveragePopup({ batch, zp40File, children }: CoveragePopupProps)
       (h) => h.includes("stock cover") || h === "cover",
     );
     const nextPoIdx = headers.findIndex(
-      (h) => h.includes("nextpo") || h.includes("next po") || h.includes("next_po") || h.includes("nextorder"),
+      (h) => h.includes("nextpo") || h.includes("next po") || h.includes("next_po") || h.includes("next purchase order") || h.includes("nextorder"),
     );
 
     const bulkCode =

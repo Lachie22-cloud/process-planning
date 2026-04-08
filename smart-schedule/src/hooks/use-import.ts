@@ -1802,7 +1802,7 @@ export function useImport() {
         const coverCol = findColumn(zp40Headers, "stock cover", "cover");
         const safetyCol = findColumn(zp40Headers, "safety stock");
         const fcstCol = findColumn(zp40Headers, "current month", "forecast");
-        const nextPoCol = findColumn(zp40Headers, "nextpo", "next po", "next_po", "nextorder", "next order", "replen.order", "repl.order", "replenishment order", "fill order");
+        const nextPoCol = findColumn(zp40Headers, "nextpo", "next po", "next_po", "next purchase order", "nextorder", "next order", "replen.order", "repl.order", "replenishment order", "fill order");
 
         // Also build PO lookup from ZW04 for coverage items
         const covPoLookup = new Map<string, { poDate: string | null; poQuantity: number }>();
