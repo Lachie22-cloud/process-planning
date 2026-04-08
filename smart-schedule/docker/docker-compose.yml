@@ -189,7 +189,7 @@ services:
       frontend:
         condition: service_started
       ai-agent:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"

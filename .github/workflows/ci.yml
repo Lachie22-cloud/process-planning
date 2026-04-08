@@ -92,8 +92,6 @@ jobs:
             git reset --hard origin/main
             cd smart-schedule/docker
             docker compose build --no-cache frontend ai-agent
-            # Start services — allow partial failures (e.g. ai-agent health check)
-            # so that migrations always run against the healthy postgres container.
             docker compose up -d || echo "WARNING: docker compose up -d exited non-zero (a service may be unhealthy)"
             # Run pending migrations (idempotent — safe to re-run)
             docker compose exec -T postgres bash -c '
@@ -132,6 +130,4 @@ jobs:
             '
             # Reload PostgREST schema cache so new columns are available
             docker compose kill -s SIGUSR1 postgrest
-            # Restart ai-agent so its health check passes (DB tables now exist)
-            docker compose restart ai-agent || true
             docker image prune -f
