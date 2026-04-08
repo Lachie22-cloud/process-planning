@@ -246,26 +246,23 @@ app.get('/ai/health', async (_req: Request, res: Response) => {
     scheduler: scheduler?.isRunning() ? 'ok' : SCHEDULER_ENABLED ? 'stopped' : 'disabled',
   };
 
-  // Check DB connectivity via PostgREST root endpoint (always available)
+  // Check DB connectivity
   try {
-    const resp = await fetch(SUPABASE_URL);
-    checks.database = resp.ok ? 'ok' : 'error';
+    const { error } = await supabaseAdmin.from('ai_config').select('id').limit(1);
+    checks.database = error ? 'error' : 'ok';
   } catch {
     checks.database = 'unreachable';
   }
 
   // Validate stored AI credentials are decryptable
   try {
-    const { data: configs, error: cfgError } = await supabaseAdmin
+    const { data: configs } = await supabaseAdmin
       .from('ai_config')
       .select('credential_encrypted')
       .not('credential_encrypted', 'is', null)
       .limit(1);
 
-    if (cfgError) {
-      // Table may not exist yet — not a fatal error
-      checks.credentials = 'not_configured';
-    } else if (configs && configs.length > 0 && configs[0].credential_encrypted) {
+    if (configs && configs.length > 0 && configs[0].credential_encrypted) {
       // Attempt to import and decrypt to verify the key is valid
       const { decrypt } = await import('./security/crypto.js');
       try {
@@ -309,7 +306,7 @@ app.get('/ai/health', async (_req: Request, res: Response) => {
   );
 
   const status = hasError ? 'unhealthy' : degraded ? 'degraded' : 'healthy';
-  res.status(status === 'unhealthy' ? 503 : 200).json({
+  res.status(status === 'healthy' ? 200 : 503).json({
     status,
     checks,
     timestamp: new Date().toISOString(),

@@ -93,6 +93,15 @@ jobs:
             cd smart-schedule/docker
             docker compose build --no-cache frontend ai-agent
             docker compose up -d || echo "WARNING: docker compose up -d exited non-zero (a service may be unhealthy)"
+            # Diagnostic: show ai-agent health check response and container logs
+            echo "=== ai-agent container status ==="
+            docker compose ps ai-agent || true
+            echo "=== ai-agent health check response ==="
+            docker compose exec -T ai-agent wget -qO- http://127.0.0.1:3100/ai/health 2>&1 || true
+            echo ""
+            echo "=== ai-agent container logs (last 50 lines) ==="
+            docker compose logs --tail=50 ai-agent || true
+            echo "=== end diagnostics ==="
             # Run pending migrations (idempotent — safe to re-run)
             docker compose exec -T postgres bash -c '
               DB_USER="${POSTGRES_USER:-supabase}"
@@ -130,4 +139,12 @@ jobs:
             '
             # Reload PostgREST schema cache so new columns are available
             docker compose kill -s SIGUSR1 postgrest
+            # Restart ai-agent so health check runs against fresh PostgREST schema
+            sleep 2
+            docker compose restart ai-agent
+            echo "=== ai-agent status after restart ==="
+            sleep 10
+            docker compose exec -T ai-agent wget -qO- http://127.0.0.1:3100/ai/health 2>&1 || true
+            echo ""
+            docker compose ps ai-agent || true
             docker image prune -f
