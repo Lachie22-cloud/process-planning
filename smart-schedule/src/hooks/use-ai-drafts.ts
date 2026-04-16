@@ -288,6 +288,7 @@ export function useApplyDraft() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai_drafts", site?.id] });
+      // Refresh batch & schedule data so resource view reflects the change
       queryClient.invalidateQueries({ queryKey: ["batches"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       toast.success("Draft applied successfully");

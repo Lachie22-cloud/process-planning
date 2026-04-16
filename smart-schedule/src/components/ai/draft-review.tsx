@@ -440,7 +440,12 @@ function DraftDetailDialog({
   const handleApprove = () => {
     approve.mutate(
       { draftId: draft.id, comment: comment || undefined },
-      { onSuccess: onClose },
+      {
+        onSuccess: () => {
+          // Auto-apply after approval so the change takes effect immediately
+          apply.mutate(draft.id, { onSuccess: onClose });
+        },
+      },
     );
   };
 
