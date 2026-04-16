@@ -120,56 +120,26 @@ function buildScanPrompt(
     '',
   ];
 
-  // Inject pre-fetched site context so the AI works with real data
+  // Inject a compact resource list so the AI uses real names
   if (context?.resources && context.resources.length > 0) {
-    lines.push('## Site Resources');
-    lines.push('These are the actual resources at this site — always use these real names and IDs:');
-    lines.push('```json');
-    lines.push(JSON.stringify(context.resources, null, 2));
-    lines.push('```');
-    lines.push('');
+    const compact = context.resources.map((r) => `${r.display_name ?? r.resource_code} (${r.id})`);
+    lines.push(`Site resources: ${compact.join(', ')}`);
   }
 
-  if (context?.batchSummary) {
-    lines.push('## Current Schedule Summary');
-    if (context.weekStart && context.weekEnd) {
-      lines.push(`Period: ${context.weekStart} to ${context.weekEnd}`);
-    }
-    lines.push('```json');
-    lines.push(JSON.stringify(context.batchSummary, null, 2));
-    lines.push('```');
-    lines.push('');
+  if (context?.batchSummary && context.weekStart && context.weekEnd) {
+    lines.push(`Period ${context.weekStart} to ${context.weekEnd}: ${JSON.stringify(context.batchSummary)}`);
   }
 
+  lines.push('');
   lines.push(
-    'IMPORTANT: Use the real resource names and batch data shown above. ' +
-    'Do NOT invent or guess resource names like "M-001", "M-002", etc. ' +
-    'Call score_health and query_batches tools to get specific batch-level details ' +
-    'for your analysis.',
+    'Use real resource names above. Do NOT invent names like "M-001". ' +
+    'Call score_health first, then write your final report in these sections:',
   );
-
-  lines.push('');
-  lines.push('## Output Format');
-  lines.push('Structure your final response EXACTLY in the following sections using markdown headings.');
-  lines.push('Do NOT include progress updates, thinking steps, or tool call summaries — only the final report.');
-  lines.push('');
   lines.push('### Critical Issues');
-  lines.push('List any critical problems that need immediate attention (capacity overloads, missing materials, etc.).');
-  lines.push('Each issue should name the specific resource, batch(es), and date affected.');
-  lines.push('If none, write "No critical issues found."');
-  lines.push('');
   lines.push('### Warnings');
-  lines.push('List non-critical issues that the planner should be aware of (colour sequence violations, near-capacity resources, etc.).');
-  lines.push('If none, write "No warnings."');
-  lines.push('');
   lines.push('### Opportunities');
-  lines.push('List specific optimisation opportunities (underused resources that could take load, better date placements, rebalancing suggestions).');
-  lines.push('Include concrete suggestions with resource names and batch references.');
-  lines.push('If none, write "No opportunities identified."');
-  lines.push('');
   lines.push('### Summary');
-  lines.push('A 2-3 sentence overall assessment of the schedule health for the week. ' +
-    'Mention the health score, total batches, and the most impactful action the planner could take.');
+  lines.push('Be concise. Name specific resources, batches, and dates. Skip progress updates.');
 
   return lines.join('\n');
 }
@@ -239,17 +209,16 @@ export async function runClaudeScan(opts: RunClaudeScanOptions): Promise<RunClau
     const [resourceResult, batchResult] = await Promise.all([
       opts.supabase
         .from('resources')
-        .select('id, resource_code, display_name, resource_type, trunk_line, group_name, min_capacity, max_capacity, max_batches_per_day, active')
+        .select('id, resource_code, display_name')
         .eq('site_id', opts.siteId)
         .eq('active', true)
         .order('sort_order', { ascending: true }),
       opts.supabase
         .from('batches')
-        .select('id, sap_order, material_description, plan_date, plan_resource_id, batch_volume, status, rm_available, packaging_available')
+        .select('plan_resource_id, status')
         .eq('site_id', opts.siteId)
         .gte('plan_date', weekStart)
         .lte('plan_date', weekEnd)
-        .order('plan_date', { ascending: true })
         .limit(200),
     ]);
 
