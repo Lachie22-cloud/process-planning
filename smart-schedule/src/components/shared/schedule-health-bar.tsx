@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Activity, AlertTriangle, AlertCircle, Info, Sparkles, Loader2 } from "lucide-react";
+import { Activity, AlertTriangle, AlertCircle, Info, Sparkles, Loader2, Square } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { HealthReportPanel } from "./health-report-panel";
 import type { HealthReport } from "@/types/scoring";
@@ -58,6 +58,9 @@ interface ScheduleHealthBarProps {
   isLoading: boolean;
   onRunAnalysis?: () => void;
   isAnalysing?: boolean;
+  /** Called when the user clicks cancel on a running scan */
+  onCancelScan?: () => void;
+  isCancelling?: boolean;
   /** All AI scans for history navigation */
   aiScans?: AiScan[];
   /** @deprecated Use aiScans instead */
@@ -71,6 +74,8 @@ export function ScheduleHealthBar({
   isLoading,
   onRunAnalysis,
   isAnalysing,
+  onCancelScan,
+  isCancelling,
   aiScans,
   aiScanReport,
   onSpotlightBatch,
@@ -169,6 +174,17 @@ export function ScheduleHealthBar({
               <span className="text-xs tabular-nums text-muted-foreground">
                 {elapsed}s
               </span>
+              {onCancelScan && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0 ml-1 text-muted-foreground hover:text-destructive"
+                  disabled={isCancelling}
+                  onClick={onCancelScan}
+                >
+                  <Square className="h-3 w-3" />
+                </Button>
+              )}
             </div>
           ) : (
             <Button

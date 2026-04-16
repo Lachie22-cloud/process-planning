@@ -20,7 +20,7 @@ import { useResourceBlocks } from "@/hooks/use-resource-blocks";
 import { useDayBlocks } from "@/hooks/use-day-blocks";
 import { useBulkAssignResources } from "@/hooks/use-batch-mutations";
 import { useHealthReport } from "@/hooks/use-health-report";
-import { useAiScans, useTriggerScan } from "@/hooks/use-ai-scans";
+import { useAiScans, useTriggerScan, useCancelScan } from "@/hooks/use-ai-scans";
 import { useColourGroups, useColourTransitions } from "@/hooks/use-colour-groups";
 import { useSubstitutionRules, useScheduleRules } from "@/hooks/use-rules";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -82,9 +82,16 @@ export function ResourcesPage() {
   );
 
   const triggerScan = useTriggerScan();
+  const cancelScan = useCancelScan();
   const handleRunAnalysis = useCallback(() => {
     triggerScan.mutate("schedule_optimization");
   }, [triggerScan]);
+  const handleCancelScan = useCallback(() => {
+    const activeScan = aiScans.find(
+      (s) => s.status === "pending" || s.status === "running",
+    );
+    if (activeScan) cancelScan.mutate(activeScan.id);
+  }, [aiScans, cancelScan]);
 
   // Scoring context data for RescheduleDialog
   const { data: colourGroups = [] } = useColourGroups();
@@ -249,6 +256,8 @@ export function ResourcesPage() {
         isLoading={healthLoading}
         onRunAnalysis={handleRunAnalysis}
         isAnalysing={isScanning || triggerScan.isPending}
+        onCancelScan={handleCancelScan}
+        isCancelling={cancelScan.isPending}
         aiScans={aiScans}
         onSpotlightBatch={spotlightBatch}
       />
