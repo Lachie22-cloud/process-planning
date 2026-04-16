@@ -356,18 +356,18 @@ export function ScanOutputSheet({
               <div className="space-y-5">
                 {/* Critical Issues */}
                 {sections.critical && sections.critical.toLowerCase() !== "no critical issues found." && (
-                  <div className="rounded-lg border border-red-200 bg-red-50/50 dark:border-red-900/50 dark:bg-red-950/20 p-4">
+                  <div className="rounded-lg border border-red-200 dark:border-red-900/50 bg-card p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <AlertCircle className="h-4 w-4 text-red-500" />
                       <p className="text-sm font-semibold text-red-700 dark:text-red-400">Critical Issues</p>
                     </div>
-                    <div className="prose prose-sm max-w-none text-red-900/80 dark:text-red-200/80 dark:prose-invert">
+                    <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
                       <ReactMarkdown>{sections.critical}</ReactMarkdown>
                     </div>
                   </div>
                 )}
                 {sections.critical && sections.critical.toLowerCase() === "no critical issues found." && (
-                  <div className="rounded-lg border border-green-200 bg-green-50/50 dark:border-green-900/50 dark:bg-green-950/20 p-4">
+                  <div className="rounded-lg border border-green-200 dark:border-green-900/50 bg-card p-4">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 text-green-500" />
                       <p className="text-sm font-medium text-green-700 dark:text-green-400">No critical issues</p>
@@ -377,12 +377,12 @@ export function ScanOutputSheet({
 
                 {/* Warnings */}
                 {sections.warnings && sections.warnings.toLowerCase() !== "no warnings." && (
-                  <div className="rounded-lg border border-yellow-200 bg-yellow-50/50 dark:border-yellow-900/50 dark:bg-yellow-950/20 p-4">
+                  <div className="rounded-lg border border-yellow-200 dark:border-yellow-900/50 bg-card p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <AlertTriangle className="h-4 w-4 text-yellow-500" />
                       <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-400">Warnings</p>
                     </div>
-                    <div className="prose prose-sm max-w-none text-yellow-900/80 dark:text-yellow-200/80 dark:prose-invert">
+                    <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
                       <ReactMarkdown>{sections.warnings}</ReactMarkdown>
                     </div>
                   </div>
@@ -390,12 +390,12 @@ export function ScanOutputSheet({
 
                 {/* Opportunities */}
                 {sections.opportunities && sections.opportunities.toLowerCase() !== "no opportunities identified." && (
-                  <div className="rounded-lg border border-blue-200 bg-blue-50/50 dark:border-blue-900/50 dark:bg-blue-950/20 p-4">
+                  <div className="rounded-lg border border-blue-200 dark:border-blue-900/50 bg-card p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <Info className="h-4 w-4 text-blue-500" />
                       <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">Opportunities</p>
                     </div>
-                    <div className="prose prose-sm max-w-none text-blue-900/80 dark:text-blue-200/80 dark:prose-invert">
+                    <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
                       <ReactMarkdown>{sections.opportunities}</ReactMarkdown>
                     </div>
                   </div>
