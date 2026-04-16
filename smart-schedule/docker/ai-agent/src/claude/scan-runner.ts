@@ -95,10 +95,18 @@ export interface RunClaudeScanResult {
   credentialError?: boolean;
 }
 
+interface ScanContext {
+  resources?: Array<Record<string, unknown>>;
+  batchSummary?: Record<string, unknown>;
+  weekStart?: string;
+  weekEnd?: string;
+}
+
 function buildScanPrompt(
   scanType: string,
   promptOverride?: string | null,
   aiObjective?: string,
+  context?: ScanContext,
 ): string {
   if (promptOverride && promptOverride.trim()) {
     return promptOverride.trim();
@@ -106,12 +114,41 @@ function buildScanPrompt(
 
   const objective = aiObjective ?? 'Perform an AI analysis scan and return concise findings.';
 
-  return [
+  const lines: string[] = [
     `Run scan type: ${scanType}`,
     objective,
-    'Use MCP tools to inspect current site data.',
-    'Return concise findings plus proposed draft actions.',
-  ].join('\n');
+    '',
+  ];
+
+  // Inject pre-fetched site context so the AI works with real data
+  if (context?.resources && context.resources.length > 0) {
+    lines.push('## Site Resources');
+    lines.push('These are the actual resources at this site — always use these real names and IDs:');
+    lines.push('```json');
+    lines.push(JSON.stringify(context.resources, null, 2));
+    lines.push('```');
+    lines.push('');
+  }
+
+  if (context?.batchSummary) {
+    lines.push('## Current Schedule Summary');
+    if (context.weekStart && context.weekEnd) {
+      lines.push(`Period: ${context.weekStart} to ${context.weekEnd}`);
+    }
+    lines.push('```json');
+    lines.push(JSON.stringify(context.batchSummary, null, 2));
+    lines.push('```');
+    lines.push('');
+  }
+
+  lines.push(
+    'IMPORTANT: Use the real resource names and batch data shown above. ' +
+    'Do NOT invent or guess resource names like "M-001", "M-002", etc. ' +
+    'Call score_health and query_batches tools to get specific batch-level details ' +
+    'for your analysis, then return concise findings with proposed draft actions.',
+  );
+
+  return lines.join('\n');
 }
 
 function normalizeMessages(messages: ClaudeMessage[]): Array<Record<string, unknown>> {
@@ -171,6 +208,58 @@ export async function runClaudeScan(opts: RunClaudeScanOptions): Promise<RunClau
       .single();
     const siteName = siteRow?.name ?? undefined;
 
+    // Pre-fetch real site data so the AI starts with actual context
+    const now = new Date();
+    const weekStart = now.toISOString().split('T')[0];
+    const weekEnd = new Date(now.getTime() + 7 * 86_400_000).toISOString().split('T')[0];
+
+    const [resourceResult, batchResult] = await Promise.all([
+      opts.supabase
+        .from('resources')
+        .select('id, resource_code, display_name, resource_type, trunk_line, group_name, min_capacity, max_capacity, max_batches_per_day, active')
+        .eq('site_id', opts.siteId)
+        .eq('active', true)
+        .order('sort_order', { ascending: true }),
+      opts.supabase
+        .from('batches')
+        .select('id, sap_order, material_description, plan_date, plan_resource_id, batch_volume, status, rm_available, packaging_available')
+        .eq('site_id', opts.siteId)
+        .gte('plan_date', weekStart)
+        .lte('plan_date', weekEnd)
+        .order('plan_date', { ascending: true })
+        .limit(200),
+    ]);
+
+    // Build a per-resource batch count summary
+    const resources = (resourceResult.data ?? []) as Array<Record<string, unknown>>;
+    const batches = (batchResult.data ?? []) as Array<Record<string, unknown>>;
+
+    const resourceNameMap: Record<string, string> = {};
+    for (const r of resources) {
+      resourceNameMap[r.id as string] = (r.display_name ?? r.resource_code) as string;
+    }
+
+    const countByResource: Record<string, number> = {};
+    const countByStatus: Record<string, number> = {};
+    for (const b of batches) {
+      const rid = b.plan_resource_id as string;
+      const rName = resourceNameMap[rid] ?? rid;
+      countByResource[rName] = (countByResource[rName] ?? 0) + 1;
+      const status = b.status as string;
+      countByStatus[status] = (countByStatus[status] ?? 0) + 1;
+    }
+
+    const scanContext: ScanContext = {
+      resources,
+      batchSummary: {
+        total_batches: batches.length,
+        batches_by_status: countByStatus,
+        batches_by_resource: countByResource,
+      },
+      weekStart,
+      weekEnd,
+    };
+
     const runner = getAgentRunner();
     const spawnResult = await runner.run({
       apiKey: cred.credential,
@@ -178,7 +267,7 @@ export async function runClaudeScan(opts: RunClaudeScanOptions): Promise<RunClau
       supabaseUrl: opts.supabaseUrl,
       supabaseServiceKey: opts.supabaseServiceKey,
       siteId: opts.siteId,
-      prompt: buildScanPrompt(opts.scanType, opts.promptOverride, opts.aiObjective),
+      prompt: buildScanPrompt(opts.scanType, opts.promptOverride, opts.aiObjective, scanContext),
       systemPrompt: await assembleSystemPrompt({ supabase: opts.supabase, siteId: opts.siteId, siteName, context: 'scan' }),
       maxTurns: 8,
       supabase: opts.supabase,
