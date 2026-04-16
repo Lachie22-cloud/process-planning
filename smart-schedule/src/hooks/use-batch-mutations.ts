@@ -11,6 +11,8 @@ interface UpdateBatchInput {
     statusComment?: string | null;
     planDate?: string | null;
     planResourceId?: string | null;
+    planDisperserId?: string | null;
+    planDisperser2Id?: string | null;
     qcObservedStage?: string | null;
     qcObservedAt?: string | null;
     qcObservedBy?: string | null;
@@ -48,6 +50,10 @@ export function useUpdateBatch() {
       if (updates.planDate !== undefined) dbUpdates.plan_date = updates.planDate;
       if (updates.planResourceId !== undefined)
         dbUpdates.plan_resource_id = updates.planResourceId;
+      if (updates.planDisperserId !== undefined)
+        dbUpdates.plan_disperser_id = updates.planDisperserId;
+      if (updates.planDisperser2Id !== undefined)
+        dbUpdates.plan_disperser2_id = updates.planDisperser2Id;
       if (updates.qcObservedStage !== undefined)
         dbUpdates.qc_observed_stage = updates.qcObservedStage;
       if (updates.qcObservedAt !== undefined)

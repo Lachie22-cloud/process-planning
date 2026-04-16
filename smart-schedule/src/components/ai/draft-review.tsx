@@ -293,6 +293,8 @@ interface ScheduleChange {
   batch_id: string;
   plan_resource_id?: string;
   plan_date?: string;
+  plan_disperser_id?: string;
+  plan_disperser2_id?: string;
 }
 
 function ChangesSummary({
@@ -314,13 +316,15 @@ function ChangesSummary({
   }, [resources]);
 
   const batchMap = useMemo(() => {
-    const map = new Map<string, { sapOrder: string; description: string | null; currentResource: string | null; currentDate: string | null }>();
+    const map = new Map<string, { sapOrder: string; description: string | null; currentResource: string | null; currentDate: string | null; disperser1: string | null; disperser2: string | null }>();
     for (const b of batches) {
       map.set(b.id, {
         sapOrder: b.sapOrder,
         description: b.materialDescription,
         currentResource: b.planResourceId,
         currentDate: b.planDate,
+        disperser1: b.planDisperserId,
+        disperser2: b.planDisperser2Id,
       });
     }
     return map;
@@ -355,6 +359,13 @@ function ChangesSummary({
         const currentResource = batch?.currentResource
           ? resourceMap.get(batch.currentResource) ?? batch.currentResource
           : "Unassigned";
+        const disperser1Label = batch?.disperser1
+          ? resourceMap.get(batch.disperser1) ?? null
+          : null;
+        const disperser2Label = batch?.disperser2
+          ? resourceMap.get(batch.disperser2) ?? null
+          : null;
+        const disperserSuffix = [disperser1Label, disperser2Label].filter(Boolean).join(", ");
 
         return (
           <div
@@ -390,11 +401,13 @@ function ChangesSummary({
             <div className="mt-2 flex items-center gap-2 text-xs">
               <span className="rounded bg-muted px-2 py-0.5">
                 {currentResource}
+                {disperserSuffix ? ` + ${disperserSuffix}` : ""}
                 {batch?.currentDate ? ` \u00b7 ${formatDate(batch.currentDate)}` : ""}
               </span>
               <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
               <span className="rounded bg-primary/10 text-primary px-2 py-0.5 font-medium">
                 {targetResource ?? "Same resource"}
+                {disperserSuffix ? ` + ${disperserSuffix}` : ""}
                 {change.plan_date ? ` \u00b7 ${formatDate(change.plan_date)}` : ""}
               </span>
             </div>

@@ -10,6 +10,8 @@ interface RecordMovementInput {
   toDate: string | null;
   direction: "pulled" | "pushed" | "moved";
   reason: string | null;
+  disperser1Id?: string | null;
+  disperser2Id?: string | null;
 }
 
 /**
@@ -34,6 +36,8 @@ export function useRecordMovement() {
         direction: input.direction,
         reason: input.reason,
         moved_by: user?.id ?? null,
+        disperser1_id: input.disperser1Id ?? null,
+        disperser2_id: input.disperser2Id ?? null,
       } as never);
 
       if (error) throw error;

@@ -618,6 +618,8 @@ export function ResourceTimeline({
           updates: {
             planResourceId: targetResourceId,
             planDate: targetDate,
+            planDisperserId: batch.planDisperserId,
+            planDisperser2Id: batch.planDisperser2Id,
           },
         },
         {
@@ -630,6 +632,13 @@ export function ResourceTimeline({
                   ? "pushed_out"
                   : "resource_change";
 
+            const disperser1 = batch.planDisperserId
+              ? resources.find((r) => r.id === batch.planDisperserId)
+              : null;
+            const disperser2 = batch.planDisperser2Id
+              ? resources.find((r) => r.id === batch.planDisperser2Id)
+              : null;
+
             addAudit.mutate({
               batchId: batch.id,
               action: "batch_move",
@@ -638,6 +647,8 @@ export function ResourceTimeline({
                 to_date: targetDate,
                 from_resource: oldResource?.resourceCode ?? batch.planResourceId,
                 to_resource: newResource?.resourceCode ?? targetResourceId,
+                disperser1: disperser1?.resourceCode ?? batch.planDisperserId ?? null,
+                disperser2: disperser2?.resourceCode ?? batch.planDisperser2Id ?? null,
                 direction,
                 reason: reason ?? null,
                 moved_by: user?.email ?? user?.id ?? "unknown",
@@ -660,6 +671,8 @@ export function ResourceTimeline({
               toDate: targetDate,
               direction: movementDirection,
               reason: reason ?? null,
+              disperser1Id: batch.planDisperserId,
+              disperser2Id: batch.planDisperser2Id,
             });
 
             toast.success(

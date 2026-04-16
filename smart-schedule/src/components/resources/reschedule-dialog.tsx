@@ -368,12 +368,21 @@ export function RescheduleDialog({
     const oldResource = resources.find((r) => r.id === batch.planResourceId);
     const newResource = resources.find((r) => r.id === selectedOption.resourceId);
 
+    const disperser1 = batch.planDisperserId
+      ? resources.find((r) => r.id === batch.planDisperserId)
+      : null;
+    const disperser2 = batch.planDisperser2Id
+      ? resources.find((r) => r.id === batch.planDisperser2Id)
+      : null;
+
     updateBatch.mutate(
       {
         batchId: batch.id,
         updates: {
           planResourceId: selectedOption.resourceId,
           planDate: selectedOption.date,
+          planDisperserId: batch.planDisperserId,
+          planDisperser2Id: batch.planDisperser2Id,
         },
       },
       {
@@ -395,6 +404,8 @@ export function RescheduleDialog({
               to_date: selectedOption.date,
               from_resource: oldResource?.resourceCode ?? batch.planResourceId,
               to_resource: newResource?.resourceCode ?? selectedOption.resourceId,
+              disperser1: disperser1?.resourceCode ?? batch.planDisperserId ?? null,
+              disperser2: disperser2?.resourceCode ?? batch.planDisperser2Id ?? null,
               direction,
               reason,
               placement_score: Math.round(selectedOption.score.score),
@@ -411,6 +422,8 @@ export function RescheduleDialog({
             toDate: selectedOption.date,
             direction,
             reason,
+            disperser1Id: batch.planDisperserId,
+            disperser2Id: batch.planDisperser2Id,
           });
 
           toast.success(
