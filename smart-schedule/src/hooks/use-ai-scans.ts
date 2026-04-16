@@ -104,6 +104,7 @@ export function useTriggerScan() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ siteId: site.id, scanType, promptOverride }),
+        signal: AbortSignal.timeout(30_000),
       });
 
       if (!res.ok) {

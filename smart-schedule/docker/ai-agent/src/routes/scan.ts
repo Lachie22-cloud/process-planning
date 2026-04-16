@@ -126,7 +126,7 @@ scanRouter.post('/scan', async (req: Request, res: Response) => {
  */
 scanRouter.post('/scan/:id/cancel', async (req: Request, res: Response) => {
   const user = req.user!;
-  const scanId = req.params.id;
+  const scanId = req.params.id as string;
 
   const { data: scan, error: fetchErr } = await supabaseAdmin
     .from('ai_scans')
