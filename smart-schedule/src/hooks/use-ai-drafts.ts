@@ -288,6 +288,8 @@ export function useApplyDraft() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai_drafts", site?.id] });
+      queryClient.invalidateQueries({ queryKey: ["batches"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
       toast.success("Draft applied successfully");
     },
     onError: (err) => {
