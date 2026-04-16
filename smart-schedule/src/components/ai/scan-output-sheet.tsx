@@ -51,19 +51,76 @@ function cleanNarrative(text: string): string {
     .replace(/<\/?[a-z_][a-z_0-9]*(?:\s[^>]*)?\/?>/gi, "")
     // Strip UUIDs
     .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "")
-    // Strip scan status lines
+    // Strip scan status/progress lines ("running 10", "running 50 Analysing...")
     .replace(/scan_\w+\s+(running|pending|completed)\s*\d*/gi, "")
+    .replace(/^\s*(running|pending|completed)\s+\d+.*$/gm, "")
+    // Strip bare status words on their own line
+    .replace(/^\s*(Planned|running|pending|completed)\s*$/gm, "")
+    // Strip bare numbers on their own line
+    .replace(/^\s*\d+\s*$/gm, "")
+    // Strip "mixer false/true" lines
+    .replace(/^\s*mixer\s+(true|false)\s*$/gm, "")
     // Strip bare dates
     .replace(/\bscheduled\s+\d{4}-\d{2}-\d{2}\b/gi, "")
-    .replace(/^\s*\d{4}-\d{2}-\d{2}(\s+\d{4}-\d{2}-\d{2})?\s*$/gm, "")
+    .replace(/^\s*\d{4}-\d{2}-\d{2}(\s+(to\s+)?\d{4}-\d{2}-\d{2})?\s*$/gm, "")
+    .replace(/^\s*\d{2}\/\d{2}\/\d{4}(\s+(to\s+)?\d{2}\/\d{2}\/\d{4})?\s*$/gm, "")
     // Strip AI reasoning/thinking phrases (common patterns)
-    .replace(/^(?:Let me|I'll|I will|Now let me|Now I'll|First,? (?:let me|I'll))[^.]*[.:]\s*/gm, "")
+    .replace(/^(?:Let me|I'll|I will|Now let me|Now I'll|First,? (?:let me|I'll)|Starting schedule)[^.]*[.:]\s*/gm, "")
     // Strip "Step N:" headers that are just planning
     .replace(/^##?\s*Step\s+\d+[^#\n]*/gm, "")
+    // Strip progress messages
+    .replace(/^\s*(?:Starting|Analysing|Identifying|Generating)\s+.*$/gm, "")
     // Clean up empty lines
     .replace(/^\s*$/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+/** Extract structured sections from the AI narrative */
+function extractSections(narrative: string): {
+  critical: string | null;
+  warnings: string | null;
+  opportunities: string | null;
+  summary: string | null;
+  remainder: string;
+} {
+  const result = {
+    critical: null as string | null,
+    warnings: null as string | null,
+    opportunities: null as string | null,
+    summary: null as string | null,
+    remainder: narrative,
+  };
+
+  // Match markdown headings: ### Critical Issues, ### Warnings, ### Opportunities, ### Summary
+  const sectionPattern = /###\s+(Critical Issues|Warnings|Opportunities|Summary)\s*\n([\s\S]*?)(?=###\s+(?:Critical Issues|Warnings|Opportunities|Summary)|$)/gi;
+  let match: RegExpExecArray | null;
+  const matchedRanges: Array<[number, number]> = [];
+
+  while ((match = sectionPattern.exec(narrative)) !== null) {
+    const heading = match[1].toLowerCase();
+    const content = match[2].trim();
+    matchedRanges.push([match.index, match.index + match[0].length]);
+
+    if (heading === "critical issues") result.critical = content;
+    else if (heading === "warnings") result.warnings = content;
+    else if (heading === "opportunities") result.opportunities = content;
+    else if (heading === "summary") result.summary = content;
+  }
+
+  // Build remainder from unmatched portions
+  if (matchedRanges.length > 0) {
+    let remainder = "";
+    let lastEnd = 0;
+    for (const [start, end] of matchedRanges) {
+      remainder += narrative.slice(lastEnd, start);
+      lastEnd = end;
+    }
+    remainder += narrative.slice(matchedRanges[matchedRanges.length - 1][1]);
+    result.remainder = remainder.replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  return result;
 }
 
 function parseReport(raw: unknown): ParsedReport | null {
@@ -192,6 +249,11 @@ export function ScanOutputSheet({
     [parsed],
   );
 
+  const sections = useMemo(
+    () => (cleanedNarrative ? extractSections(cleanedNarrative) : null),
+    [cleanedNarrative],
+  );
+
   const issuesByLevel = useMemo(() => {
     if (!parsed?.healthReport?.issues) return null;
     const issues = parsed.healthReport.issues;
@@ -288,9 +350,72 @@ export function ScanOutputSheet({
               </div>
             )}
 
-            {/* Issues by severity */}
+            {/* Structured AI sections — shown when the AI outputs the expected headings */}
+            {sections && (sections.critical || sections.warnings || sections.opportunities || sections.summary) && !isInProgress && (
+              <div className="space-y-5">
+                {/* Critical Issues */}
+                {sections.critical && sections.critical.toLowerCase() !== "no critical issues found." && (
+                  <div className="rounded-lg border border-red-200 bg-red-50/50 dark:border-red-900/50 dark:bg-red-950/20 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <AlertCircle className="h-4 w-4 text-red-500" />
+                      <p className="text-sm font-semibold text-red-700 dark:text-red-400">Critical Issues</p>
+                    </div>
+                    <div className="prose prose-sm max-w-none text-red-900/80 dark:text-red-200/80 dark:prose-invert">
+                      <ReactMarkdown>{sections.critical}</ReactMarkdown>
+                    </div>
+                  </div>
+                )}
+                {sections.critical && sections.critical.toLowerCase() === "no critical issues found." && (
+                  <div className="rounded-lg border border-green-200 bg-green-50/50 dark:border-green-900/50 dark:bg-green-950/20 p-4">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <p className="text-sm font-medium text-green-700 dark:text-green-400">No critical issues</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Warnings */}
+                {sections.warnings && sections.warnings.toLowerCase() !== "no warnings." && (
+                  <div className="rounded-lg border border-yellow-200 bg-yellow-50/50 dark:border-yellow-900/50 dark:bg-yellow-950/20 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                      <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-400">Warnings</p>
+                    </div>
+                    <div className="prose prose-sm max-w-none text-yellow-900/80 dark:text-yellow-200/80 dark:prose-invert">
+                      <ReactMarkdown>{sections.warnings}</ReactMarkdown>
+                    </div>
+                  </div>
+                )}
+
+                {/* Opportunities */}
+                {sections.opportunities && sections.opportunities.toLowerCase() !== "no opportunities identified." && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50/50 dark:border-blue-900/50 dark:bg-blue-950/20 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Info className="h-4 w-4 text-blue-500" />
+                      <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">Opportunities</p>
+                    </div>
+                    <div className="prose prose-sm max-w-none text-blue-900/80 dark:text-blue-200/80 dark:prose-invert">
+                      <ReactMarkdown>{sections.opportunities}</ReactMarkdown>
+                    </div>
+                  </div>
+                )}
+
+                {/* Summary */}
+                {sections.summary && (
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    <p className="text-sm font-semibold mb-2">Summary</p>
+                    <div className="prose prose-sm max-w-none text-muted-foreground dark:prose-invert">
+                      <ReactMarkdown>{sections.summary}</ReactMarkdown>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Issues by severity (from deterministic health scorer) */}
             {issuesByLevel && (
               <div className="space-y-4">
+                <p className="text-sm font-semibold">Detailed Health Issues</p>
                 {(["critical", "warning", "info"] as const).map((level) => {
                   const issues = issuesByLevel[level];
                   if (!issues || issues.length === 0) return null;
@@ -328,12 +453,22 @@ export function ScanOutputSheet({
               </div>
             )}
 
-            {/* AI narrative */}
-            {cleanedNarrative && !isInProgress && (
+            {/* Fallback: unstructured AI narrative (only if no structured sections found) */}
+            {cleanedNarrative && !isInProgress && !(sections?.critical || sections?.warnings || sections?.opportunities || sections?.summary) && (
               <div>
                 <p className="text-sm font-medium mb-2">AI Analysis</p>
                 <div className="prose prose-sm max-w-none text-muted-foreground dark:prose-invert">
                   <ReactMarkdown>{cleanedNarrative}</ReactMarkdown>
+                </div>
+              </div>
+            )}
+
+            {/* Any remaining narrative not captured by structured sections */}
+            {sections?.remainder && !isInProgress && (sections.critical || sections.warnings || sections.opportunities || sections.summary) && (
+              <div>
+                <p className="text-sm font-medium mb-2">Additional Notes</p>
+                <div className="prose prose-sm max-w-none text-muted-foreground dark:prose-invert">
+                  <ReactMarkdown>{sections.remainder}</ReactMarkdown>
                 </div>
               </div>
             )}

@@ -145,8 +145,31 @@ function buildScanPrompt(
     'IMPORTANT: Use the real resource names and batch data shown above. ' +
     'Do NOT invent or guess resource names like "M-001", "M-002", etc. ' +
     'Call score_health and query_batches tools to get specific batch-level details ' +
-    'for your analysis, then return concise findings with proposed draft actions.',
+    'for your analysis.',
   );
+
+  lines.push('');
+  lines.push('## Output Format');
+  lines.push('Structure your final response EXACTLY in the following sections using markdown headings.');
+  lines.push('Do NOT include progress updates, thinking steps, or tool call summaries — only the final report.');
+  lines.push('');
+  lines.push('### Critical Issues');
+  lines.push('List any critical problems that need immediate attention (capacity overloads, missing materials, etc.).');
+  lines.push('Each issue should name the specific resource, batch(es), and date affected.');
+  lines.push('If none, write "No critical issues found."');
+  lines.push('');
+  lines.push('### Warnings');
+  lines.push('List non-critical issues that the planner should be aware of (colour sequence violations, near-capacity resources, etc.).');
+  lines.push('If none, write "No warnings."');
+  lines.push('');
+  lines.push('### Opportunities');
+  lines.push('List specific optimisation opportunities (underused resources that could take load, better date placements, rebalancing suggestions).');
+  lines.push('Include concrete suggestions with resource names and batch references.');
+  lines.push('If none, write "No opportunities identified."');
+  lines.push('');
+  lines.push('### Summary');
+  lines.push('A 2-3 sentence overall assessment of the schedule health for the week. ' +
+    'Mention the health score, total batches, and the most impactful action the planner could take.');
 
   return lines.join('\n');
 }
