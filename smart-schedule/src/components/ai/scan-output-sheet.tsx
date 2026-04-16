@@ -98,8 +98,8 @@ function extractSections(narrative: string): {
   const matchedRanges: Array<[number, number]> = [];
 
   while ((match = sectionPattern.exec(narrative)) !== null) {
-    const heading = match[1].toLowerCase();
-    const content = match[2].trim();
+    const heading = (match[1] ?? "").toLowerCase();
+    const content = (match[2] ?? "").trim();
     matchedRanges.push([match.index, match.index + match[0].length]);
 
     if (heading === "critical issues") result.critical = content;
@@ -116,7 +116,8 @@ function extractSections(narrative: string): {
       remainder += narrative.slice(lastEnd, start);
       lastEnd = end;
     }
-    remainder += narrative.slice(matchedRanges[matchedRanges.length - 1][1]);
+    const lastRange = matchedRanges[matchedRanges.length - 1]!;
+    remainder += narrative.slice(lastRange[1]);
     result.remainder = remainder.replace(/\n{3,}/g, "\n\n").trim();
   }
 
