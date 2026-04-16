@@ -12,6 +12,7 @@ import type { ToolDefinition } from './schedule-db.js';
 import type {
   ColourGroup,
   ColourTransition,
+  DayBlock,
   HealthScoringContext,
   ScoringBatch,
   ScoringContext,
@@ -318,6 +319,22 @@ async function fetchResourceBlocks(
   }));
 }
 
+async function fetchDayBlocks(
+  supabase: SupabaseClient,
+  siteId: string,
+): Promise<DayBlock[]> {
+  const { data } = await supabase
+    .from('day_blocks')
+    .select('block_date, reason')
+    .eq('site_id', siteId);
+
+  const rows = (data ?? []) as unknown as Record<string, unknown>[];
+  return rows.map((b) => ({
+    blockDate: b.block_date as string,
+    reason: (b.reason as string | null) ?? null,
+  }));
+}
+
 async function fetchSubstitutionRules(
   supabase: SupabaseClient,
   siteId: string,
@@ -362,18 +379,20 @@ async function fetchScoringContext(
   colourGroups: ColourGroup[];
   colourTransitions: ColourTransition[];
   resourceBlocks: ScoringResourceBlock[];
+  dayBlocks: DayBlock[];
   substitutionRules: ScoringSubstitutionRule[];
   weights: ScoringWeights;
   resourceTrunkLines: Record<string, string | null>;
   resourceNameMap: Record<string, string>;
 }> {
-  const [batches, resources, colourGroups, colourTransitions, resourceBlocks, substitutionRules, scheduleRules] =
+  const [batches, resources, colourGroups, colourTransitions, resourceBlocks, dayBlocks, substitutionRules, scheduleRules] =
     await Promise.all([
       fetchBatches(supabase, siteId, dateFrom, dateTo),
       fetchResources(supabase, siteId),
       fetchColourGroups(supabase, siteId),
       fetchColourTransitions(supabase, siteId),
       fetchResourceBlocks(supabase, siteId),
+      fetchDayBlocks(supabase, siteId),
       fetchSubstitutionRules(supabase, siteId),
       fetchScheduleRules(supabase, siteId),
     ]);
@@ -386,7 +405,7 @@ async function fetchScoringContext(
     if (r.displayName) resourceNameMap[r.id] = r.displayName;
   }
 
-  return { batches, resources, colourGroups, colourTransitions, resourceBlocks, substitutionRules, weights, resourceTrunkLines, resourceNameMap };
+  return { batches, resources, colourGroups, colourTransitions, resourceBlocks, dayBlocks, substitutionRules, weights, resourceTrunkLines, resourceNameMap };
 }
 
 /** Extra fields exposed alongside ScoringBatch for ranking/chat use */
@@ -460,6 +479,7 @@ function buildPlacementContext(
     dailyBatches,
     allDailyBatches,
     resourceBlocks: ctx.resourceBlocks,
+    dayBlocks: ctx.dayBlocks,
     colourTransitions: ctx.colourTransitions,
     colourGroups: ctx.colourGroups,
     substitutionRules: ctx.substitutionRules,
@@ -467,6 +487,40 @@ function buildPlacementContext(
     activeResourceCount,
     resourceTrunkLines: ctx.resourceTrunkLines,
   };
+}
+
+// ─── Date helpers ──────────────────────────────────────────────────────────
+
+/** Check if a YYYY-MM-DD date string falls on a weekend */
+function isWeekendDate(dateStr: string): boolean {
+  const day = new Date(dateStr + 'T12:00:00').getDay();
+  return day === 0 || day === 6;
+}
+
+/** Add N days to a YYYY-MM-DD date string, return YYYY-MM-DD */
+function addDaysToDate(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Generate up to `count` working-day date strings starting from the day after
+ * `startDate`. Skips weekends and dates in `dayBlockSet`.
+ */
+function generateWorkingDays(
+  startDate: string,
+  count: number,
+  dayBlockSet: Set<string>,
+): string[] {
+  const dates: string[] = [];
+  for (let i = 1; i <= 60 && dates.length < count; i++) {
+    const d = addDaysToDate(startDate, i);
+    if (isWeekendDate(d)) continue;
+    if (dayBlockSet.has(d)) continue;
+    dates.push(d);
+  }
+  return dates;
 }
 
 // ─── Tool Handlers ──────────────────────────────────────────────────────────
@@ -526,6 +580,7 @@ const handlers: Record<string, ToolHandler> = {
       batches: ctx.batches,
       resources: ctx.resources,
       resourceBlocks: ctx.resourceBlocks,
+      dayBlocks: ctx.dayBlocks,
       colourTransitions: ctx.colourTransitions,
       colourGroups: ctx.colourGroups,
       substitutionRules: ctx.substitutionRules,
@@ -547,20 +602,32 @@ const handlers: Record<string, ToolHandler> = {
     const ctx = await fetchScoringContext(supabase, siteId);
     const scorer = new PlacementScorer(ctx.weights);
 
-    const targetDate = (args.target_date as string) ?? batch.planDate ?? new Date().toISOString().slice(0, 10);
+    const baseDate = (args.target_date as string) ?? batch.planDate ?? new Date().toISOString().slice(0, 10);
     const excludeCurrent = args.exclude_current === true;
 
-    const candidates = ctx.resources.filter((r) => {
+    // Build candidate dates: the requested date (if valid) + next 14 working days.
+    // This ensures we find options even if the target date is a weekend or blocked.
+    const dayBlockSet = new Set(ctx.dayBlocks.map((db) => db.blockDate));
+    const candidateDates: string[] = [];
+    if (!isWeekendDate(baseDate) && !dayBlockSet.has(baseDate)) {
+      candidateDates.push(baseDate);
+    }
+    candidateDates.push(...generateWorkingDays(baseDate, 14, dayBlockSet));
+
+    const resourceCandidates = ctx.resources.filter((r) => {
       if (!r.active) return false;
       if (excludeCurrent && batch.planResourceId && r.id === batch.planResourceId) return false;
       return true;
     });
 
-    const scored = candidates.map((resource) => {
-      const placementCtx = buildPlacementContext(resource.id, targetDate, ctx);
-      const result = scorer.score(batch, resource, targetDate, placementCtx);
-      return { resource_id: resource.id, resource_name: resource.displayName, ...result };
-    });
+    const scored: Array<{ resource_id: string; resource_name: string | null; target_date: string; score: number; feasible: boolean; violations: string[]; factors: unknown[]; summary: string }> = [];
+    for (const targetDate of candidateDates) {
+      for (const resource of resourceCandidates) {
+        const placementCtx = buildPlacementContext(resource.id, targetDate, ctx);
+        const result = scorer.score(batch, resource, targetDate, placementCtx);
+        scored.push({ resource_id: resource.id, resource_name: resource.displayName, target_date: targetDate, ...result });
+      }
+    }
 
     // Sort by score descending, take top 5 feasible
     scored.sort((a, b) => b.score - a.score);
@@ -568,7 +635,7 @@ const handlers: Record<string, ToolHandler> = {
 
     return textResult(JSON.stringify({
       batch_id: batchId,
-      target_date: targetDate,
+      date_range: candidateDates.length > 0 ? `${candidateDates[0]} to ${candidateDates[candidateDates.length - 1]}` : baseDate,
       top_options: top5,
       total_feasible: scored.filter((s) => s.feasible).length,
       total_blocked: scored.filter((s) => !s.feasible).length,
@@ -597,6 +664,7 @@ const handlers: Record<string, ToolHandler> = {
       batches: ctx.batches,
       resources: ctx.resources,
       resourceBlocks: ctx.resourceBlocks,
+      dayBlocks: ctx.dayBlocks,
       colourTransitions: ctx.colourTransitions,
       colourGroups: ctx.colourGroups,
       substitutionRules: ctx.substitutionRules,
@@ -737,15 +805,26 @@ const handlers: Record<string, ToolHandler> = {
         ? blockingDates.sort().pop()!
         : null;
 
-      // Score placement options on/after the earliest reschedule date
-      const targetDate = earliestRescheduleDate ?? enriched.planDate ?? today;
+      // Score placement options across working days after the earliest reschedule date.
+      // Skip weekends and site-wide day blocks (RDOs, public holidays).
+      const baseDate = earliestRescheduleDate ?? enriched.planDate ?? today;
+      const dayBlockSet = new Set(ctx.dayBlocks.map((db) => db.blockDate));
+      const candidateDates = generateWorkingDays(baseDate, 14, dayBlockSet);
+      // Also include baseDate itself if it's a working day
+      if (!isWeekendDate(baseDate) && !dayBlockSet.has(baseDate)) {
+        candidateDates.unshift(baseDate);
+      }
+
       const activeResources = ctx.resources.filter((r) => r.active);
 
-      const options = activeResources.map((resource) => {
-        const placementCtx = buildPlacementContext(resource.id, targetDate, ctx);
-        const result = scorer.score(enriched, resource, targetDate, placementCtx);
-        return { resource_id: resource.id, resource_name: resource.displayName, target_date: targetDate, ...result };
-      });
+      const options: Array<{ resource_id: string; resource_name: string | null; target_date: string; score: number; feasible: boolean; violations: string[]; factors: unknown[]; summary: string }> = [];
+      for (const targetDate of candidateDates) {
+        for (const resource of activeResources) {
+          const placementCtx = buildPlacementContext(resource.id, targetDate, ctx);
+          const result = scorer.score(enriched, resource, targetDate, placementCtx);
+          options.push({ resource_id: resource.id, resource_name: resource.displayName, target_date: targetDate, ...result });
+        }
+      }
 
       options.sort((a, b) => b.score - a.score);
       const topFeasible = options.filter((o) => o.feasible).slice(0, topOptionsCount);

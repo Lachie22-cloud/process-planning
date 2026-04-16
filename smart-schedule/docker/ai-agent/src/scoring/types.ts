@@ -9,6 +9,8 @@ export type HardViolation =
   | 'over_capacity'
   | 'incompatible_base'
   | 'resource_blocked'
+  | 'day_blocked'
+  | 'weekend'
   | 'max_batches_exceeded'
   | 'resource_inactive'
   | 'substitution_blocked';
@@ -78,11 +80,20 @@ export const DEFAULT_SCORING_WEIGHTS: ScoringWeights = {
   womPenalty: 20,
 };
 
+/** Site-wide day block (RDO, public holiday, etc.) */
+export interface DayBlock {
+  blockDate: string;
+  reason: string | null;
+}
+
 /** All context needed by PlacementScorer for a single evaluation */
 export interface ScoringContext {
   dailyBatches: ScoringBatch[];
   allDailyBatches: ScoringBatch[];
   resourceBlocks: ScoringResourceBlock[];
+  /** Site-wide day blocks (RDOs, public holidays). When provided, any target
+   *  date that matches a block_date triggers a 'day_blocked' hard violation. */
+  dayBlocks?: DayBlock[];
   colourTransitions: ColourTransition[];
   colourGroups: ColourGroup[];
   substitutionRules: ScoringSubstitutionRule[];
@@ -207,6 +218,8 @@ export interface HealthScoringContext {
   batches: ScoringBatch[];
   resources: ScoringResource[];
   resourceBlocks: ScoringResourceBlock[];
+  /** Site-wide day blocks (RDOs, public holidays) */
+  dayBlocks?: DayBlock[];
   colourTransitions: ColourTransition[];
   colourGroups: ColourGroup[];
   substitutionRules: ScoringSubstitutionRule[];

@@ -141,6 +141,16 @@ export class PlacementScorer {
       violations.push('resource_blocked');
     }
 
+    // 4b. Weekend check: target date must be a working day (Mon–Fri)
+    if (this.isWeekend(targetDate)) {
+      violations.push('weekend');
+    }
+
+    // 4c. Day blocks: site-wide blocks (RDOs, public holidays)
+    if (this.isDayBlocked(targetDate, ctx.dayBlocks)) {
+      violations.push('day_blocked');
+    }
+
     // Group capacity overrules individual maxBatchesPerDay
     if (
       resource.groupName != null &&
@@ -449,6 +459,21 @@ export class PlacementScorer {
     return blocks.some(
       (b) => b.resourceId === resourceId && targetDate >= b.startDate && targetDate <= b.endDate,
     );
+  }
+
+  /** Check if a date falls on a weekend (Saturday=6, Sunday=0) */
+  private isWeekend(dateStr: string): boolean {
+    const day = new Date(dateStr + 'T12:00:00').getDay();
+    return day === 0 || day === 6;
+  }
+
+  /** Check if a date is blocked site-wide (RDO, public holiday, etc.) */
+  private isDayBlocked(
+    dateStr: string,
+    dayBlocks?: { blockDate: string }[],
+  ): boolean {
+    if (!dayBlocks || dayBlocks.length === 0) return false;
+    return dayBlocks.some((db) => db.blockDate === dateStr);
   }
 
   private isSubstitutionAllowed(

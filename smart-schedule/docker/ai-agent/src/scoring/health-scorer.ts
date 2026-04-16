@@ -389,44 +389,54 @@ export class HealthScorer {
     ctx: HealthScoringContext,
     excludeResourceId?: string,
   ): SuggestedAction | null {
-    const targetDate = batch.planDate ?? ctx.evaluationDate ?? new Date().toISOString().slice(0, 10);
+    const baseDate = batch.planDate ?? ctx.evaluationDate ?? new Date().toISOString().slice(0, 10);
     const activeResources = ctx.resources.filter((r) => r.active && r.id !== excludeResourceId);
 
     if (activeResources.length === 0) return null;
+
+    // Build candidate dates: the base date (if valid) + next 10 working days
+    const candidateDates = this.generateWorkingDays(baseDate, 10, ctx.dayBlocks);
+    if (!this.isWeekend(baseDate) && !this.isDayBlocked(baseDate, ctx.dayBlocks)) {
+      candidateDates.unshift(baseDate);
+    }
 
     let bestScore = -Infinity;
     let bestAction: SuggestedAction | null = null;
 
     const batchesByResource = this.groupBatchesByResourceDate(ctx.batches);
-    const allDailyBatches = ctx.batches.filter((b) => b.planDate === targetDate);
 
-    for (const resource of activeResources) {
-      const dailyKey = `${resource.id}|${targetDate}`;
-      const dailyBatches = batchesByResource.get(dailyKey) ?? [];
+    for (const targetDate of candidateDates) {
+      const allDailyBatches = ctx.batches.filter((b) => b.planDate === targetDate);
 
-      const scoringCtx: ScoringContext = {
-        dailyBatches,
-        allDailyBatches,
-        resourceBlocks: ctx.resourceBlocks,
-        colourTransitions: ctx.colourTransitions,
-        colourGroups: ctx.colourGroups,
-        substitutionRules: ctx.substitutionRules,
-        activeResourceCount: activeResources.length + (excludeResourceId ? 1 : 0),
-        resourceTrunkLines: ctx.resourceTrunkLines,
-      };
+      for (const resource of activeResources) {
+        const dailyKey = `${resource.id}|${targetDate}`;
+        const dailyBatches = batchesByResource.get(dailyKey) ?? [];
 
-      const result = this.placementScorer.score(batch, resource, targetDate, scoringCtx);
-
-      if (result.feasible && result.score > bestScore) {
-        bestScore = result.score;
-        const name = resource.displayName ?? resource.id;
-        bestAction = {
-          targetResourceId: resource.id,
-          targetResourceName: resource.displayName,
-          targetDate,
-          placementScore: result.score,
-          description: `Move to ${name} on ${targetDate} (score: ${result.score})`,
+        const scoringCtx: ScoringContext = {
+          dailyBatches,
+          allDailyBatches,
+          resourceBlocks: ctx.resourceBlocks,
+          dayBlocks: ctx.dayBlocks,
+          colourTransitions: ctx.colourTransitions,
+          colourGroups: ctx.colourGroups,
+          substitutionRules: ctx.substitutionRules,
+          activeResourceCount: activeResources.length + (excludeResourceId ? 1 : 0),
+          resourceTrunkLines: ctx.resourceTrunkLines,
         };
+
+        const result = this.placementScorer.score(batch, resource, targetDate, scoringCtx);
+
+        if (result.feasible && result.score > bestScore) {
+          bestScore = result.score;
+          const name = resource.displayName ?? resource.id;
+          bestAction = {
+            targetResourceId: resource.id,
+            targetResourceName: resource.displayName,
+            targetDate,
+            placementScore: result.score,
+            description: `Move to ${name} on ${targetDate} (score: ${result.score})`,
+          };
+        }
       }
     }
 
@@ -442,47 +452,92 @@ export class HealthScorer {
       return this.findBestPlacement(batch, ctx);
     }
 
-    const targetDate = requiredDate;
     const activeResources = ctx.resources.filter((r) => r.active);
     if (activeResources.length === 0) return null;
+
+    // Scan working days starting from the required date
+    const candidateDates = this.generateWorkingDays(requiredDate, 14, ctx.dayBlocks);
+    if (!this.isWeekend(requiredDate) && !this.isDayBlocked(requiredDate, ctx.dayBlocks)) {
+      candidateDates.unshift(requiredDate);
+    }
 
     let bestScore = -Infinity;
     let bestAction: SuggestedAction | null = null;
 
     const batchesByResource = this.groupBatchesByResourceDate(ctx.batches);
-    const allDailyBatches = ctx.batches.filter((b) => b.planDate === targetDate);
 
-    for (const resource of activeResources) {
-      const dailyKey = `${resource.id}|${targetDate}`;
-      const dailyBatches = batchesByResource.get(dailyKey) ?? [];
+    for (const targetDate of candidateDates) {
+      const allDailyBatches = ctx.batches.filter((b) => b.planDate === targetDate);
 
-      const scoringCtx: ScoringContext = {
-        dailyBatches,
-        allDailyBatches,
-        resourceBlocks: ctx.resourceBlocks,
-        colourTransitions: ctx.colourTransitions,
-        colourGroups: ctx.colourGroups,
-        substitutionRules: ctx.substitutionRules,
-        activeResourceCount: activeResources.length,
-        resourceTrunkLines: ctx.resourceTrunkLines,
-      };
+      for (const resource of activeResources) {
+        const dailyKey = `${resource.id}|${targetDate}`;
+        const dailyBatches = batchesByResource.get(dailyKey) ?? [];
 
-      const result = this.placementScorer.score(batch, resource, targetDate, scoringCtx);
-
-      if (result.feasible && result.score > bestScore) {
-        bestScore = result.score;
-        const name = resource.displayName ?? resource.id;
-        bestAction = {
-          targetResourceId: resource.id,
-          targetResourceName: resource.displayName,
-          targetDate,
-          placementScore: result.score,
-          description: `Reschedule to ${name} on ${targetDate} when materials available (score: ${result.score})`,
+        const scoringCtx: ScoringContext = {
+          dailyBatches,
+          allDailyBatches,
+          resourceBlocks: ctx.resourceBlocks,
+          dayBlocks: ctx.dayBlocks,
+          colourTransitions: ctx.colourTransitions,
+          colourGroups: ctx.colourGroups,
+          substitutionRules: ctx.substitutionRules,
+          activeResourceCount: activeResources.length,
+          resourceTrunkLines: ctx.resourceTrunkLines,
         };
+
+        const result = this.placementScorer.score(batch, resource, targetDate, scoringCtx);
+
+        if (result.feasible && result.score > bestScore) {
+          bestScore = result.score;
+          const name = resource.displayName ?? resource.id;
+          bestAction = {
+            targetResourceId: resource.id,
+            targetResourceName: resource.displayName,
+            targetDate,
+            placementScore: result.score,
+            description: `Reschedule to ${name} on ${targetDate} when materials available (score: ${result.score})`,
+          };
+        }
       }
     }
 
     return bestAction;
+  }
+
+  // -----------------------------------------------------------------------
+  // Date helpers
+  // -----------------------------------------------------------------------
+
+  /** Check if a YYYY-MM-DD date string falls on a weekend */
+  private isWeekend(dateStr: string): boolean {
+    const day = new Date(dateStr + 'T12:00:00').getDay();
+    return day === 0 || day === 6;
+  }
+
+  /** Check if a date is blocked site-wide (RDO, public holiday, etc.) */
+  private isDayBlocked(dateStr: string, dayBlocks?: { blockDate: string }[]): boolean {
+    if (!dayBlocks || dayBlocks.length === 0) return false;
+    return dayBlocks.some((db) => db.blockDate === dateStr);
+  }
+
+  /** Generate up to `count` working-day date strings starting from the day after `startDate` */
+  private generateWorkingDays(
+    startDate: string,
+    count: number,
+    dayBlocks?: { blockDate: string }[],
+  ): string[] {
+    const blockSet = new Set((dayBlocks ?? []).map((db) => db.blockDate));
+    const dates: string[] = [];
+    for (let i = 1; i <= 60 && dates.length < count; i++) {
+      const d = new Date(startDate + 'T12:00:00');
+      d.setDate(d.getDate() + i);
+      const ds = d.toISOString().slice(0, 10);
+      const day = d.getDay();
+      if (day === 0 || day === 6) continue;
+      if (blockSet.has(ds)) continue;
+      dates.push(ds);
+    }
+    return dates;
   }
 
   // -----------------------------------------------------------------------

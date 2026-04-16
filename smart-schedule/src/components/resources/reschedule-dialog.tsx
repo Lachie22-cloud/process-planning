@@ -26,12 +26,13 @@ import {
   Loader2,
   Info,
 } from "lucide-react";
-import { format, addDays } from "date-fns";
+import { format, addDays, isWeekend } from "date-fns";
 import { toast } from "sonner";
 import { PlacementScorer, extractWeights } from "@/lib/utils/placement-scoring";
 import { useUpdateBatch, useAddAuditEntry } from "@/hooks/use-batch-mutations";
 import { useRecordMovement } from "@/hooks/use-schedule-movements";
 import { useCurrentSite } from "@/hooks/use-current-site";
+import { useDayBlocks } from "@/hooks/use-day-blocks";
 import type { Batch } from "@/types/batch";
 import type { Resource } from "@/types/resource";
 import type { ResourceBlock } from "@/types/site";
@@ -202,6 +203,20 @@ export function RescheduleDialog({
   // Determine the earliest date after which materials are expected
   const earliestDate = getEarliestAvailableDate(batch);
 
+  // Compute scan window for fetching day blocks
+  const scanRange = useMemo(() => {
+    const startDate = earliestDate
+      ? addDays(new Date(earliestDate + "T12:00:00"), 1)
+      : addDays(new Date(), 1);
+    return {
+      weekStart: format(startDate, "yyyy-MM-dd"),
+      weekEnding: format(addDays(startDate, 45), "yyyy-MM-dd"),
+    };
+  }, [earliestDate]);
+
+  // Fetch day blocks (RDOs, public holidays) for the candidate date range
+  const { data: dayBlocks = [] } = useDayBlocks(scanRange);
+
   // Build scorer
   const scorer = useMemo(
     () => new PlacementScorer(extractWeights(scheduleRules)),
@@ -271,18 +286,27 @@ export function RescheduleDialog({
   }, [batches, batch.id]);
 
   // Generate candidate dates: start from the day AFTER expected delivery (or tomorrow
-  // if delivery date is unknown), then scan 14 days forward.
+  // if delivery date is unknown). Only include working days (Mon–Fri) that are not
+  // blocked by site-wide day blocks (RDOs, public holidays, etc.).
   const candidateDates = useMemo(() => {
     const startDate = earliestDate
       ? addDays(new Date(earliestDate + "T12:00:00"), 1)
       : addDays(new Date(), 1);
 
+    const dayBlockSet = new Set(dayBlocks.map((db) => db.blockDate));
     const dates: string[] = [];
-    for (let i = 0; i < 14; i++) {
-      dates.push(format(addDays(startDate, i), "yyyy-MM-dd"));
+
+    // Scan up to 45 calendar days to collect 20 working days
+    for (let i = 0; i < 45 && dates.length < 20; i++) {
+      const d = addDays(startDate, i);
+      if (isWeekend(d)) continue;
+      const dateStr = format(d, "yyyy-MM-dd");
+      if (dayBlockSet.has(dateStr)) continue;
+      dates.push(dateStr);
     }
+
     return dates;
-  }, [earliestDate]);
+  }, [earliestDate, dayBlocks]);
 
   // Score all resource×date combinations and rank them
   const rankedOptions = useMemo(() => {
