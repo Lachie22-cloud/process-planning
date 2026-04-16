@@ -19,11 +19,13 @@ import {
   Play,
   Zap,
   ChevronRight,
+  Square,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
   useAiScans,
   useTriggerScan,
+  useCancelScan,
   type ScanStatus,
 } from "@/hooks/use-ai-scans";
 import { useAiScanTypes } from "@/hooks/use-ai-scan-types";
@@ -102,6 +104,7 @@ function ScanTriggerInner() {
   const { data: scanTypes = [] } = useAiScanTypes(true);
   const [scanType, setScanType] = useState<string>("");
   const trigger = useTriggerScan();
+  const cancelScan = useCancelScan();
   const { data: recentScans = [] } = useAiScans(5);
   const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
 
@@ -194,27 +197,48 @@ function ScanTriggerInner() {
                 </p>
                 <div className="space-y-1">
                   {recentScans.map((scan) => (
-                    <button
+                    <div
                       key={scan.id}
-                      type="button"
                       className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-muted/50"
-                      onClick={() => setSelectedScanId(scan.id)}
                     >
-                      <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="flex items-center gap-2 flex-1 min-w-0"
+                        onClick={() => setSelectedScanId(scan.id)}
+                      >
                         {statusBadge(scan.status)}
-                        <span className="text-muted-foreground">
+                        <span className="text-muted-foreground truncate">
                           {labelLookup.get(scan.scanType) ?? scan.scanType}
                         </span>
-                      </div>
-                      <div className="flex items-center gap-1">
+                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {(scan.status === "pending" || scan.status === "running") && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                            disabled={cancelScan.isPending}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              cancelScan.mutate(scan.id);
+                            }}
+                          >
+                            <Square className="h-3 w-3" />
+                          </Button>
+                        )}
                         <span className="text-xs text-muted-foreground">
                           {formatDistanceToNow(new Date(scan.createdAt), {
                             addSuffix: true,
                           })}
                         </span>
-                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />
+                        <button
+                          type="button"
+                          onClick={() => setSelectedScanId(scan.id)}
+                        >
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />
+                        </button>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>

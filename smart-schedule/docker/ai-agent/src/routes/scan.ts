@@ -6,6 +6,9 @@ import { runClaudeScan } from '../claude/scan-runner.js';
 
 export const scanRouter = Router();
 
+/** In-flight abort controllers keyed by scan ID */
+const activeScanAborts = new Map<string, AbortController>();
+
 /** Get site_users.id from JWT (set by custom_access_token_hook). */
 function siteUserId(user: JwtUserClaims): string {
   return user.user_id ?? user.sub;
@@ -84,6 +87,9 @@ scanRouter.post('/scan', async (req: Request, res: Response) => {
   });
 
   // Fire scan asynchronously — updates the scan row on completion/failure
+  const abortController = new AbortController();
+  activeScanAborts.set(pendingScan.id, abortController);
+
   runClaudeScan({
     supabase: supabaseAdmin,
     supabaseUrl: runtimeConfig.supabaseUrl,
@@ -96,6 +102,7 @@ scanRouter.post('/scan', async (req: Request, res: Response) => {
     existingScanId: pendingScan.id,
     promptOverride: promptOverride ?? null,
     aiObjective: scanTypeRow.ai_objective ?? undefined,
+    signal: abortController.signal,
   }).catch((err) => {
     console.error(`[scan] Async scan ${pendingScan.id} failed:`, err);
     supabaseAdmin
@@ -107,5 +114,57 @@ scanRouter.post('/scan', async (req: Request, res: Response) => {
       })
       .eq('id', pendingScan.id)
       .then(() => {});
+  }).finally(() => {
+    activeScanAborts.delete(pendingScan.id);
   });
+});
+
+/**
+ * POST /ai/scan/:id/cancel
+ * Cancels a running scan.
+ * Requires: planning.ai permission.
+ */
+scanRouter.post('/scan/:id/cancel', async (req: Request, res: Response) => {
+  const user = req.user!;
+  const scanId = req.params.id;
+
+  const { data: scan, error: fetchErr } = await supabaseAdmin
+    .from('ai_scans')
+    .select('id, site_id, status')
+    .eq('id', scanId)
+    .single();
+
+  if (fetchErr || !scan) {
+    res.status(404).json({ error: 'Scan not found' });
+    return;
+  }
+
+  const auth = authorise(user, 'ai.scan', scan.site_id);
+  if (!auth.allowed) {
+    res.status(403).json({ error: auth.reason });
+    return;
+  }
+
+  if (scan.status !== 'pending' && scan.status !== 'running') {
+    res.status(409).json({ error: `Scan is already ${scan.status}` });
+    return;
+  }
+
+  // Abort the in-flight Claude session if we have a handle
+  const controller = activeScanAborts.get(scanId);
+  if (controller) {
+    controller.abort();
+    activeScanAborts.delete(scanId);
+  }
+
+  await supabaseAdmin
+    .from('ai_scans')
+    .update({
+      status: 'cancelled',
+      error_message: 'Cancelled by user',
+      completed_at: new Date().toISOString(),
+    })
+    .eq('id', scanId);
+
+  res.json({ id: scanId, status: 'cancelled' });
 });

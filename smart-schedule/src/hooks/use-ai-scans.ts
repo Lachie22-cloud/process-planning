@@ -130,6 +130,44 @@ export function useTriggerScan() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  useCancelScan — cancel a running scan                              */
+/* ------------------------------------------------------------------ */
+
+export function useCancelScan() {
+  const { site } = useCurrentSite();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (scanId: string) => {
+      const token = await getAccessToken();
+      const res = await fetch(`${getAiAgentUrl()}/ai/scan/${scanId}/cancel`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(
+          (payload as { error?: string }).error ?? `Cancel failed (${res.status})`,
+        );
+      }
+      return (await res.json()) as { id: string; status: string };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai_scans", site?.id] });
+      queryClient.invalidateQueries({ queryKey: ["ai_scan"] });
+      toast.success("Scan cancelled");
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Failed to cancel scan");
+    },
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /*  useAiScan — fetch a single scan by ID (for output viewer)          */
 /* ------------------------------------------------------------------ */
 

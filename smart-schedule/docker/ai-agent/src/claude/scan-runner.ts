@@ -86,6 +86,8 @@ export interface RunClaudeScanOptions {
   existingScanId?: string | null;
   /** Custom AI objective from ai_scan_types table. */
   aiObjective?: string;
+  /** Abort signal to cancel the scan mid-flight. */
+  signal?: AbortSignal;
 }
 
 export interface RunClaudeScanResult {
@@ -264,6 +266,7 @@ export async function runClaudeScan(opts: RunClaudeScanOptions): Promise<RunClau
       maxTurns: 8,
       supabase: opts.supabase,
       context: 'scan',
+      signal: opts.signal,
     });
 
     const report = {
