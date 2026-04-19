@@ -640,10 +640,10 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     // SAP date columns: use rawValue to preserve Excel serial numbers
     const dateRaw = rowRawValue(
       row, headers,
-      "basic start date", "basic start", "basic fin",
+      "basic start date", "basic start",
       "sched.start", "scheduled start", "sched. start",
       "planned start", "plan date", "plan start",
-      "start date", "finish date", "due date",
+      "start date", "due date",
       "date",
     );
     const planDate = excelDateToISO(dateRaw);
