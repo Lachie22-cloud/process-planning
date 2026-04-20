@@ -1581,6 +1581,33 @@ export function useImport() {
         .eq("site_id", site.id)
         .in("sap_order", importedSapOrders);
       const importedBatchIds = (importedBatchRows ?? []).map((r: Record<string, unknown>) => r.id as string);
+
+      // Preserve active planner overrides before wiping shortage links so they
+      // survive the delete+re-insert cycle below.
+      const existingOverrideMap = new Map<string, {
+        planner_override: boolean;
+        override_by: string | null;
+        override_at: string | null;
+        override_comment: string | null;
+      }>();
+      if (importedBatchIds.length > 0) {
+        const { data: existingOverrideRows } = await supabase
+          .from("batch_material_shortages")
+          .select("batch_id, shortage_id, planner_override, override_by, override_at, override_comment")
+          .eq("site_id", site.id)
+          .in("batch_id", importedBatchIds)
+          .eq("planner_override", true);
+        for (const row of (existingOverrideRows ?? [])) {
+          const r = row as Record<string, unknown>;
+          existingOverrideMap.set(`${r.batch_id}|${r.shortage_id}`, {
+            planner_override: r.planner_override as boolean,
+            override_by: r.override_by as string | null,
+            override_at: r.override_at as string | null,
+            override_comment: r.override_comment as string | null,
+          });
+        }
+      }
+
       if (importedBatchIds.length > 0) {
         await supabase
           .from("batch_material_shortages")
@@ -1709,17 +1736,24 @@ export function useImport() {
 
         const batchShortageRows = [...batchShortageAgg.values()];
 
-        if (batchShortageRows.length > 0) {
+        // Re-attach any planner overrides that existed before the merge upload deleted the rows.
+        // shortage_ids are stable (material_shortages upserts on site_id,material_code).
+        const batchShortageRowsWithOverrides = batchShortageRows.map((row) => {
+          const override = existingOverrideMap.get(`${row.batch_id}|${row.shortage_id}`);
+          return override ? { ...row, ...override } : row;
+        });
+
+        if (batchShortageRowsWithOverrides.length > 0) {
           // Try with required_qty first
           const { error: bsError } = await supabase
             .from("batch_material_shortages")
-            .upsert(batchShortageRows as never, {
+            .upsert(batchShortageRowsWithOverrides as never, {
               onConflict: "batch_id,shortage_id",
               ignoreDuplicates: false,
             });
           if (bsError) {
             // required_qty column may not exist — retry without it
-            const rowsWithoutReqQty = batchShortageRows.map(
+            const rowsWithoutReqQty = batchShortageRowsWithOverrides.map(
               ({ required_qty: _, ...rest }) => rest,
             );
             const { error: retryError } = await supabase
@@ -1735,7 +1769,7 @@ export function useImport() {
               console.log("[Import] batch_material_shortages upserted %d rows (without required_qty)", rowsWithoutReqQty.length);
             }
           } else {
-            console.log("[Import] batch_material_shortages upserted %d rows", batchShortageRows.length);
+            console.log("[Import] batch_material_shortages upserted %d rows", batchShortageRowsWithOverrides.length);
           }
         } else if (shortageRecords.length > 0) {
           console.warn("Shortage records found but no batch shortage rows were generated. batchShortageDetailsState size:", batchShortageDetailsState.size);
