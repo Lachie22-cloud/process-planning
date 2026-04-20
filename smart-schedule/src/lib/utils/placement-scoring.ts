@@ -196,11 +196,11 @@ export class PlacementScorer {
       violations.push("max_batches_exceeded");
     }
 
-    // 6. Substitution rules: block moves to resources not allowed by any rule
+    // 6. Substitution rules: block moves to resources not allowed by any rule.
+    // No guard on array length — empty rules means no cross-resource moves allowed.
     if (
       batch.planResourceId != null &&
-      batch.planResourceId !== resource.id &&
-      ctx.substitutionRules.length > 0
+      batch.planResourceId !== resource.id
     ) {
       const allowed = this.isSubstitutionAllowed(
         batch.planResourceId,

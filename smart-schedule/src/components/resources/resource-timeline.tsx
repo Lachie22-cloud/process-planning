@@ -561,6 +561,32 @@ export function ResourceTimeline({
         return;
       }
 
+      // Validate scheduling rules BEFORE showing the reason modal — rules must
+      // block the move regardless of whether a reason is required.
+      if (resourceChanged) {
+        const newResource = resources.find((r) => r.id === targetResourceId);
+        if (newResource) {
+          const cellBatches = (batchesByResource.get(targetResourceId) ?? []).filter(
+            (b) => b.planDate === targetDate && b.id !== draggedBatch.id,
+          );
+          const evalResult = evaluateDropTarget({
+            batch: draggedBatch,
+            targetResource: newResource,
+            targetDate,
+            existingBatches: cellBatches,
+            rules: enabledRules,
+            colourGroups,
+            colourTransitions,
+            substitutionRules,
+          });
+          if (!evalResult.valid) {
+            toast.error(`Move blocked: ${evalResult.warnings.join("; ")}`);
+            setDraggedBatch(null);
+            return;
+          }
+        }
+      }
+
       // Require a reason if: Production role (all moves), or date changed and
       // the move is within the current week / crosses a week boundary (fringe days)
       const needsComment = dateChanged
@@ -582,7 +608,7 @@ export function ResourceTimeline({
       setDraggedBatch(null);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [draggedBatch, requiresReasonForAllMoves, isMoveCommentRequired],
+    [draggedBatch, requiresReasonForAllMoves, isMoveCommentRequired, resources, batchesByResource, enabledRules, colourGroups, colourTransitions, substitutionRules],
   );
 
   const executeBatchMove = useCallback(
@@ -727,6 +753,32 @@ export function ResourceTimeline({
         return;
       }
 
+      // Validate scheduling rules BEFORE showing the reason modal — rules must
+      // block the move regardless of whether a reason is required.
+      if (resourceChanged) {
+        const newResource = resources.find((r) => r.id === resourceId);
+        if (newResource) {
+          const cellBatches = (batchesByResource.get(resourceId) ?? []).filter(
+            (b) => b.planDate === date && b.id !== movingBatch.id,
+          );
+          const evalResult = evaluateDropTarget({
+            batch: movingBatch,
+            targetResource: newResource,
+            targetDate: date,
+            existingBatches: cellBatches,
+            rules: enabledRules,
+            colourGroups,
+            colourTransitions,
+            substitutionRules,
+          });
+          if (!evalResult.valid) {
+            toast.error(`Move blocked: ${evalResult.warnings.join("; ")}`);
+            setMovingBatch(null);
+            return;
+          }
+        }
+      }
+
       // Require a reason if: Production role (all moves), or date changed and
       // the move is within the current week / crosses a week boundary (fringe days)
       const needsComment = dateChanged
@@ -747,7 +799,7 @@ export function ResourceTimeline({
       executeBatchMove(movingBatch, resourceId, date);
       setMovingBatch(null);
     },
-    [movingBatch, executeBatchMove, requiresReasonForAllMoves, isMoveCommentRequired],
+    [movingBatch, executeBatchMove, requiresReasonForAllMoves, isMoveCommentRequired, resources, batchesByResource, enabledRules, colourGroups, colourTransitions, substitutionRules],
   );
 
   const handleOverlayCancel = useCallback(() => {

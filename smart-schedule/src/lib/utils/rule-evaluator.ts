@@ -192,9 +192,10 @@ export function evaluateDropTarget(ctx: EvalContext): EvalResult {
     }
   }
 
-  // Hard constraint: substitution rules block moves to disallowed mixers
+  // Hard constraint: substitution rules block moves to disallowed mixers.
+  // No guard on array length — an empty rules list means no cross-resource
+  // moves are permitted (rather than silently allowing everything).
   if (
-    ctx.substitutionRules.length > 0 &&
     ctx.batch.planResourceId != null &&
     ctx.batch.planResourceId !== ctx.targetResource.id
   ) {
