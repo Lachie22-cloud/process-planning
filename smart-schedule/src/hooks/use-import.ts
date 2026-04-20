@@ -1371,7 +1371,7 @@ export function useImport() {
             status_comment: existing?.status_comment ?? null,
             status_changed_at: existing?.status_changed_at ?? null,
             status_changed_by: existing?.status_changed_by ?? null,
-            vetting_status: existing?.vetting_status ?? deriveVettingStatus(b),
+            vetting_status: deriveVettingStatus(b),
             vetted_by: existing?.vetted_by ?? null,
             vetted_at: existing?.vetted_at ?? null,
             vetting_comment: existing?.vetting_comment ?? null,
