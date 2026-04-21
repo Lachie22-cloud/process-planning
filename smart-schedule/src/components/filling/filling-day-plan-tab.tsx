@@ -114,11 +114,11 @@ export function FillingDayPlanTab({ resources, onOpenBatch }: FillingDayPlanTabP
   // ── Data ─────────────────────────────────────────────────────────────────
   const { data, isLoading } = useFillingDayPlan(planDate);
 
-  const batches = data?.batches ?? [];
-  const serverOverrideMap = data?.overrideMap ?? {};
-  const serverFoAssignments = data?.foAssignments ?? {};
+  const batches = useMemo(() => data?.batches ?? [], [data]);
+  const serverOverrideMap = useMemo(() => data?.overrideMap ?? {}, [data]);
+  const serverFoAssignments = useMemo(() => data?.foAssignments ?? {}, [data]);
   const meta = data?.meta ?? null;
-  const ghosts = data?.ghosts ?? [];
+  const ghosts = useMemo(() => data?.ghosts ?? [], [data]);
 
   // Local foAssignments (optimistic)
   const [foAssignments, setFoAssignments] = useState<FoAssignments>({});
