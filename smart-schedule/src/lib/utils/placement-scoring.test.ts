@@ -249,7 +249,7 @@ describe("PlacementScorer", () => {
     });
 
     it("passes resource block check when block is outside target date", () => {
-      const batch = makeBatch();
+      const batch = makeBatch({ planResourceId: null });
       const resource = makeResource({ id: "res-blocked" });
       const blocks: ScoringResourceBlock[] = [
         {
@@ -266,7 +266,7 @@ describe("PlacementScorer", () => {
     });
 
     it("passes resource block check when block is for a different resource", () => {
-      const batch = makeBatch();
+      const batch = makeBatch({ planResourceId: null });
       const resource = makeResource({ id: "res-ok" });
       const blocks: ScoringResourceBlock[] = [
         {
@@ -578,6 +578,9 @@ describe("PlacementScorer", () => {
       const resource = makeResource({ trunkLine: "TL-A" });
       const ctx = makeContext({
         resourceTrunkLines: { "resource-source": "TL-A" },
+        substitutionRules: [
+          { sourceResourceId: "resource-source", targetResourceId: "resource-001", conditions: null, enabled: true },
+        ],
       });
 
       const result = scorer.score(batch, resource, "2025-03-10", ctx);
@@ -822,7 +825,8 @@ describe("PlacementScorer", () => {
 
       const result = scorer.score(batch, resource, "2025-03-10", ctx);
 
-      expect(result.feasible).toBe(true);
+      expect(result.feasible).toBe(false);
+      expect(result.violations).toContain("substitution_blocked");
     });
 
     it("allows a move when a matching substitution rule exists", () => {
@@ -1325,6 +1329,9 @@ describe("effective weights from createScorer", () => {
     // ctx has NO weights override → scorer.defaultWeights should be used
     const ctx = makeContext({
       resourceTrunkLines: { "resource-source": "TL-A" },
+      substitutionRules: [
+        { sourceResourceId: "resource-source", targetResourceId: "resource-001", conditions: null, enabled: true },
+      ],
     });
     delete ctx.weights; // Ensure weights is undefined
 
@@ -1355,6 +1362,9 @@ describe("effective weights from createScorer", () => {
     const ctx = makeContext({
       weights: { trunkLineBonus: 7 },
       resourceTrunkLines: { "resource-source": "TL-A" },
+      substitutionRules: [
+        { sourceResourceId: "resource-source", targetResourceId: "resource-001", conditions: null, enabled: true },
+      ],
     });
 
     const result = scorer.score(batch, resource, "2025-03-10", ctx);
@@ -1430,6 +1440,9 @@ describe("trunk line real matching", () => {
     const resource = makeResource({ trunkLine: "TL-B" });
     const ctx = makeContext({
       resourceTrunkLines: { "resource-source": "TL-A" },
+      substitutionRules: [
+        { sourceResourceId: "resource-source", targetResourceId: "resource-001", conditions: null, enabled: true },
+      ],
     });
 
     const result = scorer.score(batch, resource, "2025-03-10", ctx);
@@ -1446,6 +1459,9 @@ describe("trunk line real matching", () => {
     const resource = makeResource({ trunkLine: "TL-B" });
     const ctx = makeContext({
       resourceTrunkLines: { "resource-source": null },
+      substitutionRules: [
+        { sourceResourceId: "resource-source", targetResourceId: "resource-001", conditions: null, enabled: true },
+      ],
     });
 
     const result = scorer.score(batch, resource, "2025-03-10", ctx);
@@ -1460,7 +1476,11 @@ describe("trunk line real matching", () => {
   it("gives neutral (0) when no resourceTrunkLines map provided", () => {
     const batch = makeBatch({ planResourceId: "resource-source" });
     const resource = makeResource({ trunkLine: "TL-A" });
-    const ctx = makeContext(); // no resourceTrunkLines
+    const ctx = makeContext({
+      substitutionRules: [
+        { sourceResourceId: "resource-source", targetResourceId: "resource-001", conditions: null, enabled: true },
+      ],
+    });
 
     const result = scorer.score(batch, resource, "2025-03-10", ctx);
 
@@ -1475,6 +1495,9 @@ describe("trunk line real matching", () => {
     const resource = makeResource({ trunkLine: "TL-A" });
     const ctx = makeContext({
       resourceTrunkLines: { "resource-source": "TL-A" },
+      substitutionRules: [
+        { sourceResourceId: "resource-source", targetResourceId: "resource-001", conditions: null, enabled: true },
+      ],
     });
 
     const result = scorer.score(batch, resource, "2025-03-10", ctx);

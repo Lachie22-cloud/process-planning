@@ -273,7 +273,13 @@ describe("HealthScorer", () => {
         makeBatch({ id: "b1", planResourceId: "res-1", planDate: "2025-03-15" }),
         makeBatch({ id: "b2", planResourceId: "res-1", planDate: "2025-03-15" }),
       ];
-      const ctx = makeContext({ batches, resources: [res1, res2] });
+      const ctx = makeContext({
+        batches,
+        resources: [res1, res2],
+        substitutionRules: [
+          { sourceResourceId: "res-1", targetResourceId: "res-2", conditions: null, enabled: true },
+        ],
+      });
       const report = scorer.evaluate(ctx);
       const overloads = report.issues.filter((i) => i.type === "capacity_overload");
       expect(overloads.length).toBeGreaterThanOrEqual(1);
@@ -343,7 +349,13 @@ describe("HealthScorer", () => {
         makeBatch({ id: "b1", sapColorGroup: "BLACK", planResourceId: "res-1", planDate: "2025-03-15" }),
         makeBatch({ id: "b2", sapColorGroup: "WHITE", planResourceId: "res-1", planDate: "2025-03-15" }),
       ];
-      const ctx = makeContext({ batches, resources: [res1, res2] });
+      const ctx = makeContext({
+        batches,
+        resources: [res1, res2],
+        substitutionRules: [
+          { sourceResourceId: "res-1", targetResourceId: "res-2", conditions: null, enabled: true },
+        ],
+      });
       const report = scorer.evaluate(ctx);
       const colourIssues = report.issues.filter((i) => i.type === "colour_violation");
       expect(colourIssues).toHaveLength(1);
@@ -649,7 +661,13 @@ describe("HealthScorer", () => {
       const batches = [
         makeBatch({ id: "b1", planResourceId: "res-1", planDate: "2025-03-15" }),
       ];
-      const ctx = makeContext({ batches, resources: [res1, res2] });
+      const ctx = makeContext({
+        batches,
+        resources: [res1, res2],
+        substitutionRules: [
+          { sourceResourceId: "res-1", targetResourceId: "res-2", conditions: null, enabled: true },
+        ],
+      });
       const report = scorer.evaluate(ctx);
       const underUtil = report.issues.filter((i) => i.type === "under_utilization");
       expect(underUtil).toHaveLength(1);
@@ -774,7 +792,13 @@ describe("HealthScorer", () => {
       const res1 = makeResource({ id: "res-1", chemicalBase: "water" });
       const res2 = makeResource({ id: "res-2", chemicalBase: "solvent" });
       const batch = makeBatch({ id: "b1", chemicalBase: "solvent", planResourceId: "res-1" });
-      const ctx = makeContext({ batches: [batch], resources: [res1, res2] });
+      const ctx = makeContext({
+        batches: [batch],
+        resources: [res1, res2],
+        substitutionRules: [
+          { sourceResourceId: "res-1", targetResourceId: "res-2", conditions: null, enabled: true },
+        ],
+      });
       const report = scorer.evaluate(ctx);
       const ruleIssues = report.issues.filter((i) => i.type === "rule_violation");
       expect(ruleIssues).toHaveLength(1);
