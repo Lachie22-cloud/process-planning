@@ -4,6 +4,7 @@ import { format, addDays } from "date-fns";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { WeekSelector } from "@/components/schedule/week-selector";
 import { ResourceTimeline } from "@/components/resources/resource-timeline";
 import { BatchDetailSheet } from "@/components/schedule/batch-detail-sheet";
@@ -12,7 +13,8 @@ import { AlertManager } from "@/components/alerts/alert-manager";
 import { DraftReviewPanel } from "@/components/ai/draft-review";
 import { PermissionGate } from "@/components/shared/permission-gate";
 import { ScheduleHealthBar } from "@/components/shared/schedule-health-bar";
-import { Wand2, Download } from "lucide-react";
+import { FillingDayPlanTab } from "@/components/filling/filling-day-plan-tab";
+import { Wand2, Download, Droplets } from "lucide-react";
 import { useWeek } from "@/hooks/use-week";
 import { useBatches } from "@/hooks/use-batches";
 import { useResources } from "@/hooks/use-resources";
@@ -220,8 +222,8 @@ export function ResourcesPage() {
   return (
     <div className="space-y-6 overflow-x-auto p-6">
       <PageHeader
-        title="Resource View"
-        description="Visualise batch assignments across resources for the week"
+        title="Resources"
+        description="Schedule view and filling day plan"
         actions={
           <div className="flex items-center gap-3">
             {hasPermission("planning.export") && (
@@ -251,38 +253,62 @@ export function ResourcesPage() {
         }
       />
 
-      <PermissionGate permission="planning.health_check">
-        <ScheduleHealthBar
-          report={healthReport}
-          isLoading={healthLoading}
-          onRunAnalysis={handleRunAnalysis}
-          isAnalysing={isScanning || triggerScan.isPending}
-          onCancelScan={handleCancelScan}
-          isCancelling={cancelScan.isPending}
-          aiScans={aiScans}
-          onSpotlightBatch={spotlightBatch}
-        />
-      </PermissionGate>
+      <Tabs defaultValue="schedule" className="w-full">
+        <TabsList className="mb-2">
+          <TabsTrigger value="schedule">Schedule</TabsTrigger>
+          <TabsTrigger value="filling-plan" className="gap-1.5">
+            <Droplets className="h-3.5 w-3.5" />
+            Filling Plan
+          </TabsTrigger>
+        </TabsList>
 
-      <DraftReviewPanel compactMode />
+        {/* ── Schedule tab ── */}
+        <TabsContent value="schedule" className="space-y-6">
+          <PermissionGate permission="planning.health_check">
+            <ScheduleHealthBar
+              report={healthReport}
+              isLoading={healthLoading}
+              onRunAnalysis={handleRunAnalysis}
+              isAnalysing={isScanning || triggerScan.isPending}
+              onCancelScan={handleCancelScan}
+              isCancelling={cancelScan.isPending}
+              aiScans={aiScans}
+              onSpotlightBatch={spotlightBatch}
+            />
+          </PermissionGate>
 
-      <PermissionGate permission="alerts.read">
-        <AlertManager mode="banner" activeOnly />
-      </PermissionGate>
+          <DraftReviewPanel compactMode />
 
-      <ResourceTimeline
-        batches={batches}
-        resources={resources}
-        blocks={blocks}
-        dayBlocks={dayBlocks}
-        weekStart={week.weekStart}
-        weekEnding={week.weekEnding}
-        extendedStart={week.extendedStart}
-        extendedEnd={week.extendedEnd}
-        isLoading={isLoading}
-        isThisWeek={week.isThisWeek}
-        onBatchClick={handleBatchClick}
-      />
+          <PermissionGate permission="alerts.read">
+            <AlertManager mode="banner" activeOnly />
+          </PermissionGate>
+
+          <ResourceTimeline
+            batches={batches}
+            resources={resources}
+            blocks={blocks}
+            dayBlocks={dayBlocks}
+            weekStart={week.weekStart}
+            weekEnding={week.weekEnding}
+            extendedStart={week.extendedStart}
+            extendedEnd={week.extendedEnd}
+            isLoading={isLoading}
+            isThisWeek={week.isThisWeek}
+            onBatchClick={handleBatchClick}
+          />
+        </TabsContent>
+
+        {/* ── Filling Plan tab ── */}
+        <TabsContent value="filling-plan">
+          <FillingDayPlanTab
+            resources={resources}
+            onOpenBatch={(id) => {
+              setSelectedBatchId(id);
+              setSheetOpen(true);
+            }}
+          />
+        </TabsContent>
+      </Tabs>
 
       <BatchDetailSheet
         batchId={selectedBatchId}
