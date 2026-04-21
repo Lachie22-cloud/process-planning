@@ -23,7 +23,7 @@
 
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { format } from "date-fns";
-import { ChevronRight, Flame, Download, Filter as FilterIcon } from "lucide-react";
+import { ChevronRight, Download } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -636,8 +636,7 @@ export function BottleneckStrip({
 
   const [kind, setKind] = useState<"all" | "mixer" | "disp">(defaultKind);
   useEffect(() => { setKind(defaultKind); }, [defaultKind]);
-  const [onlyOver, setOnlyOver] = useState(false);
-  const [selectedGroups, setSelectedGroups] = useState<Set<string> | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [openUnit, setOpenUnit] = useState<{ unit: Resource; group: GroupRow } | null>(null);
 
@@ -652,18 +651,13 @@ export function BottleneckStrip({
   // Silence unused-var lint for coreDates — kept in the API for forward compat.
   void coreDates;
 
-  const allGroupKeys = useMemo(() => [...mixerGroups, ...dispGroups].map((g) => g.key), [mixerGroups, dispGroups]);
-  const effectiveSel = useMemo(() => selectedGroups ?? new Set(allGroupKeys), [selectedGroups, allGroupKeys]);
-
   const filterFn = useCallback(
     (g: GroupRow) => {
       if (kind === "mixer" && g.kind !== "mixer") return false;
       if (kind === "disp" && g.kind !== "disp") return false;
-      if (!effectiveSel.has(g.key)) return false;
-      if (onlyOver && g.pctByDay.every((p) => p <= 100)) return false;
       return true;
     },
-    [kind, effectiveSel, onlyOver],
+    [kind],
   );
 
   // Sort uses core days only so a quiet Saturday doesn't push a real bottleneck down the list.
@@ -719,128 +713,83 @@ export function BottleneckStrip({
 
   return (
     <div className="rounded-lg border bg-card">
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 border-b">
-        <div className="inline-flex rounded-md bg-muted p-0.5">
-          {(["all", "mixer", "disp"] as const).map((k) => (
-            <button
-              key={k}
-              onClick={() => setKind(k)}
-              className={cn(
-                "rounded-[5px] px-2.5 py-1 text-[11.5px] font-medium transition",
-                kind === k ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {k === "all" ? "All" : k === "mixer" ? "Mixers" : "Dispersers"}
-            </button>
-          ))}
-        </div>
-
+      {/* Header with collapse toggle */}
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b">
         <button
-          onClick={() => setOnlyOver(!onlyOver)}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] font-medium ring-1 ring-inset transition",
-            onlyOver ? "bg-red-50 text-red-700 ring-red-300 dark:bg-red-950/40 dark:text-red-400" : "bg-background ring-border text-muted-foreground hover:text-foreground",
-          )}
+          onClick={() => setCollapsed((c) => !c)}
+          className="flex items-center gap-1.5 text-sm font-semibold hover:text-muted-foreground transition-colors"
         >
-          <Flame className="h-3 w-3" />
-          {onlyOver ? "Only over capacity" : "Show over capacity"}
+          <ChevronRight className={cn("h-4 w-4 transition-transform duration-150", !collapsed && "rotate-90")} />
+          Capacity Overview
         </button>
-
-        <div className="ml-auto flex items-center gap-4">
-          <Kpi label="peak" value={`${kpi.peak}%`} over={kpi.peak > 100} />
-          <Kpi label="over-days" value={kpi.overDays} over={kpi.overDays > 0} />
-          <Kpi label="groups over" value={kpi.groupsOver} over={kpi.groupsOver > 0} />
-          <Button size="sm" variant="outline">
-            <Download className="mr-1 h-3.5 w-3.5" /> Export
-          </Button>
-        </div>
-
-        <div className="basis-full flex flex-wrap items-center gap-1.5 pt-2 border-t mt-1 -mx-4 px-4">
-          <FilterIcon className="h-3 w-3 text-muted-foreground" />
-          <span className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground mr-1">Groups</span>
-          <button onClick={() => setSelectedGroups(new Set(allGroupKeys))} className="rounded-md bg-muted px-2 py-0.5 text-[10.5px] text-muted-foreground hover:text-foreground">
-            all
-          </button>
-          <button onClick={() => setSelectedGroups(new Set())} className="rounded-md bg-muted px-2 py-0.5 text-[10.5px] text-muted-foreground hover:text-foreground">
-            none
-          </button>
-          <span className="mx-1 text-muted-foreground">·</span>
-          {[...mixerGroups, ...dispGroups].map((g) => {
-            const active = effectiveSel.has(g.key);
-            return (
-              <button
-                key={g.key}
-                onClick={() => {
-                  const n = new Set(effectiveSel);
-                  if (n.has(g.key)) { n.delete(g.key); } else { n.add(g.key); }
-                  setSelectedGroups(n);
-                }}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset transition",
-                  active ? "bg-foreground text-background ring-foreground" : "bg-background text-muted-foreground ring-border hover:ring-foreground/40 hover:text-foreground",
-                )}
-              >
-                <span className="h-1.5 w-1.5 rounded-sm" style={{ backgroundColor: g.trunkColor }} />
-                {g.name}
-              </button>
-            );
-          })}
-        </div>
+        {!collapsed && (
+          <div className="ml-auto flex items-center gap-4">
+            <Kpi label="peak" value={`${kpi.peak}%`} over={kpi.peak > 100} />
+            <Kpi label="over-days" value={kpi.overDays} over={kpi.overDays > 0} />
+            <Kpi label="groups over" value={kpi.groupsOver} over={kpi.groupsOver > 0} />
+            <Button size="sm" variant="outline">
+              <Download className="mr-1 h-3.5 w-3.5" /> Export
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* Mixer block */}
-      {(kind === "all" || kind === "mixer") && mixersShown.length > 0 && (
+      {!collapsed && (
         <>
-          <div className="px-4 py-2.5 border-b">
-            <div className="text-sm font-semibold uppercase tracking-wide">Mixer capacity</div>
-            <div className="text-[11.5px] text-muted-foreground">Per trunk · ring = 5-day avg · dot size = daily load · sparkline = intra-week drift.</div>
-          </div>
-          {headerRow}
-          <div className="divide-y">
-            {mixersShown.map((g) => (
-              <GroupRowView
-                key={g.key}
-                g={g}
-                dateLabels={dateLabels}
-                rawDates={stripDates}
-                open={openKey === g.key}
-                onToggle={() => setOpenKey(openKey === g.key ? null : g.key)}
-                onOpenUnit={(unit, group) => setOpenUnit({ unit, group })}
-                batches={batches}
-              />
-            ))}
-          </div>
-        </>
-      )}
+          {/* Mixer block */}
+          {(kind === "all" || kind === "mixer") && mixersShown.length > 0 && (
+            <>
+              <div className="px-4 py-2.5 border-b">
+                <div className="text-sm font-semibold uppercase tracking-wide">Mixer capacity</div>
+                <div className="text-[11.5px] text-muted-foreground">Per trunk · ring = 5-day avg · dot size = daily load · sparkline = intra-week drift.</div>
+              </div>
+              {headerRow}
+              <div className="divide-y">
+                {mixersShown.map((g) => (
+                  <GroupRowView
+                    key={g.key}
+                    g={g}
+                    dateLabels={dateLabels}
+                    rawDates={stripDates}
+                    open={openKey === g.key}
+                    onToggle={() => setOpenKey(openKey === g.key ? null : g.key)}
+                    onOpenUnit={(unit, group) => setOpenUnit({ unit, group })}
+                    batches={batches}
+                  />
+                ))}
+              </div>
+            </>
+          )}
 
-      {/* Disperser block */}
-      {(kind === "all" || kind === "disp") && dispsShown.length > 0 && (
-        <>
-          <div className="px-4 py-2.5 border-b border-t">
-            <div className="text-sm font-semibold uppercase tracking-wide">Disperser capacity</div>
-            <div className="text-[11.5px] text-muted-foreground">Shared group capacity · one row per group.</div>
-          </div>
-          {headerRow}
-          <div className="divide-y">
-            {dispsShown.map((g) => (
-              <GroupRowView
-                key={g.key}
-                g={g}
-                dateLabels={dateLabels}
-                rawDates={stripDates}
-                open={openKey === g.key}
-                onToggle={() => setOpenKey(openKey === g.key ? null : g.key)}
-                onOpenUnit={(unit, group) => setOpenUnit({ unit, group })}
-                batches={batches}
-              />
-            ))}
-          </div>
-        </>
-      )}
+          {/* Disperser block */}
+          {(kind === "all" || kind === "disp") && dispsShown.length > 0 && (
+            <>
+              <div className="px-4 py-2.5 border-b border-t">
+                <div className="text-sm font-semibold uppercase tracking-wide">Disperser capacity</div>
+                <div className="text-[11.5px] text-muted-foreground">Shared group capacity · one row per group.</div>
+              </div>
+              {headerRow}
+              <div className="divide-y">
+                {dispsShown.map((g) => (
+                  <GroupRowView
+                    key={g.key}
+                    g={g}
+                    dateLabels={dateLabels}
+                    rawDates={stripDates}
+                    open={openKey === g.key}
+                    onToggle={() => setOpenKey(openKey === g.key ? null : g.key)}
+                    onOpenUnit={(unit, group) => setOpenUnit({ unit, group })}
+                    batches={batches}
+                  />
+                ))}
+              </div>
+            </>
+          )}
 
-      {all.length === 0 && (
-        <div className="px-4 py-8 text-center text-[12px] text-muted-foreground">No groups match the current filter.</div>
+          {all.length === 0 && (
+            <div className="px-4 py-8 text-center text-[12px] text-muted-foreground">No capacity data for this period.</div>
+          )}
+        </>
       )}
 
       {openUnit && (
