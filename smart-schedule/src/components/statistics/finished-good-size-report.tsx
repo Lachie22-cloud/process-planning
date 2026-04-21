@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { format, eachDayOfInterval, getDay } from "date-fns";
+import { format, eachDayOfInterval } from "date-fns";
 import { Download, BarChart3, Table as TableIcon } from "lucide-react";
 import { useLinkedFillOrders } from "@/hooks/use-linked-fill-orders";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -72,22 +72,22 @@ function FGTable({
   const maxCell = Math.max(...rows.flatMap((r) => dayKeys.map((k) => r.days[k]?.qty ?? 0)), 1);
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+    <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-[11.5px] min-w-[820px]">
         <thead>
-          <tr className="bg-slate-900 dark:bg-slate-950 text-[10.5px] uppercase tracking-wide">
-            <th className="sticky left-0 z-10 py-2 pl-4 pr-3 text-left font-medium text-white bg-slate-900 dark:bg-slate-950 min-w-[130px]">
+          <tr className="bg-muted/80 text-[10.5px] uppercase tracking-wide">
+            <th className="sticky left-0 z-10 py-2 pl-4 pr-3 text-left font-medium text-foreground bg-muted/80 min-w-[130px]">
               Pack size
             </th>
             {weekDays.map((day, i) => (
-              <th key={dayKeys[i]} className="px-2 py-2 text-center font-medium text-white min-w-[110px]">
+              <th key={dayKeys[i]} className="px-2 py-2 text-center font-medium text-foreground min-w-[110px]">
                 <div className="font-semibold">{format(day, "EEE")}</div>
-                <div className="text-slate-400 font-normal normal-case tracking-normal">
+                <div className="text-muted-foreground font-normal normal-case tracking-normal">
                   {format(day, "d MMM")}
                 </div>
               </th>
             ))}
-            <th className="pl-2 pr-4 py-2 text-right font-medium text-white min-w-[110px]">
+            <th className="pl-2 pr-4 py-2 text-right font-medium text-foreground min-w-[110px]">
               Week total
             </th>
           </tr>
@@ -97,18 +97,18 @@ function FGTable({
           {rows.map((r, idx) => (
             <tr
               key={r.sizeKey}
-              className={`border-t border-slate-100 dark:border-slate-800 transition hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 ${
-                idx % 2 ? "bg-slate-50/60 dark:bg-slate-800/20" : "bg-white dark:bg-slate-900"
+              className={`border-t border-border transition hover:bg-muted/50 ${
+                idx % 2 ? "bg-muted/40" : "bg-card"
               }`}
             >
               <td
                 className={`sticky left-0 z-10 py-2 pl-4 pr-3 align-middle ${
-                  idx % 2 ? "bg-slate-50/60 dark:bg-slate-800/20" : "bg-white dark:bg-slate-900"
+                  idx % 2 ? "bg-muted/40" : "bg-card"
                 }`}
               >
                 <div className="flex items-center gap-2">
                   <PackSwatch color={r.color} />
-                  <span className="text-[12px] font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
+                  <span className="text-[12px] font-semibold text-foreground tabular-nums">
                     {r.sizeLabel}
                   </span>
                 </div>
@@ -122,20 +122,20 @@ function FGTable({
                   <td key={key} className="px-2 py-2 align-middle">
                     <div className="flex flex-col gap-1">
                       <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-[12px] font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
+                        <span className="text-[12px] font-semibold text-foreground tabular-nums">
                           {qty ? (
                             qty.toLocaleString()
                           ) : (
-                            <span className="text-slate-300 dark:text-slate-600">–</span>
+                            <span className="text-muted-foreground/40">–</span>
                           )}
                         </span>
                         {qty > 0 && (
-                          <span className="text-[10.5px] text-slate-500 dark:text-slate-400 tabular-nums">
+                          <span className="text-[10.5px] text-muted-foreground tabular-nums">
                             {pct}%
                           </span>
                         )}
                       </div>
-                      <div className="h-[5px] w-[40px] overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                      <div className="h-[5px] w-[40px] overflow-hidden rounded-full bg-muted">
                         <div
                           className="h-full rounded-full"
                           style={{
@@ -150,10 +150,10 @@ function FGTable({
                 );
               })}
               <td className="pl-2 pr-4 py-2 align-middle text-right">
-                <div className="text-[12px] font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
+                <div className="text-[12px] font-semibold text-foreground tabular-nums">
                   {r.rowTotal.toLocaleString()}
                 </div>
-                <div className="text-[10.5px] text-slate-500 dark:text-slate-400 tabular-nums">
+                <div className="text-[10.5px] text-muted-foreground tabular-nums">
                   {Math.round(r.rowPct * 100)}%
                 </div>
               </td>
@@ -162,15 +162,15 @@ function FGTable({
         </tbody>
 
         <tfoot>
-          <tr className="bg-slate-900 dark:bg-slate-950 text-white">
-            <td className="sticky left-0 z-10 py-2 pl-4 pr-3 text-[11px] font-semibold uppercase tracking-wide bg-slate-900 dark:bg-slate-950">
+          <tr className="bg-muted/80 text-foreground">
+            <td className="sticky left-0 z-10 py-2 pl-4 pr-3 text-[11px] font-semibold uppercase tracking-wide bg-muted/80">
               Day total
             </td>
             {colTotals.map((t, i) => (
               <td key={dayKeys[i]} className="px-2 py-2 text-center">
                 <div className="text-[12px] font-semibold tabular-nums">{t.toLocaleString()}</div>
                 {grandTotal > 0 && (
-                  <div className="text-[10.5px] text-slate-400 tabular-nums">
+                  <div className="text-[10.5px] text-muted-foreground tabular-nums">
                     {Math.round((t / grandTotal) * 100)}%
                   </div>
                 )}
@@ -178,7 +178,7 @@ function FGTable({
             ))}
             <td className="pl-2 pr-4 py-2 text-right">
               <div className="text-[13px] font-semibold tabular-nums">{grandTotal.toLocaleString()}</div>
-              <div className="text-[10.5px] text-slate-400 tabular-nums">100%</div>
+              <div className="text-[10.5px] text-muted-foreground tabular-nums">100%</div>
             </td>
           </tr>
         </tfoot>
@@ -204,7 +204,7 @@ function FGStackedChart({
   const H = 260;
 
   return (
-    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+    <div className="rounded-lg border border-border bg-card p-5">
       <div className="flex items-end gap-4 px-2" style={{ height: H + 36 }}>
         {weekDays.map((day, i) => {
           const dayKey = dayKeys[i] ?? "";
@@ -241,7 +241,7 @@ function FGStackedChart({
                 )}
                 {colTotal > 0 && (
                   <div
-                    className="absolute left-1/2 -translate-x-1/2 text-[10.5px] font-semibold text-slate-700 dark:text-slate-300 tabular-nums whitespace-nowrap"
+                    className="absolute left-1/2 -translate-x-1/2 text-[10.5px] font-semibold text-foreground tabular-nums whitespace-nowrap"
                     style={{ bottom: h + 4 }}
                   >
                     {colTotal.toLocaleString()}
@@ -249,10 +249,10 @@ function FGStackedChart({
                 )}
               </div>
               <div className="text-center">
-                <div className="text-[11.5px] font-semibold text-slate-900 dark:text-slate-100">
+                <div className="text-[11.5px] font-semibold text-foreground">
                   {format(day, "EEE")}
                 </div>
-                <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                <div className="text-[10px] text-muted-foreground">
                   {format(day, "d MMM")}
                 </div>
               </div>
@@ -272,11 +272,11 @@ function FGLegend({ rows }: { rows: SizeRow[] }) {
       {rows.map((r) => (
         <span
           key={r.sizeKey}
-          className="inline-flex items-center gap-1.5 text-[11px] text-slate-700 dark:text-slate-300"
+          className="inline-flex items-center gap-1.5 text-[11px] text-foreground"
         >
           <PackSwatch color={r.color} />
           <span className="tabular-nums font-medium">{r.sizeLabel}</span>
-          <span className="text-slate-400 dark:text-slate-500 tabular-nums">
+          <span className="text-muted-foreground tabular-nums">
             {r.rowTotal.toLocaleString()}
           </span>
         </span>
@@ -305,7 +305,7 @@ export function FinishedGoodSizeReport({
 
   // Mon–Sat (exclude Sunday) for the selected week
   const weekDays = useMemo(
-    () => eachDayOfInterval({ start: weekStart, end: weekEnding }).filter((d) => getDay(d) !== 0),
+    () => eachDayOfInterval({ start: weekStart, end: weekEnding }),
     [weekStart, weekEnding],
   );
   const dayKeys = useMemo(() => weekDays.map((d) => format(d, "yyyy-MM-dd")), [weekDays]);
@@ -397,24 +397,24 @@ export function FinishedGoodSizeReport({
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-[0_1px_3px_rgb(0_0_0_/_0.04),_0_4px_12px_-4px_rgb(0_0_0_/_0.04)]">
+    <section className="rounded-xl border border-border bg-card shadow-[0_1px_3px_rgb(0_0_0_/_0.04),_0_4px_12px_-4px_rgb(0_0_0_/_0.04)]">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 px-5 pt-4 pb-3">
         <div className="min-w-0">
-          <p className="text-[10.5px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <p className="text-[10.5px] font-mono uppercase tracking-wider text-muted-foreground">
             Production mix · this week
           </p>
-          <h3 className="text-[14px] font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+          <h3 className="text-[14px] font-semibold tracking-tight text-foreground">
             Finished Good Size Report
           </h3>
-          <p className="mt-0.5 text-[11.5px] leading-snug text-slate-500 dark:text-slate-400">
+          <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">
             Units scheduled by pack size and day. Rows appear only for pack sizes scheduled this
             week.
           </p>
         </div>
         <div className="shrink-0 flex items-center gap-2">
           {/* Table / Chart toggle */}
-          <div className="inline-flex rounded-md bg-slate-100 dark:bg-slate-800 p-0.5">
+          <div className="inline-flex rounded-md bg-muted p-0.5">
             {(
               [
                 { value: "table", label: "Table", Icon: TableIcon },
@@ -426,8 +426,8 @@ export function FinishedGoodSizeReport({
                 onClick={() => setView(value)}
                 className={`inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1 text-[11.5px] font-medium transition ${
                   view === value
-                    ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100"
-                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -438,7 +438,7 @@ export function FinishedGoodSizeReport({
 
           <button
             onClick={handleExport}
-            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11.5px] font-medium transition bg-white text-slate-700 ring-1 ring-inset ring-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700 dark:hover:bg-slate-700/70"
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11.5px] font-medium transition bg-card text-foreground ring-1 ring-inset ring-border hover:bg-muted/60"
           >
             <Download className="h-3.5 w-3.5" /> CSV
           </button>
@@ -450,7 +450,7 @@ export function FinishedGoodSizeReport({
         {isLoading ? (
           <Skeleton className="h-64 w-full rounded-lg" />
         ) : rows.length === 0 ? (
-          <div className="rounded-lg border border-slate-200 dark:border-slate-700 py-12 text-center text-[12px] text-slate-500 dark:text-slate-400">
+          <div className="rounded-lg border border-border py-12 text-center text-[12px] text-muted-foreground">
             No fill orders scheduled this week.
           </div>
         ) : (

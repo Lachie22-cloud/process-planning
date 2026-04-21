@@ -32,6 +32,8 @@ import { WeeklyFillingBreakdown } from "@/components/statistics/weekly-filling-b
 import { WeeklyCoverageReport } from "@/components/statistics/weekly-coverage-report";
 import { FinishedGoodSizeReport } from "@/components/statistics/finished-good-size-report";
 import { HistoricalAnalytics } from "@/components/statistics/historical-analytics";
+import { BatchDetailSheet } from "@/components/schedule/batch-detail-sheet";
+import { useResources } from "@/hooks/use-resources";
 import type { Batch, BatchStatus } from "@/types/batch";
 
 function KpiCard({
@@ -61,6 +63,8 @@ function KpiCard({
 export function StatisticsPage() {
   const [viewMode, setViewMode] = useState("weekly");
   const week = useWeek();
+  const { data: resources = [] } = useResources();
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
 
   const weekStartStr = useMemo(
     () => format(week.weekStart, "yyyy-MM-dd"),
@@ -196,7 +200,7 @@ export function StatisticsPage() {
             />
 
             {/* Batch Coverage Report */}
-            <WeeklyCoverageReport batches={batches} />
+            <WeeklyCoverageReport batches={batches} onOpenBatch={setSelectedBatchId} />
 
             {/* Finished Good Size Report */}
             <FinishedGoodSizeReport
@@ -500,6 +504,12 @@ export function StatisticsPage() {
           <HistoricalAnalytics />
         </TabsContent>
       </Tabs>
+      <BatchDetailSheet
+        batchId={selectedBatchId}
+        open={selectedBatchId !== null}
+        onOpenChange={(open) => { if (!open) setSelectedBatchId(null); }}
+        resources={resources}
+      />
     </div>
   );
 }
