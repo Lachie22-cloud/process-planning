@@ -14,12 +14,12 @@ export const PERMISSIONS = {
   "rules.write": "Edit scheduling rules",
 
   // Planning
-  "planning.tab": "Access the Planning tab",
   "planning.import": "Import SAP data",
   "planning.coverage": "View coverage analysis",
   "planning.vet": "Approve or reject batch vetting",
   "planning.export": "Export planning data (CSV/Excel)",
   "planning.ai": "Use AI-assisted scheduling tools",
+  "planning.health_check": "View schedule health check and run analysis",
 
   // Schedule navigation
   "schedule.view_past": "View past weeks",

@@ -103,7 +103,7 @@ export function PlanningPage() {
         }
       />
 
-      <PermissionGate permission="planning.ai">
+      <PermissionGate permission="planning.health_check">
         <ScheduleHealthBar
           report={healthReport}
           isLoading={healthLoading}
