@@ -95,7 +95,7 @@ function statusBadge(status: ScanStatus) {
 export function ScanTrigger() {
   const { hasPermission } = usePermissions();
 
-  if (!hasPermission("planning.ai")) return null;
+  if (!hasPermission("planning.health_check")) return null;
 
   return <ScanTriggerInner />;
 }
