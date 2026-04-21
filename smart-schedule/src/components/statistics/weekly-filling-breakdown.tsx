@@ -1,9 +1,7 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { format, addDays, isWeekend } from "date-fns";
-import { supabase } from "@/lib/supabase/client";
-import { useCurrentSite } from "@/hooks/use-current-site";
 import { useResources } from "@/hooks/use-resources";
+import { useLinkedFillOrders } from "@/hooks/use-linked-fill-orders";
 import {
   Table,
   TableBody,
@@ -16,8 +14,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Batch } from "@/types/batch";
 import type { LinkedFillOrder } from "@/types/batch";
 import type { Resource } from "@/types/resource";
-import type { DatabaseRow } from "@/types/database";
-import { mapLinkedFillOrder } from "@/lib/utils/mappers";
 import { parsePackSizeLitres, fillOrderHasComponent, BLUE_LID_COMPONENT, RED_LID_COMPONENT } from "@/lib/utils/pack-size";
 
 interface WeeklyFillingBreakdownProps {
@@ -44,46 +40,12 @@ export function WeeklyFillingBreakdown({
   weekStart,
   weekEnding,
 }: WeeklyFillingBreakdownProps) {
-  const { site } = useCurrentSite();
   const { data: resources = [] } = useResources();
 
   const batchIds = useMemo(() => batches.map((b) => b.id), [batches]);
 
-  // Fetch all linked fill orders for this week's batches
-  const { data: fillOrders = [], isLoading: fillOrdersLoading, isError: fillOrdersError } = useQuery<
-    LinkedFillOrder[]
-  >({
-    queryKey: ["fill_orders_week", site?.id, batchIds],
-    queryFn: async () => {
-      if (!site || batchIds.length === 0) return [];
-
-      // Supabase .in() has a limit, so chunk if needed
-      const chunkSize = 200;
-      const results: LinkedFillOrder[] = [];
-      for (let i = 0; i < batchIds.length; i += chunkSize) {
-        const chunk = batchIds.slice(i, i + chunkSize);
-        const { data, error } = await supabase
-          .from("linked_fill_orders")
-          .select("*")
-          .eq("site_id", site.id)
-          .in("batch_id", chunk);
-        if (error) {
-          console.error("Failed to fetch linked_fill_orders:", error);
-          throw error;
-        }
-        if (data) {
-          results.push(
-            ...data.map((r: Record<string, unknown>) =>
-              mapLinkedFillOrder(r as DatabaseRow["linked_fill_orders"]),
-            ),
-          );
-        }
-      }
-      return results;
-    },
-    enabled: !!site && batchIds.length > 0,
-    retry: 2,
-  });
+  const { data: fillOrders = [], isLoading: fillOrdersLoading, isError: fillOrdersError } =
+    useLinkedFillOrders(batchIds);
 
   const weekdays = useMemo(
     () => getWeekdays(weekStart, weekEnding),

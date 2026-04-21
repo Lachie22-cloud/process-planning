@@ -74,7 +74,7 @@ function getJobsForTrunk(
     if (displayFOs.length === 0) continue;
 
     const splitTo = [
-      ...new Set(otherTrunkFOs.map((fo) => foAssignments[fo.id])),
+      ...new Set(otherTrunkFOs.map((fo) => foAssignments[fo.id]).filter((t): t is string => !!t)),
     ];
 
     const override = overrideMap[job.id] ?? null;

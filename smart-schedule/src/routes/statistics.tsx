@@ -29,6 +29,8 @@ import { BATCH_STATUSES, BATCH_STATUS_LIST } from "@/lib/constants/statuses";
 import { COLOR_GROUPS } from "@/lib/constants/color-groups";
 import { ScanTrigger } from "@/components/ai/scan-trigger";
 import { WeeklyFillingBreakdown } from "@/components/statistics/weekly-filling-breakdown";
+import { WeeklyCoverageReport } from "@/components/statistics/weekly-coverage-report";
+import { FinishedGoodSizeReport } from "@/components/statistics/finished-good-size-report";
 import { HistoricalAnalytics } from "@/components/statistics/historical-analytics";
 import type { Batch, BatchStatus } from "@/types/batch";
 
@@ -188,6 +190,16 @@ export function StatisticsPage() {
 
             {/* Weekly Filling Line Breakdown */}
             <WeeklyFillingBreakdown
+              batches={batches}
+              weekStart={week.weekStart}
+              weekEnding={week.weekEnding}
+            />
+
+            {/* Batch Coverage Report */}
+            <WeeklyCoverageReport batches={batches} />
+
+            {/* Finished Good Size Report */}
+            <FinishedGoodSizeReport
               batches={batches}
               weekStart={week.weekStart}
               weekEnding={week.weekEnding}
