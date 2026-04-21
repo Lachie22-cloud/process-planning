@@ -240,7 +240,7 @@ export function HistoricalAnalytics() {
     if (preset === "all") {
       setDateFrom("");
     } else {
-      setDateFrom(format(subDays(new Date(), PRESET_DAYS[preset]), "yyyy-MM-dd"));
+      setDateFrom(format(subDays(new Date(), PRESET_DAYS[preset]!), "yyyy-MM-dd"));
     }
   }
 
