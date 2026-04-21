@@ -30,10 +30,13 @@ export function useHistoricalBatches(timeRange: TimeRange) {
     queryFn: async () => {
       if (!site) return [];
 
+      const today = format(new Date(), "yyyy-MM-dd");
+
       let query = supabase
         .from("batches")
         .select("*")
         .eq("site_id", site.id)
+        .lte("plan_date", today)
         .order("plan_date", { ascending: true });
 
       if (cutoff) {
