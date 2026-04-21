@@ -2,10 +2,18 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { AlertTriangle, Pencil } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, X } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useCurrentSite } from "@/hooks/use-current-site";
-import { useAssignUserRoles, useTenantRoles, type TenantRole } from "@/hooks/use-rbac-admin";
+import {
+  useAssignUserRoles,
+  useTenantRoles,
+  useUserPermissionPolicies,
+  useGrantUserPermission,
+  useRevokeUserPermission,
+  type TenantRole,
+} from "@/hooks/use-rbac-admin";
+import { PERMISSIONS, type Permission } from "@/lib/constants/permissions";
 import type { DatabaseRow } from "@/types/database";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +32,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type SiteUserRow = DatabaseRow["site_users"];
 
@@ -129,12 +144,15 @@ export function UserRoleAssignment() {
   const { site, user: currentUser } = useCurrentSite();
   const { data: roles = [], isLoading: rolesLoading } = useTenantRoles(true);
   const assignRoles = useAssignUserRoles();
+  const grantPermission = useGrantUserPermission();
+  const revokePermission = useRevokeUserPermission();
 
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [draftRoleCodes, setDraftRoleCodes] = useState<string[]>([]);
   const [draftExpiresAt, setDraftExpiresAt] = useState<string>("");
   const [guardrailErrors, setGuardrailErrors] = useState<string[]>([]);
   const [pendingDialog, setPendingDialog] = useState<PendingAssignment | null>(null);
+  const [selectedPermissionToGrant, setSelectedPermissionToGrant] = useState<string>("");
 
   const { data: siteUsers = [], isLoading: usersLoading, error: usersError } = useQuery<SiteUserRow[]>({
     queryKey: ["site_users", site?.id],
@@ -216,6 +234,10 @@ export function UserRoleAssignment() {
     enabled: Boolean(site?.id),
   });
 
+  const { data: userPolicies = [], isLoading: policiesLoading } = useUserPermissionPolicies(
+    editingUserId ?? undefined,
+  );
+
   const rolesByCode = useMemo(() => {
     const map = new Map<string, TenantRole>();
     for (const role of roles) {
@@ -237,6 +259,7 @@ export function UserRoleAssignment() {
     setDraftRoleCodes(existing.roleCodes);
     setDraftExpiresAt(toDateTimeLocal(existing.expiresAt));
     setGuardrailErrors([]);
+    setSelectedPermissionToGrant("");
   }
 
   function toggleRole(roleCode: string, enabled: boolean) {
@@ -358,6 +381,34 @@ export function UserRoleAssignment() {
     }
   }
 
+  async function handleGrantPermission() {
+    if (!editingUserId || !selectedPermissionToGrant) return;
+
+    try {
+      await grantPermission.mutateAsync({
+        userId: editingUserId,
+        permissionCode: selectedPermissionToGrant as Permission,
+      });
+      setSelectedPermissionToGrant("");
+      toast.success(`Permission granted: ${selectedPermissionToGrant}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      toast.error(`Failed to grant permission: ${message}`);
+    }
+  }
+
+  async function handleRevokePermission(policyId: string, permissionCode: string) {
+    if (!editingUserId) return;
+
+    try {
+      await revokePermission.mutateAsync({ userId: editingUserId, policyId });
+      toast.success(`Permission removed: ${permissionCode}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      toast.error(`Failed to remove permission: ${message}`);
+    }
+  }
+
   const loading = rolesLoading || usersLoading || assignmentsLoading;
 
   if (loading) {
@@ -470,7 +521,7 @@ export function UserRoleAssignment() {
       </Card>
 
       <Dialog open={Boolean(editingUser)} onOpenChange={(open) => (!open ? setEditingUserId(null) : undefined)}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit User Role Assignment</DialogTitle>
             <DialogDescription>
@@ -480,7 +531,7 @@ export function UserRoleAssignment() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto flex-1 pr-1">
             <div className="grid gap-3 sm:grid-cols-2">
               {roles
                 .slice()
@@ -513,6 +564,70 @@ export function UserRoleAssignment() {
                 onChange={setDraftExpiresAt}
                 placeholder="No expiry"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Direct permission grants</Label>
+              <p className="text-xs text-muted-foreground">
+                Grant specific permissions directly to this user, regardless of their role.
+              </p>
+
+              {policiesLoading ? (
+                <Skeleton className="h-8 w-full" />
+              ) : userPolicies.length > 0 ? (
+                <div className="rounded-md border divide-y">
+                  {userPolicies.map((policy) => (
+                    <div key={policy.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                      <div>
+                        <span className="font-mono text-xs">{policy.permission_code}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {PERMISSIONS[policy.permission_code as Permission] ?? ""}
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleRevokePermission(policy.id, policy.permission_code)}
+                        disabled={revokePermission.isPending}
+                        aria-label={`Remove ${policy.permission_code}`}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">No direct grants for this user.</p>
+              )}
+
+              <div className="flex gap-2">
+                <Select value={selectedPermissionToGrant} onValueChange={setSelectedPermissionToGrant}>
+                  <SelectTrigger className="flex-1 text-xs">
+                    <SelectValue placeholder="Select permission…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(PERMISSIONS) as Permission[])
+                      .filter((code) => !userPolicies.some((p) => p.permission_code === code))
+                      .sort()
+                      .map((code) => (
+                        <SelectItem key={code} value={code} className="text-xs">
+                          <span className="font-mono">{code}</span>
+                          <span className="ml-2 text-muted-foreground">{PERMISSIONS[code]}</span>
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGrantPermission}
+                  disabled={!selectedPermissionToGrant || grantPermission.isPending}
+                >
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  Grant
+                </Button>
+              </div>
             </div>
           </div>
 

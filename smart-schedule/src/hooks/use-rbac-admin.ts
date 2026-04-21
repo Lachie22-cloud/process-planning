@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
 import { useCurrentSite } from "@/hooks/use-current-site";
+import type { Permission } from "@/lib/constants/permissions";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -175,6 +176,131 @@ export function useAssignUserRoles() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["tenant_roles"] });
+      queryClient.invalidateQueries({ queryKey: ["effective_permissions", site?.id, variables.userId] });
+    },
+  });
+}
+
+export type UserPermissionPolicy = {
+  id: string;
+  site_id: string;
+  permission_id: string;
+  permission_code: string;
+  policy_name: string;
+  effect: "allow" | "deny";
+  priority: number;
+  conditions: Record<string, unknown>;
+  active: boolean;
+  created_at: string;
+};
+
+export function useUserPermissionPolicies(userId?: string) {
+  const { site } = useCurrentSite();
+
+  return useQuery<UserPermissionPolicy[]>({
+    queryKey: ["user_permission_policies", site?.id, userId],
+    queryFn: async () => {
+      if (!site?.id || !userId) return [];
+
+      const { data, error } = await supabase
+        .from("tenant_permission_policies")
+        .select("id, site_id, permission_id, policy_name, effect, priority, conditions, active, created_at, permissions!inner(code)")
+        .eq("site_id", site.id)
+        .eq("active", true)
+        .filter("conditions", "cs", JSON.stringify({ userIds: [userId] }));
+
+      if (error) throw error;
+
+      type RawRow = {
+        id: string;
+        site_id: string;
+        permission_id: string;
+        policy_name: string;
+        effect: "allow" | "deny";
+        priority: number;
+        conditions: Record<string, unknown>;
+        active: boolean;
+        created_at: string;
+        permissions: { code: string } | Array<{ code: string }> | null;
+      };
+
+      return (data as unknown as RawRow[]).map((row) => ({
+        id: row.id,
+        site_id: row.site_id,
+        permission_id: row.permission_id,
+        permission_code: Array.isArray(row.permissions)
+          ? (row.permissions[0]?.code ?? "")
+          : (row.permissions?.code ?? ""),
+        policy_name: row.policy_name,
+        effect: row.effect,
+        priority: row.priority,
+        conditions: row.conditions,
+        active: row.active,
+        created_at: row.created_at,
+      }));
+    },
+    enabled: Boolean(site?.id && userId),
+  });
+}
+
+export function useGrantUserPermission() {
+  const queryClient = useQueryClient();
+  const { site } = useCurrentSite();
+
+  return useMutation({
+    mutationFn: async (input: { userId: string; permissionCode: Permission }) => {
+      if (!site?.id) throw new Error("No site selected");
+
+      const { data: permRow, error: permError } = await supabase
+        .from("permissions")
+        .select("id")
+        .eq("code", input.permissionCode)
+        .single();
+
+      if (permError || !permRow) throw new Error(`Permission ${input.permissionCode} not found`);
+
+      const { data, error } = await supabase
+        .from("tenant_permission_policies")
+        .insert({
+          site_id: site.id,
+          permission_id: permRow.id,
+          policy_name: `User grant: ${input.permissionCode} → ${input.userId}`,
+          effect: "allow",
+          priority: 200,
+          conditions: { userIds: [input.userId] },
+          active: true,
+        })
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["user_permission_policies", site?.id, variables.userId] });
+      queryClient.invalidateQueries({ queryKey: ["effective_permissions", site?.id, variables.userId] });
+    },
+  });
+}
+
+export function useRevokeUserPermission() {
+  const queryClient = useQueryClient();
+  const { site } = useCurrentSite();
+
+  return useMutation({
+    mutationFn: async (input: { userId: string; policyId: string }) => {
+      if (!site?.id) throw new Error("No site selected");
+
+      const { error } = await supabase
+        .from("tenant_permission_policies")
+        .update({ active: false })
+        .eq("id", input.policyId)
+        .eq("site_id", site.id);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["user_permission_policies", site?.id, variables.userId] });
       queryClient.invalidateQueries({ queryKey: ["effective_permissions", site?.id, variables.userId] });
     },
   });
