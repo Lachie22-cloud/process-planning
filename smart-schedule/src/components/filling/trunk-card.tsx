@@ -17,8 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/ui/cn";
-import { ActiveRow } from "./active-row";
-import { CompactRow } from "./compact-row";
+import { JobCard } from "./job-card";
 import type { FillingJob, FillingOverride, GhostJob, SortMode, TrunkJob } from "./types";
 import type { BatchStatus } from "@/types/batch";
 
@@ -52,13 +51,9 @@ function sortJobs(jobs: TrunkJob[], mode: SortMode): TrunkJob[] {
   return arr;
 }
 
-// Sortable list item wrapper
 function SortableJobItem({
   job,
   override,
-  isActive: _isActive,
-  forceActiveTop,
-  runningJob,
   onOpenBatch,
   onSaveComment,
   onSaveHoldUp,
@@ -66,9 +61,6 @@ function SortableJobItem({
 }: {
   job: TrunkJob;
   override?: FillingOverride | null;
-  isActive: boolean;
-  forceActiveTop: boolean;
-  runningJob: TrunkJob | null;
   onOpenBatch?: (id: string) => void;
   onSaveComment?: (batchId: string, comment: string) => void;
   onSaveHoldUp?: (batchId: string, note: string | null) => void;
@@ -81,39 +73,22 @@ function SortableJobItem({
     transition,
   };
 
-  if (job === runningJob && !forceActiveTop) {
-    return (
-      <li key={job.id} className="py-1" ref={setNodeRef} style={style}>
-        <ActiveRow
-          job={job}
-          override={override}
-          splitTo={job.splitTo}
-          isReceived={job.isReceived}
-          sourceTrunkLine={job.sourceTrunkLine}
-          onOpen={onOpenBatch ? () => onOpenBatch(job.id) : undefined}
-          onSaveComment={onSaveComment ? (c) => onSaveComment(job.id, c) : undefined}
-          onSaveHoldUp={onSaveHoldUp ? (n) => onSaveHoldUp(job.id, n) : undefined}
-          onDistribute={onDistribute ? () => onDistribute(job) : undefined}
-        />
-      </li>
-    );
-  }
-
   return (
-    <CompactRow
-      key={job.id}
-      job={job}
-      override={override}
-      splitTo={job.splitTo}
-      isReceived={job.isReceived}
-      sourceTrunkLine={job.sourceTrunkLine}
-      onOpen={onOpenBatch ? () => onOpenBatch(job.id) : undefined}
-      onSaveComment={onSaveComment ? (c) => onSaveComment(job.id, c) : undefined}
-      onSaveHoldUp={onSaveHoldUp ? (n) => onSaveHoldUp(job.id, n) : undefined}
-      onDistribute={onDistribute ? () => onDistribute(job) : undefined}
-      dragHandleProps={{ ...attributes, ...listeners }}
-      isDragging={isDragging}
-    />
+    <li ref={setNodeRef} style={style} className={cn("py-0.5", isDragging && "z-50")}>
+      <JobCard
+        job={job}
+        override={override}
+        splitTo={job.splitTo}
+        isReceived={job.isReceived}
+        sourceTrunkLine={job.sourceTrunkLine}
+        isDragging={isDragging}
+        dragHandleProps={{ ...attributes, ...listeners }}
+        onOpen={onOpenBatch ? () => onOpenBatch(job.id) : undefined}
+        onSaveComment={onSaveComment ? (c) => onSaveComment(job.id, c) : undefined}
+        onSaveHoldUp={onSaveHoldUp ? (n) => onSaveHoldUp(job.id, n) : undefined}
+        onDistribute={onDistribute ? () => onDistribute(job) : undefined}
+      />
+    </li>
   );
 }
 
@@ -205,17 +180,6 @@ export function TrunkCard({
     onReorder?.(trunkLine, newOrder);
   }
 
-  // ── Active / running detection ────────────────────────────────────────────
-  const forceActiveTop = sortMode === "active";
-  const activeJob = forceActiveTop
-    ? orderedJobs.find((j) => ACTIVE_STATUSES.has(j.status)) ?? null
-    : null;
-  const runningJob = orderedJobs.find((j) => ACTIVE_STATUSES.has(j.status)) ?? null;
-
-  const compactJobs = forceActiveTop
-    ? orderedJobs.filter((j) => j !== activeJob)
-    : orderedJobs;
-
   // ── Progress bar ──────────────────────────────────────────────────────────
   const progress = useMemo(() => {
     if (jobs.length === 0) return 0;
@@ -293,45 +257,26 @@ export function TrunkCard({
       </div>
 
       {/* ── Job list ── */}
-      <div className="flex flex-1 flex-col gap-1 px-2 pb-1 pt-1.5">
+      <div className="flex flex-1 flex-col px-2 pb-1 pt-1.5">
         {orderedJobs.length === 0 && ghosts.length === 0 && (
           <p className="px-2 py-3 text-[11px] italic text-muted-foreground">
             No jobs
           </p>
         )}
 
-        {/* Active-first: enlarged row pinned to top */}
-        {forceActiveTop && activeJob && (
-          <ActiveRow
-            job={activeJob}
-            override={overrideMap[activeJob.id]}
-            splitTo={activeJob.splitTo}
-            isReceived={activeJob.isReceived}
-            sourceTrunkLine={activeJob.sourceTrunkLine}
-            onOpen={onOpenBatch ? () => onOpenBatch(activeJob.id) : undefined}
-            onSaveComment={onSaveComment ? (c) => onSaveComment(activeJob.id, c) : undefined}
-            onSaveHoldUp={onSaveHoldUp ? (n) => onSaveHoldUp(activeJob.id, n) : undefined}
-            onDistribute={onDistribute ? () => onDistribute(activeJob) : undefined}
-          />
-        )}
-
-        {/* Sortable job list */}
-        {compactJobs.length > 0 && (
+        {orderedJobs.length > 0 && (
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={jobIds} strategy={verticalListSortingStrategy}>
-              <ul className="flex flex-col divide-y">
-                {compactJobs.map((j) => (
+              <ul className="flex flex-col">
+                {orderedJobs.map((j) => (
                   <SortableJobItem
                     key={j.id}
                     job={j}
                     override={overrideMap[j.id]}
-                    isActive={ACTIVE_STATUSES.has(j.status)}
-                    forceActiveTop={forceActiveTop}
-                    runningJob={runningJob}
                     onOpenBatch={onOpenBatch}
                     onSaveComment={onSaveComment}
                     onSaveHoldUp={onSaveHoldUp}
