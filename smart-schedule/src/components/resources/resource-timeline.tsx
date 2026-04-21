@@ -901,6 +901,7 @@ export function ResourceTimeline({
         dates={dates}
         bookendDates={bookendDates}
         coreDates={coreDates}
+        defaultKind={tab === "mixers" ? "mixer" : tab === "dispersers" ? "disp" : "all"}
       />
 
       {/* Timeline grid */}

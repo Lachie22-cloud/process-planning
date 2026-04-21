@@ -21,7 +21,7 @@
  * and remove the two old heatmaps once you're happy.
  */
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { format } from "date-fns";
 import { ChevronRight, Flame, Download, Filter as FilterIcon } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
@@ -42,6 +42,8 @@ interface BottleneckStripProps {
   bookendDates: Set<string>;
   /** Optional: the core working days. Currently unused for rendering — the strip shows all `dates`. */
   coreDates?: string[];
+  /** When set, syncs the internal kind filter to this value whenever it changes. */
+  defaultKind?: "all" | "mixer" | "disp";
 }
 
 type Kind = "mixer" | "disp";
@@ -627,11 +629,13 @@ export function BottleneckStrip({
   dates,
   bookendDates,
   coreDates,
+  defaultKind = "all",
 }: BottleneckStripProps) {
   // Render ALL days (7: Sun + Mon–Fri + Sat). Fringe days get muted styling.
   const stripDates = dates;
 
-  const [kind, setKind] = useState<"all" | "mixer" | "disp">("all");
+  const [kind, setKind] = useState<"all" | "mixer" | "disp">(defaultKind);
+  useEffect(() => { setKind(defaultKind); }, [defaultKind]);
   const [onlyOver, setOnlyOver] = useState(false);
   const [selectedGroups, setSelectedGroups] = useState<Set<string> | null>(null);
   const [openKey, setOpenKey] = useState<string | null>(null);
