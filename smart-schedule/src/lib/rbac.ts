@@ -58,7 +58,6 @@ const ROLE_PERMISSION_FALLBACK: Record<string, string[]> = {
     "batches.status",
     "resources.read",
     "rules.read",
-    "planning.coverage",
     "schedule.view_past",
     "schedule.view_current",
     "alerts.read",
