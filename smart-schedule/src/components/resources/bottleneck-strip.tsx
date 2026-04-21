@@ -451,7 +451,6 @@ function GroupRowView({
             const perDay = rawDates.map((d, i) => unitUsageForDay(m, g, i, batches, d));
             const peakU = Math.max(...perDay.map((x) => x.pct));
             const unitSum = perDay.reduce((s, x) => s + x.used, 0);
-            void (g.kind === "mixer" ? m.maxCapacity ?? 0 : g.capPerDay); // available for display if needed
             return (
               <button
                 key={m.id}
@@ -650,7 +649,7 @@ export function BottleneckStrip({
   void coreDates;
 
   const allGroupKeys = useMemo(() => [...mixerGroups, ...dispGroups].map((g) => g.key), [mixerGroups, dispGroups]);
-  const effectiveSel = selectedGroups ?? new Set(allGroupKeys);
+  const effectiveSel = useMemo(() => selectedGroups ?? new Set(allGroupKeys), [selectedGroups, allGroupKeys]);
 
   const filterFn = useCallback(
     (g: GroupRow) => {
@@ -770,7 +769,7 @@ export function BottleneckStrip({
                 key={g.key}
                 onClick={() => {
                   const n = new Set(effectiveSel);
-                  n.has(g.key) ? n.delete(g.key) : n.add(g.key);
+                  if (n.has(g.key)) { n.delete(g.key); } else { n.add(g.key); }
                   setSelectedGroups(n);
                 }}
                 className={cn(
