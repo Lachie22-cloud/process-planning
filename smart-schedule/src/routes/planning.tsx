@@ -8,6 +8,7 @@ import { VettingPanel } from "@/components/planning/vetting-panel";
 import { ShortagesPanel } from "@/components/planning/shortages-panel";
 import { DraftReviewPanel } from "@/components/ai/draft-review";
 import { ScheduleHealthBar } from "@/components/shared/schedule-health-bar";
+import { PermissionGate } from "@/components/shared/permission-gate";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -102,13 +103,15 @@ export function PlanningPage() {
         }
       />
 
-      <ScheduleHealthBar
-        report={healthReport}
-        isLoading={healthLoading}
-        onRunAnalysis={handleRunAnalysis}
-        isAnalysing={triggerScan.isPending}
-        aiScanReport={latestCompletedScan?.report}
-      />
+      <PermissionGate permission="planning.ai">
+        <ScheduleHealthBar
+          report={healthReport}
+          isLoading={healthLoading}
+          onRunAnalysis={handleRunAnalysis}
+          isAnalysing={triggerScan.isPending}
+          aiScanReport={latestCompletedScan?.report}
+        />
+      </PermissionGate>
 
       <FileUpload
         files={files}

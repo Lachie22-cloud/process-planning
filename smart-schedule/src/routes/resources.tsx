@@ -251,16 +251,18 @@ export function ResourcesPage() {
         }
       />
 
-      <ScheduleHealthBar
-        report={healthReport}
-        isLoading={healthLoading}
-        onRunAnalysis={handleRunAnalysis}
-        isAnalysing={isScanning || triggerScan.isPending}
-        onCancelScan={handleCancelScan}
-        isCancelling={cancelScan.isPending}
-        aiScans={aiScans}
-        onSpotlightBatch={spotlightBatch}
-      />
+      <PermissionGate permission="planning.ai">
+        <ScheduleHealthBar
+          report={healthReport}
+          isLoading={healthLoading}
+          onRunAnalysis={handleRunAnalysis}
+          isAnalysing={isScanning || triggerScan.isPending}
+          onCancelScan={handleCancelScan}
+          isCancelling={cancelScan.isPending}
+          aiScans={aiScans}
+          onSpotlightBatch={spotlightBatch}
+        />
+      </PermissionGate>
 
       <DraftReviewPanel compactMode />
 
