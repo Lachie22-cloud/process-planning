@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { format, getDay, addDays } from "date-fns";
+import { format, getDay, addDays, subDays } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -30,10 +30,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { useResources } from "@/hooks/use-resources";
-import {
-  useHistoricalBatches,
-  type TimeRange,
-} from "@/hooks/use-historical-batches";
+import { useHistoricalBatches } from "@/hooks/use-historical-batches";
+import { DatePicker } from "@/components/ui/date-picker";
 import { LineChart, BarChart } from "./chart-canvas";
 import type { Resource } from "@/types/resource";
 import type { ChartData, ChartOptions } from "chart.js";
@@ -186,12 +184,14 @@ const VIEW_BUTTONS: { id: ChartView; label: string; icon: React.ComponentType<{ 
   { id: "completion", label: "Completion Rate", icon: CheckCircle2 },
 ];
 
-const TIME_RANGES: { value: TimeRange; label: string }[] = [
-  { value: "2w", label: "2 Weeks" },
-  { value: "4w", label: "4 Weeks" },
-  { value: "8w", label: "8 Weeks" },
-  { value: "all", label: "All Time" },
-];
+const PRESETS = [
+  { value: "2w" as const, label: "2W" },
+  { value: "4w" as const, label: "4W" },
+  { value: "8w" as const, label: "8W" },
+  { value: "all" as const, label: "All" },
+] as const;
+type ActivePreset = (typeof PRESETS)[number]["value"] | "custom";
+const PRESET_DAYS: Record<string, number> = { "2w": 14, "4w": 28, "8w": 56 };
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
@@ -225,12 +225,26 @@ function KpiCard({
 
 // ── Component ─────────────────────────────────────────────────
 export function HistoricalAnalytics() {
-  const [timeRange, setTimeRange] = useState<TimeRange>("4w");
+  const [activePreset, setActivePreset] = useState<ActivePreset>("4w");
+  const [dateFrom, setDateFrom] = useState(() => format(subDays(new Date(), 28), "yyyy-MM-dd"));
+  const [dateTo, setDateTo] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [trunkFilter, setTrunkFilter] = useState("all");
   const [baseFilter, setBaseFilter] = useState("all");
   const [chartView, setChartView] = useState<ChartView>("utilisation");
 
-  const { data: allBatches = [], isLoading } = useHistoricalBatches(timeRange);
+  function applyPreset(preset: ActivePreset) {
+    if (preset === "custom") return;
+    const today = format(new Date(), "yyyy-MM-dd");
+    setDateTo(today);
+    setActivePreset(preset);
+    if (preset === "all") {
+      setDateFrom("");
+    } else {
+      setDateFrom(format(subDays(new Date(), PRESET_DAYS[preset]), "yyyy-MM-dd"));
+    }
+  }
+
+  const { data: allBatches = [], isLoading } = useHistoricalBatches(dateFrom || null, dateTo);
   const { data: resources = [] } = useResources();
 
   // Resource lookup maps
@@ -845,24 +859,46 @@ export function HistoricalAnalytics() {
       <Card>
         <CardContent className="flex flex-wrap items-end gap-4 p-4">
           <div>
-            <p className="mb-1 text-xs font-medium text-muted-foreground">
-              Time Range
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+              Date Range
             </p>
-            <div className="inline-flex rounded-lg bg-muted p-1">
-              {TIME_RANGES.map((o) => (
-                <button
-                  key={o.value}
-                  onClick={() => setTimeRange(o.value)}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                    timeRange === o.value
-                      ? "bg-background text-foreground shadow"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {o.label}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-lg bg-muted p-1">
+                {PRESETS.map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => applyPreset(p.value)}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                      activePreset === p.value
+                        ? "bg-background text-foreground shadow"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-[136px]">
+                  <DatePicker
+                    value={dateFrom}
+                    onChange={(v) => { setDateFrom(v); setActivePreset("custom"); }}
+                    placeholder={activePreset === "all" ? "All history" : "Start date"}
+                    maxDate={dateTo ? new Date(dateTo + "T23:59:59") : new Date()}
+                  />
+                </div>
+                <span className="text-xs text-muted-foreground select-none">→</span>
+                <div className="w-[136px]">
+                  <DatePicker
+                    value={dateTo}
+                    onChange={(v) => { setDateTo(v); setActivePreset("custom"); }}
+                    placeholder="End date"
+                    maxDate={new Date()}
+                    minDate={dateFrom ? new Date(dateFrom + "T00:00:00") : undefined}
+                  />
+                </div>
+              </div>
             </div>
           </div>
           <div>

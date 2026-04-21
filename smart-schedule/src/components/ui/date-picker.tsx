@@ -13,6 +13,8 @@ interface DatePickerProps {
   placeholder?: string;
   disabled?: boolean;
   id?: string;
+  maxDate?: Date;
+  minDate?: Date;
 }
 
 export function DatePicker({
@@ -21,6 +23,8 @@ export function DatePicker({
   placeholder = "Pick a date",
   disabled,
   id,
+  maxDate,
+  minDate,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
 
@@ -55,6 +59,10 @@ export function DatePicker({
             }
             setOpen(false);
           }}
+          disabled={[
+            ...(maxDate ? [{ after: maxDate }] : []),
+            ...(minDate ? [{ before: minDate }] : []),
+          ]}
           autoFocus
         />
       </PopoverContent>
