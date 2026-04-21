@@ -242,28 +242,28 @@ function unitBookings(unit: Resource, group: GroupRow, dates: string[], batches:
 // ─────────────────────────────────────────────────────────────
 // Atomic UI parts
 
-function BigRing({ pct, size = 44 }: { pct: number; size?: number }) {
-  const r = size / 2 - 5;
+function BigRing({ pct, size = 34 }: { pct: number; size?: number }) {
+  const r = size / 2 - 4;
   const c = 2 * Math.PI * r;
   const off = c - (c * Math.min(pct, 100)) / 100;
   const { text } = tierClass(pct);
   return (
     <svg width={size} height={size} className="shrink-0">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" className="stroke-muted" strokeWidth="4" />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" className="stroke-muted" strokeWidth="3" />
       <circle
         cx={size / 2}
         cy={size / 2}
         r={r}
         fill="none"
         stroke={heatColor(pct)}
-        strokeWidth="4"
+        strokeWidth="3"
         strokeLinecap="round"
         strokeDasharray={c}
         strokeDashoffset={off}
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
       />
-      {pct > 100 && <circle cx={size - 5} cy={5} r={3.5} fill="#ef4444" stroke="#fff" strokeWidth="1" />}
-      <text x={size / 2} y={size / 2 + 3} textAnchor="middle" fontSize="11" fontWeight="700" className={text}>
+      {pct > 100 && <circle cx={size - 4} cy={4} r={3} fill="#ef4444" stroke="#fff" strokeWidth="1" />}
+      <text x={size / 2} y={size / 2 + 3} textAnchor="middle" fontSize="9" fontWeight="700" className={text}>
         {pct}%
       </text>
     </svg>
@@ -280,35 +280,26 @@ function DayDots({
   isBookend: boolean[];
 }) {
   return (
-    <div className="flex items-end gap-1">
+    <div className="flex items-center gap-0.5">
       {pcts.map((p, i) => {
-        const size = 7 + (Math.min(p, 140) / 140) * 22;
         const fringe = isBookend[i];
         return (
           <div
             key={i}
-            className={cn(
-              "flex flex-col items-center gap-1 rounded-sm px-0.5 py-0.5",
-              fringe && "bg-muted/60",
-            )}
+            className={cn("flex flex-col items-center gap-0.5 rounded-sm px-0.5 py-0.5", fringe && "bg-muted/40")}
           >
             <div
               className="rounded-full"
               title={`${dates[i]}${fringe ? " (fringe)" : ""}: ${p}%`}
               style={{
-                width: size,
-                height: size,
+                width: 14,
+                height: 14,
                 backgroundColor: heatColor(p),
-                opacity: fringe ? 0.7 : 1,
-                boxShadow: p > 100 ? "0 0 0 2px rgba(239,68,68,0.35)" : undefined,
+                opacity: fringe ? 0.65 : 1,
+                boxShadow: p > 100 ? "0 0 0 2px rgba(239,68,68,0.4)" : undefined,
               }}
             />
-            <span
-              className={cn(
-                "text-[9px] tabular-nums",
-                fringe ? "text-muted-foreground/70 italic" : "text-muted-foreground",
-              )}
-            >
+            <span className={cn("text-[8px] tabular-nums leading-none", fringe ? "text-muted-foreground/60 italic" : "text-muted-foreground")}>
               {p}
             </span>
           </div>
@@ -404,44 +395,36 @@ function GroupRowView({
   return (
     <div>
       <button
-        className="grid w-full grid-cols-[20px_44px_1fr_auto_auto_auto_auto] items-center gap-4 px-4 py-2.5 text-left hover:bg-muted/40 transition-colors"
+        className="grid w-full grid-cols-[14px_34px_1fr_auto_auto_auto_auto] items-center gap-3 px-4 py-1.5 text-left hover:bg-muted/40 transition-colors"
         onClick={onToggle}
       >
         <ChevronRight className={cn("h-3 w-3 text-muted-foreground transition-transform", open && "rotate-90")} />
         <BigRing pct={avg} />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-sm shrink-0" style={{ backgroundColor: g.trunkColor }} />
-            <span className="text-sm font-bold">{g.name}</span>
-            <span className="text-[10.5px] text-muted-foreground">
-              {g.members.length} {g.kind === "mixer" ? "mixers" : "dispersers"} · {g.kind === "mixer" ? `${fmtL(g.capPerDay)}L/day` : `${g.capPerDay} slots/day`}
-            </span>
-          </div>
-          <div className="mt-0.5 flex items-center gap-3 text-[10.5px] text-muted-foreground">
-            <span>
-              week total <span className="font-semibold text-foreground tabular-nums">{g.kind === "mixer" ? `${fmtL(weekTotal)}L` : `${weekTotal} PMC`}</span>
-            </span>
-            <span>
-              avg <span className="font-semibold text-foreground tabular-nums">{avg}%</span>
-            </span>
-          </div>
+        <div className="min-w-0 flex items-baseline gap-2">
+          <span className="h-2 w-2 rounded-sm shrink-0 self-center" style={{ backgroundColor: g.trunkColor }} />
+          <span className="text-sm font-bold truncate">{g.name}</span>
+          <span className="text-[10.5px] text-muted-foreground whitespace-nowrap">
+            {g.members.length} {g.kind === "mixer" ? "mixers" : "dispersers"} · {g.kind === "mixer" ? `${fmtL(g.capPerDay)}L/day` : `${g.capPerDay} slots/day`}
+          </span>
+          <span className="text-[10.5px] text-muted-foreground whitespace-nowrap">
+            total <span className="font-semibold text-foreground tabular-nums">{g.kind === "mixer" ? `${fmtL(weekTotal)}L` : `${weekTotal} ${unit}`}</span>
+          </span>
         </div>
-        <div className="hidden md:flex flex-col items-end gap-0.5 text-foreground">
+        <div className="hidden md:flex items-center gap-1 text-foreground">
           <MiniSpark pctByDay={g.pctByDay} isBookend={g.isBookend} />
-          <span className="font-mono text-[9px] uppercase tracking-wide text-muted-foreground">7-day</span>
         </div>
         <DayDots pcts={g.pctByDay} dates={dateLabels} isBookend={g.isBookend} />
-        <div className="flex flex-col items-center min-w-[44px]">
-          <span className={cn("text-[15px] font-bold tabular-nums leading-none", peak > 100 ? "text-red-600 dark:text-red-400" : "text-foreground")}>
+        <div className="flex flex-col items-center min-w-[38px]">
+          <span className={cn("text-[13px] font-bold tabular-nums leading-none", peak > 100 ? "text-red-600 dark:text-red-400" : "text-foreground")}>
             {peak}%
           </span>
-          <span className="mt-1 text-[9.5px] uppercase tracking-wide text-muted-foreground">peak</span>
+          <span className="mt-0.5 text-[8.5px] uppercase tracking-wide text-muted-foreground">peak</span>
         </div>
-        <div className="flex flex-col items-center min-w-[44px]">
-          <span className={cn("text-[15px] font-bold tabular-nums leading-none", overDays > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+        <div className="flex flex-col items-center min-w-[32px]">
+          <span className={cn("text-[13px] font-bold tabular-nums leading-none", overDays > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
             {overDays}
           </span>
-          <span className="mt-1 text-[9.5px] uppercase tracking-wide text-muted-foreground">over</span>
+          <span className="mt-0.5 text-[8.5px] uppercase tracking-wide text-muted-foreground">over</span>
         </div>
       </button>
       {open && (
@@ -684,7 +667,7 @@ export function BottleneckStrip({
   const dateLabels = stripDates.map((d) => format(new Date(d + "T12:00:00"), "EEE d"));
 
   const headerRow = (
-    <div className="grid grid-cols-[20px_44px_1fr_auto_auto_auto_auto] gap-4 px-4 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground bg-muted/50 border-y">
+    <div className="grid grid-cols-[14px_34px_1fr_auto_auto_auto_auto] gap-3 px-4 py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground bg-muted/50 border-y">
       <span />
       <span className="text-center">avg</span>
       <span>group · click to expand</span>
@@ -696,7 +679,7 @@ export function BottleneckStrip({
             <span
               key={d}
               className={cn(
-                "rounded px-1 py-0.5 min-w-[34px] text-center tabular-nums",
+                "rounded px-0.5 py-0.5 min-w-[28px] text-center tabular-nums",
                 fringe ? "text-muted-foreground/70 italic" : "text-muted-foreground",
               )}
               title={fringe ? "Fringe day" : undefined}
