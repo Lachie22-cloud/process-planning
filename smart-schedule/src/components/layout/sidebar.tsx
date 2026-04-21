@@ -36,7 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/schedule", icon: CalendarDays, label: "Schedule" },
   { to: "/resources", icon: LayoutGrid, label: "Resources" },
   { to: "/statistics", icon: BarChart3, label: "Statistics" },
-  { to: "/planning", icon: Upload, label: "Planning", permission: "planning.coverage" },
+  { to: "/planning", icon: Upload, label: "Planning", permission: "planning.tab" },
   { to: "/rules", icon: Settings2, label: "Rules", permission: "rules.read" },
   { to: "/alerts", icon: Bell, label: "Alerts", permission: "alerts.read" },
   { to: "/shop-floor", icon: Monitor, label: "Shop Floor" },

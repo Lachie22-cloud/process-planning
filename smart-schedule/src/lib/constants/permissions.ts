@@ -14,6 +14,7 @@ export const PERMISSIONS = {
   "rules.write": "Edit scheduling rules",
 
   // Planning
+  "planning.tab": "Access the Planning tab",
   "planning.import": "Import SAP data",
   "planning.coverage": "View coverage analysis",
   "planning.vet": "Approve or reject batch vetting",
