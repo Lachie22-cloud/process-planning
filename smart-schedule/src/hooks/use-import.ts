@@ -866,6 +866,41 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
     }
   }
 
+  // Synthetic shortage records for batches flagged WOM by stock-cover (stockCover <= 0)
+  // but with no BOM-level RM shortage in shortageMap. Without this, the UI shows
+  // "Raw Materials: Not Available" with an empty shortage table and no explanation.
+  for (const batch of batches) {
+    if (!batch.rmAvailable && batch.stockCover != null && batch.stockCover <= 0) {
+      const matCode = batch.materialCode;
+      if (!matCode || shortagesAgg.has(matCode)) continue;
+      const zp40 = lookupByMaterial(zp40Data, matCode, batch.bulkCode);
+      const sohEntry = sohData.get(matCode);
+      const availStock = Math.round((zp40?.availableStock ?? 0) * 100) / 100;
+      const safetyStockVal = Math.round((zp40?.safetyStock ?? 0) * 100) / 100;
+      const rawShortQty = availStock - safetyStockVal;
+      // Ensure shortQty is negative so the UI shortage filter (shortQty < 0) passes
+      const shortQty = rawShortQty < 0 ? rawShortQty : -1;
+      const uom = sohEntry?.uom ?? "Unit";
+      shortagesAgg.set(matCode, {
+        materialCode: matCode,
+        materialDesc: batch.materialDescription,
+        materialType: "RM",
+        requiredQty: safetyStockVal,
+        sohQty: availStock,
+        shortQty,
+        uom,
+      });
+      if (!batchShortageDetails.has(batch.sapOrder)) {
+        batchShortageDetails.set(batch.sapOrder, []);
+      }
+      batchShortageDetails.get(batch.sapOrder)!.push({
+        materialCode: matCode,
+        requiredQty: safetyStockVal,
+        shortQty,
+      });
+    }
+  }
+
   // Build a map of fill order number → component material codes from requirements
   const requirementsByFillOrder = new Map<string, string[]>();
   for (const [order, reqs] of requirements.byOrder) {
