@@ -1743,6 +1743,7 @@ export function useImport() {
           shortage_id: string;
           short_qty: number;
           required_qty: number;
+          planner_override: boolean;
         }>();
 
         for (const [sapOrder, details] of batchShortageDetailsState) {
@@ -1764,6 +1765,7 @@ export function useImport() {
                 shortage_id: shortageId,
                 short_qty: detail.shortQty,
                 required_qty: detail.requiredQty,
+                planner_override: false,
               });
             }
           }
