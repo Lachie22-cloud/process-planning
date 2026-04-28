@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { format, eachDayOfInterval } from "date-fns";
+import { format, eachDayOfInterval, isWeekend } from "date-fns";
 import { Download, BarChart3, Table as TableIcon } from "lucide-react";
 import { useLinkedFillOrders } from "@/hooks/use-linked-fill-orders";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -303,9 +303,9 @@ export function FinishedGoodSizeReport({
   const batchIds = useMemo(() => batches.map((b) => b.id), [batches]);
   const { data: fillOrders = [], isLoading } = useLinkedFillOrders(batchIds);
 
-  // Mon–Sat (exclude Sunday) for the selected week
+  // Working days only (Mon–Fri) for the selected week
   const weekDays = useMemo(
-    () => eachDayOfInterval({ start: weekStart, end: weekEnding }),
+    () => eachDayOfInterval({ start: weekStart, end: weekEnding }).filter((d) => !isWeekend(d)),
     [weekStart, weekEnding],
   );
   const dayKeys = useMemo(() => weekDays.map((d) => format(d, "yyyy-MM-dd")), [weekDays]);
