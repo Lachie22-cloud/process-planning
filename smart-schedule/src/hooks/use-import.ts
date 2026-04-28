@@ -184,7 +184,8 @@ function rowValue(row: ParsedRow, headers: string[], ...keywords: string[]): str
   if (!col) return null;
   const val = row[col];
   if (val == null || val === "") return null;
-  return String(val);
+  const str = String(val).trim();
+  return str === "" ? null : str;
 }
 
 function rowNumeric(row: ParsedRow, headers: string[], ...keywords: string[]): number | null {
@@ -440,7 +441,7 @@ function calculateShortages(
   const shortageMap = new Map<string, { shortageQty: number; soh: number; totalReq: number }>();
 
   for (const [material, requirements] of requirementsByMaterial) {
-    const sohEntry = sohData.get(material);
+    const sohEntry = lookupByMaterial(sohData, material, null);
     let remainingSOH = sohEntry ? sohEntry.stock : 0;
 
     // Sort by date then order for deterministic ordering
@@ -791,7 +792,7 @@ export function processFilesToBatches(files: ParsedFile[]): ProcessResult {
 
     // Aggregate at material level — accumulate shortages across all orders
     if (!shortagesAgg.has(material)) {
-      const sohEntry = sohData.get(material);
+      const sohEntry = lookupByMaterial(sohData, material, null);
       const reqEntries = requirements.byMaterial.get(material) ?? [];
       const totalReq = reqEntries.reduce((sum, r) => sum + r.netQty, 0);
       const description = sohEntry?.description ?? reqEntries[0]?.description ?? null;
