@@ -470,14 +470,10 @@ function MaterialAvailabilitySection({ batch, canOverride }: { batch: Batch; can
         </span>
       </div>
 
-      {/* Fallback: flag set but no shortage detail records exist (e.g. stock-cover WOM
-          before the next full import creates the synthetic shortage record) */}
+      {/* Fallback: flag set but no shortage detail records exist */}
       {activeShortages.length === 0 && (!batch.rmAvailable || !batch.packagingAvailable) && (
         <div className="rounded-md border border-amber-200 bg-amber-50/50 px-3 py-2 text-xs text-amber-800">
           Shortage details unavailable — re-import with SOH/Requirements data to populate.
-          {batch.stockCover != null && batch.stockCover <= 0 && (
-            <span className="ml-1">(Stock coverage: {batch.stockCover}d — see Coverage Profile below.)</span>
-          )}
         </div>
       )}
 
