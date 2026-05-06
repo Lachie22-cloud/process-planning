@@ -993,7 +993,7 @@ export function BatchDetailSheet({
   const [pendingStatus, setPendingStatus] = useState<BatchStatus | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  const canDeleteBatch = user?.role === "site_admin" || user?.role === "super_admin";
+  const canDeleteBatch = canEditSchedule;
 
   const resource = batch?.planResourceId
     ? resources.find((r) => r.id === batch.planResourceId)
