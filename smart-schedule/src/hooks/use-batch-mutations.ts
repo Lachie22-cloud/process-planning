@@ -156,6 +156,62 @@ export function useAddAuditEntry() {
   });
 }
 
+/** Delete a single batch and its dependent records */
+export function useDeleteBatch() {
+  const { site, user } = useCurrentSite();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (batchId: string) => {
+      if (!site) throw new Error("No site selected");
+      if (!user || (user.role !== "site_admin" && user.role !== "super_admin")) {
+        throw new Error("Only site admins can delete batches");
+      }
+
+      // Delete coverage items first (FK dependency)
+      const { error: covErr } = await supabase
+        .from("batch_coverage_items")
+        .delete()
+        .eq("batch_id", batchId);
+      if (covErr) throw covErr;
+
+      // Delete linked fill orders (FK dependency)
+      const { error: fillErr } = await supabase
+        .from("linked_fill_orders")
+        .delete()
+        .eq("batch_id", batchId);
+      if (fillErr) throw fillErr;
+
+      // Delete the batch itself
+      const { error: batchErr } = await supabase
+        .from("batches")
+        .delete()
+        .eq("id", batchId)
+        .eq("site_id", site.id);
+      if (batchErr) throw batchErr;
+
+      // Log to audit
+      await supabase.from("audit_log").insert({
+        site_id: site.id,
+        batch_id: null,
+        action: "delete_batch",
+        details: { batch_id: batchId, deleted_by: user.email ?? user.id },
+        performed_by: user.id,
+        performed_at: new Date().toISOString(),
+      } as never);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["batches"] });
+      queryClient.invalidateQueries({ queryKey: ["linked-fill-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["batch_coverage_items"] });
+      toast.success("Batch deleted successfully");
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Failed to delete batch");
+    },
+  });
+}
+
 /** Purge all batches and linked fill orders for the current site */
 export function usePurgeSiteData() {
   const { site, user } = useCurrentSite();

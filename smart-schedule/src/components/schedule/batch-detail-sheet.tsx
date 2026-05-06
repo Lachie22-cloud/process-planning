@@ -24,6 +24,7 @@ import {
   CircleAlert,
   Loader2,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -34,7 +35,8 @@ import { parsePackSizeLitres } from "@/lib/utils/pack-size";
 import type { DatabaseRow } from "@/types/database";
 import { useBatch } from "@/hooks/use-batches";
 import type { LinkedFillOrder } from "@/types/batch";
-import { useUpdateBatch, useAddAuditEntry } from "@/hooks/use-batch-mutations";
+import { useUpdateBatch, useAddAuditEntry, useDeleteBatch } from "@/hooks/use-batch-mutations";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useCurrentSite } from "@/hooks/use-current-site";
 import { COMMENT_REQUIRED_STATUSES, OPTIONAL_COMMENT_STATUSES } from "@/types/batch";
@@ -971,6 +973,7 @@ export function BatchDetailSheet({
   });
   const updateBatch = useUpdateBatch();
   const addAudit = useAddAuditEntry();
+  const deleteBatch = useDeleteBatch();
   const { hasPermission } = usePermissions();
   const { user } = useCurrentSite();
 
@@ -988,6 +991,9 @@ export function BatchDetailSheet({
   // Status comment modal state
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<BatchStatus | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  const canDeleteBatch = user?.role === "site_admin" || user?.role === "super_admin";
 
   const resource = batch?.planResourceId
     ? resources.find((r) => r.id === batch.planResourceId)
@@ -1200,6 +1206,24 @@ export function BatchDetailSheet({
                     Reschedule
                   </Button>
                 )}
+
+              {/* Delete batch (admins only) */}
+              {canDeleteBatch && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-destructive border-destructive/40 hover:bg-destructive/10"
+                  onClick={() => setDeleteConfirmOpen(true)}
+                  disabled={deleteBatch.isPending}
+                >
+                  {deleteBatch.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
+                  Delete Batch
+                </Button>
+              )}
 
               {/* Two-column: Bulk Information / Fill Information */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1590,6 +1614,24 @@ export function BatchDetailSheet({
                 onConfirm={handleCommentConfirm}
               />
             )}
+
+            {/* Delete batch confirmation */}
+            <ConfirmDialog
+              open={deleteConfirmOpen}
+              onOpenChange={setDeleteConfirmOpen}
+              title={`Delete Batch ${batch.sapOrder}?`}
+              description={`This will permanently remove batch ${batch.sapOrder} (${batch.materialDescription ?? "no description"}) and all its linked fill orders from the schedule. This cannot be undone.`}
+              confirmLabel="Delete Batch"
+              variant="destructive"
+              onConfirm={() => {
+                deleteBatch.mutate(batch.id, {
+                  onSuccess: () => {
+                    setDeleteConfirmOpen(false);
+                    onOpenChange(false);
+                  },
+                });
+              }}
+            />
           </>
         ) : (
           <div className="flex h-full items-center justify-center text-muted-foreground">
