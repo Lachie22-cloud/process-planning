@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { ResourceLane, type DropTarget } from "./resource-lane";
 import { GroupedPotLane } from "./grouped-pot-lane";
 import { PlacementOverlay } from "./placement-overlay";
-import { BottleneckStrip } from "./bottleneck-strip";
+import { CapacityOverviewWall } from "./capacity-overview-wall";
 import { RescheduleDialog } from "./reschedule-dialog";
 import { MoveReasonModal } from "@/components/shared/move-reason-modal";
 import { useUpdateBatch, useAddAuditEntry } from "@/hooks/use-batch-mutations";
@@ -895,13 +895,11 @@ export function ResourceTimeline({
         </div>
       </div>
 
-      <BottleneckStrip
+      <CapacityOverviewWall
         batches={batches}
         resources={resources}
         dates={dates}
         bookendDates={bookendDates}
-        coreDates={coreDates}
-        defaultKind={tab === "mixers" ? "mixer" : tab === "dispersers" ? "disp" : "all"}
       />
 
       {/* Timeline grid */}
