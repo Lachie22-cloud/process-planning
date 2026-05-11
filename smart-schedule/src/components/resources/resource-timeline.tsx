@@ -900,6 +900,7 @@ export function ResourceTimeline({
         resources={resources}
         dates={dates}
         bookendDates={bookendDates}
+        kind={tab === "mixers" ? "mixer" : tab === "dispersers" ? "disp" : "all"}
       />
 
       {/* Timeline grid */}

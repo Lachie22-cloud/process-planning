@@ -38,6 +38,8 @@ export interface CapacityOverviewWallProps {
   dates: string[];
   /** Subset of `dates` that are fringe / bookend days — rendered muted. */
   bookendDates: Set<string>;
+  /** Which section to show. Omit to show both. */
+  kind?: "mixer" | "disp" | "all";
 }
 
 type Kind = "mixer" | "disp";
@@ -514,6 +516,7 @@ export function CapacityOverviewWall({
   resources,
   dates,
   bookendDates,
+  kind = "all",
 }: CapacityOverviewWallProps) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const onToggle = useCallback(
@@ -571,12 +574,12 @@ export function CapacityOverviewWall({
 
   return (
     <div className="space-y-4">
-      {renderBlock(
+      {kind !== "disp" && renderBlock(
         "Mixer capacity",
         "One row per trunk · seven tiles per group · click any row for individual units.",
         mixers,
       )}
-      {renderBlock(
+      {kind !== "mixer" && renderBlock(
         "Disperser capacity",
         "Shared group capacity · one row per group · click any row for individual units.",
         disps,
