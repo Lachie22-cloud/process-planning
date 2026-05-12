@@ -533,16 +533,21 @@ export function CapacityOverviewWall({
     [batches, resources, dates, bookendDates],
   );
 
-  const sortFn = (a: GroupRow, b: GroupRow) => {
-    const core = (g: GroupRow) => g.pctByDay.filter((_, i) => !g.isBookend[i]);
-    const ao = core(a).filter((p) => p > 100).length;
-    const bo = core(b).filter((p) => p > 100).length;
-    if (ao !== bo) return bo - ao;
-    return Math.max(0, ...core(b)) - Math.max(0, ...core(a));
+  // Fixed display order matching the physical resource layout.
+  // Groups not in the list fall to the end, ordered by name.
+  const MIXER_ORDER = ["T1", "T3", "T2", "T4", "T5", "T6", "Thinners"];
+  const DISP_ORDER = ["MILLS", "Ystral", "ONS/DUO", "HSDS"];
+
+  const fixedSort = (order: string[]) => (a: GroupRow, b: GroupRow) => {
+    const ai = order.indexOf(a.name);
+    const bi = order.indexOf(b.name);
+    const aIdx = ai === -1 ? order.length + a.name.localeCompare(b.name) : ai;
+    const bIdx = bi === -1 ? order.length : bi;
+    return aIdx - bIdx;
   };
 
-  const mixers = mixerGroups.slice().sort(sortFn);
-  const disps = dispGroups.slice().sort(sortFn);
+  const mixers = mixerGroups.slice().sort(fixedSort(MIXER_ORDER));
+  const disps = dispGroups.slice().sort(fixedSort(DISP_ORDER));
 
   const dateLabels = dates.map((d) => format(new Date(d + "T12:00:00"), "EEE d"));
 

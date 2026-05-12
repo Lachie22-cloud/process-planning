@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/ui/cn";
-import { Search, X } from "lucide-react";
+import { Search, X, BarChart2 } from "lucide-react";
 import { toast } from "sonner";
 import { ResourceLane, type DropTarget } from "./resource-lane";
 import { GroupedPotLane } from "./grouped-pot-lane";
@@ -114,6 +114,7 @@ export function ResourceTimeline({
 }: ResourceTimelineProps) {
   const [tab, setTab] = useState<ResourceTab>("mixers");
   const [search, setSearch] = useState("");
+  const [showCapacity, setShowCapacity] = useState(true);
 
   // Drag-and-drop state
   const [draggedBatch, setDraggedBatch] = useState<Batch | null>(null);
@@ -851,6 +852,16 @@ export function ResourceTimeline({
         </Tabs>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant={showCapacity ? "secondary" : "outline"}
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setShowCapacity((v) => !v)}
+          >
+            <BarChart2 className="h-3.5 w-3.5" />
+            {showCapacity ? "Hide capacity" : "Show capacity"}
+          </Button>
+
           {/* Move mode indicator */}
           {movingBatch && (
             <div className="flex items-center gap-2 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
@@ -895,13 +906,15 @@ export function ResourceTimeline({
         </div>
       </div>
 
-      <CapacityOverviewWall
-        batches={batches}
-        resources={resources}
-        dates={dates}
-        bookendDates={bookendDates}
-        kind={tab === "mixers" ? "mixer" : tab === "dispersers" ? "disp" : "all"}
-      />
+      {showCapacity && (
+        <CapacityOverviewWall
+          batches={batches}
+          resources={resources}
+          dates={dates}
+          bookendDates={bookendDates}
+          kind={tab === "mixers" ? "mixer" : tab === "dispersers" ? "disp" : "all"}
+        />
+      )}
 
       {/* Timeline grid */}
       <div className="rounded-lg border bg-card" ref={timelineRef}>
