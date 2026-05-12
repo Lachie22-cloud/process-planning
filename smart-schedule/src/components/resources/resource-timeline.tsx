@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/ui/cn";
-import { Search, X, BarChart2 } from "lucide-react";
+import { Search, X, BarChart2, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { ResourceLane, type DropTarget } from "./resource-lane";
 import { GroupedPotLane } from "./grouped-pot-lane";
@@ -852,16 +852,6 @@ export function ResourceTimeline({
         </Tabs>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant={showCapacity ? "secondary" : "outline"}
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setShowCapacity((v) => !v)}
-          >
-            <BarChart2 className="h-3.5 w-3.5" />
-            {showCapacity ? "Hide capacity" : "Show capacity"}
-          </Button>
-
           {/* Move mode indicator */}
           {movingBatch && (
             <div className="flex items-center gap-2 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
@@ -906,15 +896,33 @@ export function ResourceTimeline({
         </div>
       </div>
 
-      {showCapacity && (
-        <CapacityOverviewWall
-          batches={batches}
-          resources={resources}
-          dates={dates}
-          bookendDates={bookendDates}
-          kind={tab === "mixers" ? "mixer" : tab === "dispersers" ? "disp" : "all"}
-        />
-      )}
+      {/* Capacity overview — collapsible */}
+      <div className="rounded-lg border bg-card">
+        <button
+          onClick={() => setShowCapacity((v) => !v)}
+          className="flex w-full items-center gap-2 px-4 py-2.5 text-left hover:bg-muted/40 transition-colors"
+        >
+          <BarChart2 className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-semibold">Capacity overview</span>
+          <ChevronDown
+            className={cn(
+              "ml-auto h-4 w-4 text-muted-foreground transition-transform",
+              showCapacity && "rotate-180",
+            )}
+          />
+        </button>
+        {showCapacity && (
+          <div className="border-t p-4">
+            <CapacityOverviewWall
+              batches={batches}
+              resources={resources}
+              dates={dates}
+              bookendDates={bookendDates}
+              kind={tab === "mixers" ? "mixer" : tab === "dispersers" ? "disp" : "all"}
+            />
+          </div>
+        )}
+      </div>
 
       {/* Timeline grid */}
       <div className="rounded-lg border bg-card" ref={timelineRef}>

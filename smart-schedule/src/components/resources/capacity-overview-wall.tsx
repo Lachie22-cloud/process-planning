@@ -536,7 +536,7 @@ export function CapacityOverviewWall({
   // Fixed display order matching the physical resource layout.
   // Groups not in the list fall to the end, ordered by name.
   const MIXER_ORDER = ["T1", "T3", "T2", "T4", "T5", "T6", "Thinners"];
-  const DISP_ORDER = ["MILLS", "Ystral", "ONS/DUO", "HSDS"];
+  const DISP_ORDER = ["MILLS", "YSTRAL", "ONS2", "DUO", "NTZCH", "HSDS", "VSMS"];
 
   const fixedSort = (order: string[]) => (a: GroupRow, b: GroupRow) => {
     const ai = order.indexOf(a.name);
