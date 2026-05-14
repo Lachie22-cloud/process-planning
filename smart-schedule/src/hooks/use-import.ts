@@ -1335,7 +1335,7 @@ export function useImport() {
         const sapOrders = data.map((b) => b.sapOrder);
         const { data: existingRows } = await supabase
           .from("batches")
-          .select("sap_order, status, status_comment, status_changed_at, status_changed_by, vetting_status, vetted_by, vetted_at, vetting_comment, qc_observed_stage, qc_observed_at, qc_observed_by, job_location, observation_comment, ebr_comment, excess_paint_comment, bulk_off_comment")
+          .select("sap_order, plan_resource_id, plan_disperser_id, plan_disperser2_id, status, status_comment, status_changed_at, status_changed_by, vetting_status, vetted_by, vetted_at, vetting_comment, qc_observed_stage, qc_observed_at, qc_observed_by, job_location, observation_comment, ebr_comment, excess_paint_comment, bulk_off_comment")
           .eq("site_id", site.id)
           .in("sap_order", sapOrders);
 
@@ -1343,6 +1343,9 @@ export function useImport() {
           (existingRows ?? []).map((r: Record<string, unknown>) => [
             r.sap_order as string,
             {
+              plan_resource_id: r.plan_resource_id as string | null,
+              plan_disperser_id: r.plan_disperser_id as string | null,
+              plan_disperser2_id: r.plan_disperser2_id as string | null,
               status: r.status as string,
               status_comment: r.status_comment as string | null,
               status_changed_at: r.status_changed_at as string | null,
@@ -1367,6 +1370,11 @@ export function useImport() {
           const existing = existingMap.get(b.sapOrder);
           return {
             ...buildSapFields(b),
+            // Preserve planner resource assignments — overwriting triggers the substitution-rule
+            // guard even when the move is SAP-driven rather than a planner mixer change.
+            plan_resource_id: existing?.plan_resource_id ?? resourceAssignments.get(b.sapOrder) ?? null,
+            plan_disperser_id: existing?.plan_disperser_id ?? disperserAssignmentsState.get(b.sapOrder) ?? null,
+            plan_disperser2_id: existing?.plan_disperser2_id ?? disperser2AssignmentsState.get(b.sapOrder) ?? null,
             // Preserve all workflow fields & comments for existing rows, derive from SAP for new
             status: existing?.status ?? "Planned",
             status_comment: existing?.status_comment ?? null,
@@ -1396,7 +1404,7 @@ export function useImport() {
         const sapOrders = data.map((b) => b.sapOrder);
         const { data: existingRows } = await supabase
           .from("batches")
-          .select("sap_order, status, status_comment, status_changed_at, status_changed_by, vetting_status, vetted_by, vetted_at, vetting_comment, qc_observed_stage, qc_observed_at, qc_observed_by, job_location, observation_comment, ebr_comment, excess_paint_comment, bulk_off_comment")
+          .select("sap_order, plan_resource_id, plan_disperser_id, plan_disperser2_id, status, status_comment, status_changed_at, status_changed_by, vetting_status, vetted_by, vetted_at, vetting_comment, qc_observed_stage, qc_observed_at, qc_observed_by, job_location, observation_comment, ebr_comment, excess_paint_comment, bulk_off_comment")
           .eq("site_id", site.id)
           .in("sap_order", sapOrders);
 
@@ -1404,6 +1412,9 @@ export function useImport() {
           (existingRows ?? []).map((r: Record<string, unknown>) => [
             r.sap_order as string,
             {
+              plan_resource_id: r.plan_resource_id as string | null,
+              plan_disperser_id: r.plan_disperser_id as string | null,
+              plan_disperser2_id: r.plan_disperser2_id as string | null,
               status: r.status as string,
               status_comment: r.status_comment as string | null,
               status_changed_at: r.status_changed_at as string | null,
@@ -1432,6 +1443,10 @@ export function useImport() {
             .from("batches")
             .update({
               ...buildSapFields(b),
+              // Preserve planner resource assignments — same reason as merge mode above
+              plan_resource_id: existing.plan_resource_id ?? resourceAssignments.get(b.sapOrder) ?? null,
+              plan_disperser_id: existing.plan_disperser_id ?? disperserAssignmentsState.get(b.sapOrder) ?? null,
+              plan_disperser2_id: existing.plan_disperser2_id ?? disperser2AssignmentsState.get(b.sapOrder) ?? null,
               // Preserve all existing workflow fields & comments
               status: existing.status,
               status_comment: existing.status_comment,
